@@ -2,21 +2,23 @@ import numpy as np
 from connexion_generation.utility import switch_connexion, change_connexion, compare
 
 
-def compute_synaptic_change(state, target_activation_levels, growth_parameter, change_type,
-                            minimum_calcium_concentration=None):
+def compute_synaptic_change(states, target_activation_levels, growth_parameter, change_type="linear", time_window=1,
+                            minimum_calcium_concentration=0.1):
     # Calculate the synaptic change based on https://doi.org/10.3389/fnana.2016.00057
-    if minimum_calcium_concentration is None:
-        minimum_calcium_concentration = np.ones(len(state)) * 0.1
-
+    states = np.array(states)
     if change_type == "linear":
-        delta_z = (target_activation_levels - state) / growth_parameter
+        delta_z = (target_activation_levels - states) / growth_parameter
 
     elif change_type == "gaussian":
         a = (target_activation_levels + minimum_calcium_concentration) / 2
         b = (target_activation_levels - minimum_calcium_concentration) / 1.65
-        delta_z = growth_parameter * (2 * np.expm1(-(state - a) / b) - 1)
+        delta_z = growth_parameter * (2 * np.expm1(-(states - a) / b) - 1)
     else:
         raise ValueError('change_type must be "linear" or "gaussian"')
+
+    # For the case where we average over a time window
+    if time_window != 1:
+        delta_z = np.average(delta_z, axis=0)
 
     return np.round(delta_z)
 
