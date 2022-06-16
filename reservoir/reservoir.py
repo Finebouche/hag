@@ -100,29 +100,26 @@ def constant_synaptic_scaling(W, synaptic_activation_target):
 
 # https://stackoverflow.com/questions/16016959/scipy-stats-seed
 
-def init_matrices(n, input_connectivity, connectivity, spectral_radius, input_scaling, seed):
+def init_matrices(n, input_connectivity, connectivity, spectral_radius, w_distribution=stats.uniform(0, 1),
+                  win_distribution=stats.norm(1, 0.5), seed=111):
     numpy_randomGen = Generator(PCG64(seed))
+    w_distribution.random_state = numpy_randomGen
+    win_distribution.random_state = numpy_randomGen
     #
     # The distribution generation functions
-    #
-    ## stats.norm(1, 0.5).rvs
-    scipy_norm = stats.norm(1, 0.5)
-    scipy_norm.random_state = numpy_randomGen
-    ## stats.uniform(-1, 1).rvs
-    scipy_uniform = stats.uniform(0, 1)
-    scipy_uniform.random_state = numpy_randomGen
-    ## stats.norm(1, 0.5).rvs
-    scipy_binom = stats.binom(n=1, p=0.5)
-    scipy_binom.random_state = numpy_randomGen
+    # stats.norm(1, 0.5)
+    # stats.uniform(-1, 1)
+    # stats.binom(n=1, p=0.5)
+    bias_distribution = stats.uniform(-1, 1)
+    bias_distribution.random_state = numpy_randomGen
 
     #
     # The generation of the matrices
     #
-    # Input matrice
-    Win = sparse.random(n, 1, density=input_connectivity, random_state=seed, data_rvs=scipy_norm.rvs)
-    Win = Win * input_scaling
-    # Reservoir matrice
-    W = sparse.random(n, n, density=connectivity, random_state=seed, data_rvs=scipy_uniform.rvs)
+    # Input matrix
+    Win = sparse.random(n, 1, density=input_connectivity, random_state=seed, data_rvs=win_distribution.rvs)
+    # Reservoir matrix
+    W = sparse.random(n, n, density=connectivity, random_state=seed, data_rvs=w_distribution.rvs)
     W.setdiag(0)
     W.eliminate_zeros()
     # Set the spectral radius
@@ -131,6 +128,6 @@ def init_matrices(n, input_connectivity, connectivity, spectral_radius, input_sc
     sr = max(abs(eigen))
     W *= spectral_radius / sr
     # Bias matrice
-    bias = scipy_uniform.rvs(size=n)
+    bias = bias_distribution.rvs(size=n)
 
     return Win, W, bias

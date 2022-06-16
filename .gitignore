@@ -6,3 +6,5 @@ __pycache__/losses.cpython-310.pyc
 .idea/
 
 connexion_generation/__pycache__/
+
+.ipynb_checkpoints/
