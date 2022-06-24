@@ -8,6 +8,12 @@ def update_reservoir(W, Win, u, r, leaky_rate, bias, activation_function):
     return activation_function(pre_s)
 
 
+def update_ei_reservoir(W_ee, W_ie, W_ei, Win, u, r_e, r_i, leaky_rate, bias_e, bias_i, activation_function):
+    pre_s_e = (1 - leaky_rate) * r_e + leaky_rate * (W_ee @ r_e - W_ie @ r_i) + Win @ u + bias_e
+    pre_s_i = (1 - leaky_rate) * r_i + leaky_rate * W_ei @ r_e + bias_i
+    return activation_function(pre_s_e), activation_function(pre_s_i)
+
+
 def ridge_regression(R, Ytrain, ridge_coef):
     # R          : the states' matrix
     # Ytrain     : the data to reproduce
@@ -102,32 +108,39 @@ def constant_synaptic_scaling(W, synaptic_activation_target):
 
 def init_matrices(n, input_connectivity, connectivity, spectral_radius, w_distribution=stats.uniform(0, 1),
                   win_distribution=stats.norm(1, 0.5), seed=111):
+    #
+    # The distribution generation functions
+    #
     numpy_randomGen = Generator(PCG64(seed))
     w_distribution.random_state = numpy_randomGen
     win_distribution.random_state = numpy_randomGen
-    #
-    # The distribution generation functions
     # stats.norm(1, 0.5)
     # stats.uniform(-1, 1)
     # stats.binom(n=1, p=0.5)
-    bias_distribution = stats.uniform(-1, 1)
+    bias_distribution = stats.uniform(0, 1)
     bias_distribution.random_state = numpy_randomGen
 
     #
     # The generation of the matrices
     #
-    # Input matrix
-    Win = sparse.random(n, 1, density=input_connectivity, random_state=seed, data_rvs=win_distribution.rvs)
+    if type(n) == int:
+        n = (n, n)
     # Reservoir matrix
-    W = sparse.random(n, n, density=connectivity, random_state=seed, data_rvs=w_distribution.rvs)
-    W.setdiag(0)
-    W.eliminate_zeros()
-    # Set the spectral radius
-    # source : p104 David Verstraeten : largest eigenvalue = spectral radius
-    eigen = sparse.linalg.eigs(W, k=1, which="LM", maxiter=W.shape[0] * 20, tol=0.1, return_eigenvectors=False)
-    sr = max(abs(eigen))
-    W *= spectral_radius / sr
+    W = sparse.random(n[0], n[1], density=connectivity, random_state=seed, data_rvs=w_distribution.rvs)
+    # Input matrix
+    Win = sparse.random(n[0], 1, density=input_connectivity, random_state=seed, data_rvs=win_distribution.rvs)
+
+    # We set the diagonal to zero only for a square matrix
+    if n[0] == n[1]:
+        W.setdiag(0)
+        W.eliminate_zeros()
+        # Set the spectral radius
+        # source : p104 David Verstraeten : largest eigenvalue = spectral radius
+        eigen = sparse.linalg.eigs(W, k=1, which="LM", maxiter=W.shape[0] * 20, tol=0.1, return_eigenvectors=False)
+        sr = max(abs(eigen))
+        W *= spectral_radius / sr
+
     # Bias matrice
-    bias = bias_distribution.rvs(size=n)
+    bias = bias_distribution.rvs(size=n[0])
 
     return Win, W, bias

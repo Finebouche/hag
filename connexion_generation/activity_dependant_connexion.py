@@ -62,6 +62,28 @@ def select_pairs_pruning(need_pruning, W):
     return new_pruning_pairs
 
 
+def add_activity_connexion(W_activity, state, delta_z, value, trigger=0):
+    neurons = np.arange(len(state))
+
+    need_pruning = neurons[delta_z < trigger]
+    # If the connexion increase is negative we do pruning
+    new_prune_pairs = select_pairs_pruning(need_pruning, W_activity)
+    total_prun = 0
+    for connexion in new_prune_pairs:
+        W_activity = change_connexion(W_activity, connexion[0], connexion[1], -value)
+        total_prun += 1
+
+    need_new_connexion = neurons[delta_z > trigger]
+    # If the connexion increase is positive we add a connexion
+    new_connexion_pairs = select_pairs_connexion(need_new_connexion, W_activity)
+    total_add = 0
+    for connexion in new_connexion_pairs:
+        W_activity = switch_connexion(W_activity, connexion[0], connexion[1], value)
+        total_add += 1
+
+    return W_activity, total_add, total_prun
+
+
 def add_good_activity_connexion(W_activity, Win, bias, Wout, activation_function, b_out, state, U_test, y_test, delta_z,
                                 low=-0.05, high=0.05):
     neurons = np.arange(len(state))
@@ -92,25 +114,3 @@ def add_good_activity_connexion(W_activity, Win, bias, Wout, activation_function
         total_add += 1
 
     return W_activity, failed_add, failed_prun, total_add, total_prun
-
-
-def add_activity_connexion(W_activity, state, delta_z, value):
-    neurons = np.arange(len(state))
-
-    need_pruning = neurons[delta_z < 0]
-    # If the connexion increase is negative we do pruning
-    new_prune_pairs = select_pairs_pruning(need_pruning, W_activity)
-    total_prun = 0
-    for connexion in new_prune_pairs:
-        W_activity = change_connexion(W_activity, connexion[0], connexion[1], -value)
-        total_prun += 1
-
-    need_new_connexion = neurons[delta_z > 0]
-    # If the connexion increase is positive we add a connexion
-    new_connexion_pairs = select_pairs_connexion(need_new_connexion, W_activity)
-    total_add = 0
-    for connexion in new_connexion_pairs:
-        W_activity = switch_connexion(W_activity, connexion[0], connexion[1], value)
-        total_add += 1
-
-    return W_activity, total_add, total_prun
