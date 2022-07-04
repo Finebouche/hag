@@ -1,5 +1,5 @@
 import numpy as np
-from connexion_generation.utility import switch_connexion, change_connexion, compare
+from connexion_generation.utility import switch_connexion, change_connexion
 
 
 def compute_synaptic_change(states, target_activation_levels, growth_parameter, change_type="linear", time_window=1,
@@ -82,35 +82,3 @@ def add_activity_connexion(W_activity, state, delta_z, value, trigger=0):
         total_add += 1
 
     return W_activity, total_add, total_prun
-
-
-def add_good_activity_connexion(W_activity, Win, bias, Wout, activation_function, b_out, state, U_test, y_test, delta_z,
-                                low=-0.05, high=0.05):
-    neurons = np.arange(len(state))
-
-    need_pruning = neurons[delta_z < 0]
-    # If the connexion increase is negative we do pruning
-    new_prune_pairs = select_pairs_pruning(need_pruning, W_activity)
-    total_prun = 0
-    failed_prun = 0
-    for connexion in new_prune_pairs:
-        W_new = switch_connexion(W_activity, connexion[0], connexion[1], 0)
-        W_activity, failed = compare(W_activity, W_new, Win, bias, Wout, activation_function, b_out, U_test,
-                                     y_test, state)
-        failed_prun += failed
-        total_prun += 1
-
-    need_new_connexion = neurons[delta_z > 0]
-    # If the connexion increase is positive we add a connexion
-    new_connexion_pairs = select_pairs_connexion(need_new_connexion, W_activity)
-    total_add = 0
-    failed_add = 0
-    for connexion in new_connexion_pairs:
-        value = np.random.uniform(low=low, high=high)
-        W_new = switch_connexion(W_activity, connexion[0], connexion[1], value)
-        W_activity, failed = compare(W_activity, W_new, Win, bias, Wout, activation_function, b_out, U_test,
-                                     y_test, state)
-        failed_add += failed
-        total_add += 1
-
-    return W_activity, failed_add, failed_prun, total_add, total_prun

@@ -19,7 +19,7 @@ def ridge_regression(R, Ytrain, ridge_coef):
     # Ytrain     : the data to reproduce
     # ridge_coef : the ridge coefficient
 
-    ## Partie pour ajouter b_out
+    # Part to add b_out
     R = np.concatenate((np.ones((1, R.shape[1])), R))
     I = np.eye(R.shape[0])
     I[0:0] = 0
