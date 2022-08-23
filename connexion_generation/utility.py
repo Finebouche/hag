@@ -1,5 +1,6 @@
 from scipy import sparse
 
+
 def switch_connexion(W, i, j, value):
     W = sparse.lil_matrix(W)
     W[i, j] = value
