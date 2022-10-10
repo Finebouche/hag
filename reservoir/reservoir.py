@@ -107,17 +107,18 @@ def constant_synaptic_scaling(W, synaptic_activation_target):
 # https://stackoverflow.com/questions/16016959/scipy-stats-seed
 
 def init_matrices(n, input_connectivity, connectivity, spectral_radius, w_distribution=stats.uniform(0, 1),
-                  win_distribution=stats.norm(1, 0.5), seed=111):
+                  win_distribution=stats.uniform(0, 1), seed=111):
     #
     # The distribution generation functions
     #
-    numpy_randomGen = Generator(PCG64(seed))
-    w_distribution.random_state = numpy_randomGen
-    win_distribution.random_state = numpy_randomGen
     # stats.norm(1, 0.5)
     # stats.uniform(-1, 1)
     # stats.binom(n=1, p=0.5)
     bias_distribution = stats.uniform(0, 1)
+    # To ensure reproducibility
+    numpy_randomGen = Generator(PCG64(seed))
+    w_distribution.random_state = numpy_randomGen
+    win_distribution.random_state = numpy_randomGen
     bias_distribution.random_state = numpy_randomGen
 
     #
