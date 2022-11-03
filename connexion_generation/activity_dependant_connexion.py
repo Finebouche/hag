@@ -17,7 +17,7 @@ def compute_synaptic_change(states, target_activation_levels, growth_parameter, 
         raise ValueError('change_type must be "linear" or "gaussian"')
 
     # For the case where we average over a time window
-    if time_window != 1:
+    if time_window != 1 and len(delta_z) > 0:
         delta_z = np.average(delta_z, axis=0)
 
     return np.trunc(delta_z)  # -1,5->-1 and 1.5->1
@@ -99,10 +99,11 @@ def add_activity_connexion_for_excitatory(W_e, W_ie, state, delta_z, value):
         W_e = change_connexion(W_e, connexion[0], connexion[1], -value)
         total_prun += 1
     # We add inhibitory connexion to decrease the rate
-    new_connexion_pairs = select_pairs_connexion(need_decrease, W_ie, True)
-    for connexion in new_connexion_pairs:
-        W_ie = change_connexion(W_ie, connexion[0], connexion[1], value)
-        total_add += 1
+    if min(W_ie.shape) > 0 :
+        new_connexion_pairs = select_pairs_connexion(need_decrease, W_ie, True)
+        for connexion in new_connexion_pairs:
+            W_ie = change_connexion(W_ie, connexion[0], connexion[1], value)
+            total_add += 1
 
     # INCREASE THE RATE
     need_increase = neurons[delta_z >= 1]
@@ -112,9 +113,10 @@ def add_activity_connexion_for_excitatory(W_e, W_ie, state, delta_z, value):
         W_e = change_connexion(W_e, connexion[0], connexion[1], value)
         total_add += 1
     # We prune inhibitory connexion to increase the rate
-    new_prune_pairs = select_pairs_pruning(need_decrease, W_ie)
-    for connexion in new_prune_pairs:
-        W_ie = change_connexion(W_ie, connexion[0], connexion[1], -value)
-        total_prun += 1
+    if min(W_ie.shape) > 0 :
+        new_prune_pairs = select_pairs_pruning(need_decrease, W_ie)
+        for connexion in new_prune_pairs:
+            W_ie = change_connexion(W_ie, connexion[0], connexion[1], -value)
+            total_prun += 1
 
     return W_e, W_ie, total_add, total_prun

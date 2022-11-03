@@ -107,7 +107,7 @@ def constant_synaptic_scaling(W, synaptic_activation_target):
 # https://stackoverflow.com/questions/16016959/scipy-stats-seed
 
 def init_matrices(n, input_connectivity, connectivity, spectral_radius, w_distribution=stats.uniform(0, 1),
-                  win_distribution=stats.uniform(0, 1), seed=111):
+                  win_distribution=stats.norm(1, 0.5), seed=111):
     #
     # The distribution generation functions
     #
@@ -132,7 +132,7 @@ def init_matrices(n, input_connectivity, connectivity, spectral_radius, w_distri
     Win = sparse.random(n[0], 1, density=input_connectivity, random_state=seed, data_rvs=win_distribution.rvs)
 
     # We set the diagonal to zero only for a square matrix
-    if n[0] == n[1]:
+    if n[0] == n[1] and n[0] > 0:
         W.setdiag(0)
         W.eliminate_zeros()
         # Set the spectral radius

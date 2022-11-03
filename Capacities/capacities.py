@@ -293,7 +293,7 @@ class capacity_iterator():
         if self.dimensions > 1:
             # self.corrmat=np.cov(estates)
             covmat = np.dot(estates.T, estates) / estates.shape[0]
-            self.corrmat, crank = scipy.linalg.pinv(covmat, return_rank=True, atol=self.corr_cond)
+            self.corrmat, crank = scipy.linalg.pinv(covmat, return_rank=True, rtol=self.corr_cond)
             print("Estimated rank of state covariance matrix = ", crank)
         else:
             self.corrmat = np.ones((1, 1))
