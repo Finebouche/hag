@@ -1,6 +1,7 @@
 from scipy import sparse
 import numpy as np
 
+
 def spectral_radius(W):
     eigen = sparse.linalg.eigs(W, k=1, which="LM", maxiter=W.shape[0] * 20, tol=0.1, return_eigenvectors=False)
     return max(abs(eigen))
@@ -16,7 +17,8 @@ def pearson(states1, states2):
 
     return numerator / denominator
 
-#for a network of size n, compute pearson for every neurons
+
+# for a network of size n, compute pearson for every neurons
 def pearson_matrix(states):
     n = states.shape[1]
     pearson_matrix = np.zeros((n, n))
@@ -45,3 +47,21 @@ def uncoupled_dynamics(STATE_H, temp=5000, A=0.9):
         frac = frac + rel_sv[UD]
         UD += 1
     return UD, frac
+
+
+# calculate estimator of Renyi’s quadratic entropy by the Parzen Window method using aGaussian kernel
+def renyi_entropy(states, K=0.3):
+    # K = 0.3 in the paper
+    n = states.shape[1]
+    states = states - np.mean(states, axis=0)
+    states = states / np.std(states, axis=0)
+    entropy = 0
+
+    # the gaussian kernel use for approximation with the kernel size K
+    def gaussian(x):
+        return np.exp(-x ** 2 / (2 * K ** 2))
+
+    for i in range(n):
+        for j in range(n):
+            entropy += gaussian(states[:, i] - states[:, j])
+    return np.log(entropy / (n ** 2))

@@ -24,11 +24,7 @@ def softplus(x: np.ndarray) -> np.ndarray:
     return np.log(1 + np.exp(x))
 
 
-@_elementwise
 def sigmoid(x: np.ndarray) -> np.ndarray:
-    if x < 0:
-        u = np.exp(x)
-        return u / (u + 1)
     return 1 / (1 + np.exp(-x))
 
 

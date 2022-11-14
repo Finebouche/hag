@@ -16,9 +16,9 @@ def compute_synaptic_change(states, target_activation_levels, growth_parameter, 
     else:
         raise ValueError('change_type must be "linear" or "gaussian"')
 
-    # For the case where we average over a time window
+    # For the case where we average over a time window (weighted average for 0 size array)
     if time_window != 1 and len(delta_z) > 0:
-        delta_z = np.average(delta_z, axis=0)
+        delta_z = np.ma.average(delta_z, axis=0)
 
     return np.trunc(delta_z)  # -1,5->-1 and 1.5->1
 
