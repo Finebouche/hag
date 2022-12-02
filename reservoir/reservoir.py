@@ -7,11 +7,6 @@ def update_reservoir(W, Win, u, r, leaky_rate, bias, activation_function):
     pre_s = (1 - leaky_rate) * r + leaky_rate * W @ r + Win @ u + bias
     return activation_function(pre_s)
 
-# compute sigmoid for a vector
-def sigmoid(x):
-    return 1 / (1 + np.exp(-x))
-
-
 def update_ei_reservoir(W_ee, W_ie, W_ei, Win, u, r_e, r_i, leaky_rate, bias_e, bias_i, activation_function):
     pre_s_e = (1 - leaky_rate) * r_e + leaky_rate * (W_ee @ r_e - W_ie @ r_i) + Win @ u + bias_e
     pre_s_i = (1 - leaky_rate) * r_i + leaky_rate * W_ei @ r_e + bias_i
@@ -170,7 +165,7 @@ def constant_synaptic_scaling(W, synaptic_activation_target):
 
 # https://stackoverflow.com/questions/16016959/scipy-stats-seed
 
-def init_matrices(n, input_connectivity, connectivity, spectral_radius, w_distribution=stats.uniform(0, 1),
+def init_matrices(n, input_connectivity, connectivity, spectral_radius=1, w_distribution=stats.uniform(0, 1),
                   win_distribution=stats.norm(1, 0.5), seed=111):
     #
     # The distribution generation functions

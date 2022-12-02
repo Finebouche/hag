@@ -1,5 +1,5 @@
 import numpy as np
-from connexion_generation.utility import switch_connexion, compare
+from connexion_generation.utility import switch_connexion
 
 
 def add_random_connexion(W, low, high):
