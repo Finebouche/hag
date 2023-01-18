@@ -9,22 +9,31 @@ def select_pairs_connexion(need_new, W, is_inter_matrix=False):
 
     # New way
     need_new = list(need_new)
-    new_connexion = []
+    new_connexions = []
 
-    # all neuron are available to make a new connection (including the one it has already connection with)
-    available_neuron = list(range(W.shape[1]))
+    if is_inter_matrix:
+        # all neuron are available for to make a new connection (including the one it has already connection with)
+        available_neurons = list(range(W.shape[1]))
+    else:
+        # only neurons that need a new connection are available
+        available_neurons = list(need_new)
 
     for selected_neuron in need_new:
-        available_for_this_neuron = available_neuron.copy()
+        available_for_this_neuron = available_neurons.copy()
         if not is_inter_matrix:
             # cannot add a connexion with itself
             available_for_this_neuron.remove(selected_neuron)
 
         # select randomly
-        incoming_connexion = available_for_this_neuron[np.random.randint(len(available_for_this_neuron))]
-        new_connexion.append((selected_neuron, incoming_connexion))
+        if len(available_for_this_neuron) > 0:
+            incoming_connexion = np.random.choice(available_for_this_neuron)
+            new_connexions.append((selected_neuron, incoming_connexion))
 
-    return new_connexion
+    # faster way to do this ?
+    # incoming_connexion = np.random.choice(available_neurons, len(need_new))
+    # pairs = np.array([need_new, incoming_connexion]).T
+
+    return new_connexions
 
 def adsp(W_e, state, delta_z, value, W_outside_neurons=np.array([])):
     neurons = np.arange(len(state))
@@ -60,3 +69,22 @@ def adsp(W_e, state, delta_z, value, W_outside_neurons=np.array([])):
             total_prun += 1
 
     return W_e, W_outside_neurons, total_add, total_prun
+
+
+if __name__ == '__main__':
+    from scipy import sparse
+
+    need_new = [0, 1, 4]
+    W = [[0., 0., 0., 0., 0.],
+         [0., 0., 0., 0., 0.],
+         [0., 0., 0., 0., 0.8082361],
+         [0., 0., 0., 0., 0.],
+         [0., 0., 0., 0., 0.],
+         [0., 0., 0., 0., 0.],
+         [0.21610, 0., 0., 0., 0.],
+         [0., 0.43948, 0., 0., 0.],
+         [0., 0.75003, 0., 0., 0.], ]
+    # create a sparse matrix from W
+    W = sparse.coo_matrix(W)
+
+    select_pairs_connexion(need_new, W, is_inter_matrix=False)

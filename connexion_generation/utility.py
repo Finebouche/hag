@@ -1,7 +1,7 @@
 from scipy import sparse
 import numpy as np
 
-def compute_synaptic_change(states, target_activation_levels, growth_parameter, change_type="linear", time_window=1,
+def compute_synaptic_change(states, target_activation_levels, growth_parameter, change_type="linear", average="QUEUE", queue_size = 5,
                             minimum_calcium_concentration=0.1):
     # Calculate the synaptic change based on https://doi.org/10.3389/fnana.2016.00057
     states = np.array(states)
@@ -16,8 +16,14 @@ def compute_synaptic_change(states, target_activation_levels, growth_parameter, 
         raise ValueError('change_type must be "linear" or "gaussian"')
 
     # For the case where we average over a time window (weighted average for 0 size array)
-    if time_window != 1 and len(delta_z) > 0:
+    if average=="WHOLE":
         delta_z = np.ma.average(delta_z, axis=0)
+    # else we take the last value from the time window
+    elif average == "LAST":
+        delta_z = delta_z[-1]
+    # else we take the last queue_size values from the time window
+    elif average=="QUEUE":
+        delta_z = np.ma.average(delta_z[-queue_size:], axis=0)
 
     return np.trunc(delta_z)  # -1,5->-1 and 1.5->1
 
@@ -44,7 +50,7 @@ def change_connexion(W, i, j, value):
     W.eliminate_zeros()
     return W
 
-def switch_connexion(W, i, j, value):
+def set_connexion(W, i, j, value):
     W = sparse.lil_matrix(W)
     W[i, j] = value
     W = sparse.coo_matrix(W)
