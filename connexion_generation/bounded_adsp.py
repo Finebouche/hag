@@ -25,7 +25,7 @@ def select_pairs_connexion(need_new, W, is_inter_matrix=False, max_connections =
             available_for_this_neuron.remove(selected_neuron)
         # If neuron already has more than MAX_NUMBER_OF_PARTNER partners:
         # the available neurons are the one that already have a connexion with it
-        if np.count_nonzero(W.getrow(selected_neuron).A) == max_connections:
+        if np.count_nonzero(W.getrow(selected_neuron).A) >= max_connections:
             available_for_this_neuron = W.getrow(selected_neuron).nonzero()[1]
 
 
@@ -57,7 +57,7 @@ def bounded_adsp(W_e, state, delta_z, value, W_inhibitory_connexions=np.array([]
         total_prun += 1
     # We add inhibitory connexion to decrease the rate
     if min(W_inhibitory_connexions.shape) > 0:
-        new_connexion_pairs = select_pairs_connexion(need_pruning, W_inhibitory_connexions, True, max_connections=max_connections)
+        new_connexion_pairs = select_pairs_connexion(need_pruning, W_inhibitory_connexions, True)
         for connexion in new_connexion_pairs:
             W_inhibitory_connexions = change_connexion(W_inhibitory_connexions, connexion[0], connexion[1], value)
             total_add += 1
@@ -111,3 +111,4 @@ if __name__ == '__main__':
     W = sparse.coo_matrix(W)
 
     select_pairs_connexion(need_new, W, is_inter_matrix=False)
+

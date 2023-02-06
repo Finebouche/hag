@@ -4,11 +4,11 @@ from numpy.random import Generator, PCG64
 
 
 def update_reservoir(W, Win, u, r, leaky_rate, bias, activation_function):
-    pre_s = (1 - leaky_rate) * r + leaky_rate * W @ r + Win @ u + bias
+    pre_s = (1 - leaky_rate) * r + leaky_rate * (W @ r) + (Win.A.flatten() * u.flatten()) + bias
     return activation_function(pre_s)
 
 def update_ei_reservoir(W_ee, W_ie, W_ei, Win, u, r_e, r_i, leaky_rate, bias_e, bias_i, activation_function):
-    pre_s_e = (1 - leaky_rate) * r_e + leaky_rate * (W_ee @ r_e - W_ie @ r_i) + (Win.A * u).flatten() + bias_e
+    pre_s_e = (1 - leaky_rate) * r_e + leaky_rate * (W_ee @ r_e - W_ie @ r_i) + (Win.A.flatten() * u) + bias_e
     pre_s_i = (1 - leaky_rate) * r_i + leaky_rate * W_ei @ r_e + bias_i
     return activation_function(pre_s_e), activation_function(pre_s_i)
 
@@ -20,11 +20,14 @@ def ridge_regression(R, Ytrain, ridge_coef):
 
     # Part to add b_out
     R = np.concatenate((np.ones((1, R.shape[1])), R))
-    I = np.eye(R.shape[0])
-    I[0:0] = 0
 
     # W_out = (Ytrain@R.T) @ (linalg.inv(R@R.T + ridge_coef*np.eye(R.shape[0])))
-    W_out = linalg.solve(R @ R.T + ridge_coef * I, R @ Ytrain.T).T
+    if ridge_coef == 0:
+        W_out = linalg.solve(R @ R.T, R @ Ytrain.T).T
+    else:
+        I = np.eye(R.shape[0])
+        I[0:0] = 0
+        W_out = linalg.solve(R @ R.T + ridge_coef * I, R @ Ytrain.T).T
 
     b_out = W_out[:, 0]
     W_out = W_out[:, 1:]
@@ -42,9 +45,15 @@ def train(W, Win, bias, Utrain, Ytrain, activation_function, ridge_coef=1e-8, in
 
     # run the reservoir with the data and collect R = (u, state)
     seq_len = len(Utrain)
+    if Utrain.ndim == 2 and Utrain.shape[1] > 1:
+        seq_len = len(Utrain[1,:])
+
     R = np.zeros((n, seq_len - init_len))
     for t in range(seq_len):
-        u = Utrain[t]
+        if Utrain.ndim == 1 or Utrain.shape[1] == 1 or Utrain.shape[0] == 1:
+            u = Utrain[t]
+        elif Utrain.ndim == 2:
+            u = Utrain[:, t]
         state = update_reservoir(W, Win, u, state, leaky_rate, bias, activation_function)
         # we collect after the initialisation of the reservoir (default = 0)
         if t > init_len:
@@ -75,9 +84,16 @@ def train_ei(W_ee, W_ie, W_ei, Win_e, bias_e, bias_i, Utrain, Ytrain, activation
 
     # run the reservoir with the data and collect R = (u, state)
     seq_len = len(Utrain)
+    if Utrain.ndim == 2 and Utrain.shape[1] > 1:
+        seq_len = len(Utrain[1,:])
+
     R = np.zeros((n_e, seq_len - init_len))
     for t in range(seq_len):
-        u = Utrain[t]
+        if Utrain.ndim == 1 or Utrain.shape[1] == 1 or Utrain.shape[0] == 1:
+            u = Utrain[t]
+        elif Utrain.ndim == 2:
+            u = Utrain[:, t]
+
         state_e, state_i = update_ei_reservoir(W_ee, W_ie, W_ei, Win_e, u, state_e, state_i, leaky_rate, bias_e, bias_i,
                                                activation_function)
         # we collect after the initialisation of the reservoir (default = 0)
@@ -99,11 +115,17 @@ def run(W, Win, bias, Wout, U, activation_function, b_out=None, last_state=None,
     # We start from previous state or else from uniform random state
     n = Win.shape[0]
     state = (np.random.uniform(0, 1, n) if last_state is None else last_state)
-
     seq_len = len(U)
+    if U.ndim == 2 and U.shape[1] > 1:
+        seq_len = len(U[1,:])
+
     R = np.zeros((n, seq_len))
     for t in range(seq_len):
-        u = U[t]
+        if U.ndim == 1 or U.shape[1] == 1 or U.shape[0] == 1:
+            u = U[t]
+        elif U.ndim == 2 and U.shape[1] > 1:
+            u = U[:,t]
+
         state = update_reservoir(W, Win, u, state, leaky_rate, bias, activation_function)
         #         R[:, t ] =  np.concatenate((u,state))
         R[:, t] = state
@@ -126,9 +148,15 @@ def run_ei(W_ee, W_ie, W_ei, Win_e, bias_e, bias_i, Wout, U, activation_function
         state_i = last_state_i
 
     seq_len = len(U)
+    if U.ndim == 2 and U.shape[1] > 1:
+        seq_len = len(U[1,:])
+
     R = np.zeros((n_e, seq_len))
     for t in range(seq_len):
-        u = U[t]
+        if U.ndim == 1 or U.shape[1] == 1 or U.shape[0] == 1:
+            u = U[t]
+        elif U.ndim == 2 and U.shape[1] > 1:
+            u = U[:,t]
         state_e, state_i = update_ei_reservoir(W_ee, W_ie, W_ei, Win_e, u, state_e, state_i, leaky_rate, bias_e, bias_i,
                                                activation_function)
         #         R[:, t ] =  np.concatenate((u,state))
@@ -173,7 +201,7 @@ def init_matrices(n, input_connectivity, connectivity, spectral_radius=1, w_dist
     # stats.norm(1, 0.5)
     # stats.uniform(-1, 1)
     # stats.binom(n=1, p=0.5)
-    bias_distribution = stats.uniform(0, 1)
+    bias_distribution = stats.norm(0.1, 0.1)
     # To ensure reproducibility
     numpy_randomGen = Generator(PCG64(seed))
     w_distribution.random_state = numpy_randomGen
@@ -204,3 +232,5 @@ def init_matrices(n, input_connectivity, connectivity, spectral_radius=1, w_dist
     bias = bias_distribution.rvs(size=n[0])
 
     return Win, W, bias
+
+#code further predicted point
