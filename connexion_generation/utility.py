@@ -57,23 +57,3 @@ def set_connexion(W, i, j, value):
     if value == 0:
         W.eliminate_zeros()
     return W
-
-# ARCHIVED CODE
-
-# def intersection(arr1, arr2):
-#     # Function to find intersection of two arrays
-#     result = list(filter(lambda x: x in arr1, arr2))
-#     return result
-
-
-# def compare(W_old, W_new, Win, bias, Wout, activation_function, b_out, U_test, y_test, last_state, leaky_rate=1):
-#     y_pred_old = run(W_old, Win, bias, Wout, U_test, activation_function, b_out, last_state, leaky_rate)
-#     nrmse_old = nrmse(y_test, y_pred_old)
-#
-#     y_pred_new = run(W_new, Win, bias, Wout, U_test, activation_function, b_out, last_state)
-#     nrmse_new = nrmse(y_test, y_pred_new)
-#     if float(nrmse_new) < float(nrmse_old):
-#         print(float(nrmse_new))
-#         return W_new, 0
-#     else:
-#         return W_old, 1
