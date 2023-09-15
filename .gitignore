@@ -1,6 +1,3 @@
-
-__pycache__/*
-reservoir/__pycache__/*
+**/__pycache__/
 .idea/
-connexion_generation/__pycache__/*
 .ipynb_checkpoints/
