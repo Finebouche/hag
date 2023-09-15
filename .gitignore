@@ -1,10 +1,6 @@
 
-.ipynb_checkpoints/Structural_plasticity-checkpoint.ipynb
-
-__pycache__/losses.cpython-310.pyc
-
+__pycache__/*
+reservoir/__pycache__/*
 .idea/
-
-connexion_generation/__pycache__/
-
+connexion_generation/__pycache__/*
 .ipynb_checkpoints/

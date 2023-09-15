@@ -1,0 +1,19 @@
+name: hadsp_env
+channels:
+  - defaults
+  - conda-forge
+dependencies:
+  - numpy
+  - scipy
+  - matplotlib
+  - seaborn
+  - pandas
+  - scikit-learn
+  - pytorch  # 'torch' is named 'pytorch' in conda
+  - tensorflow
+  - optuna
+  - jupyterlab
+  - pip
+  - pip:
+    - reservoirpy
+    - jupyterlab-execute-time
