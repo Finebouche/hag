@@ -2,7 +2,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from scipy import signal
 
-def extract_peak_frequencies(input_data, sampling_rate, nperseg=1024, visualize=True):
+def extract_peak_frequencies(input_data, sampling_rate, threshold, nperseg=1024, visualize=True):
     # Estimate power spectral density using Welch's method
     f, Pxx_den = signal.welch(input_data, sampling_rate, nperseg=nperseg)
     
@@ -15,7 +15,7 @@ def extract_peak_frequencies(input_data, sampling_rate, nperseg=1024, visualize=
     # Calculate the maximum power peak
     max_power = np.max(Pxx_den[peak_indices])
     max_powerpeak_powers = Pxx_den[peak_indices]
-    power_threshold = 1e-5*max_power
+    power_threshold = threshold*max_power
     filtered_peak_freqs = peak_freqs[peak_powers > power_threshold]
 
     if visualize: 

@@ -1,8 +1,7 @@
 from scipy import sparse
 import numpy as np
 
-def compute_synaptic_change(states, target_activation_levels, growth_parameter, change_type="linear", average="QUEUE", queue_size = 5,
-                            minimum_calcium_concentration=0.1):
+def compute_synaptic_change(states, target_activation_levels, growth_parameter, change_type="linear", average="QUEUE", queue_size = 5, minimum_calcium_concentration=0.1):
     # Calculate the synaptic change based on https://doi.org/10.3389/fnana.2016.00057
     states = np.array(states)
     if change_type == "linear":
@@ -40,6 +39,7 @@ def select_pairs_pruning(need_pruning, W):
             incoming_connexion = row[np.random.randint(len(row))]
             new_pruning_pairs.append((selected_neuron, incoming_connexion))
     return new_pruning_pairs
+    
 def change_connexion(W, i, j, value):
     # i for rows, j for columns
     W = sparse.lil_matrix(W)

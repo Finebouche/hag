@@ -1,6 +1,7 @@
 import numpy as np
 from connexion_generation.utility import change_connexion, set_connexion, select_pairs_pruning
-
+from connexion_generation.utility import compute_synaptic_change
+from reservoir.reservoir import update_reservoir
 
 def select_pairs_connexion(need_new, W, is_inter_matrix=False, max_connections = 12):
     # Old way to do it
@@ -92,23 +93,60 @@ def bounded_adsp(W_e, state, delta_z, value, W_inhibitory_connexions=np.array([]
             total_prun += 1
 
     return W_e, W_inhibitory_connexions, total_add, total_prun
+    
 
+class TwoDimArrayWrapper:
+    def __init__(self, input_data):
+        if input_data.ndim != 2:
+            raise ValueError("Expected a 2D array.")
+        self.input_data = input_data
+        self.shape = input_data.shape
+        self.size = input_data.shape[1]
+        self.flat_data = input_data.flatten()
 
-if __name__ == '__main__':
-    from scipy import sparse
+    def __getitem__(self, key):
+        # Handle single element access
+        return self.input_data[:, key]
+        
+def run_HADSP_algorithm(W, Win, bias, leaky_rate, activation_function, input_data, increment, value, target_rate, growth_parameter, visualize=False):    # last_state
+    state = np.random.uniform(0, 1, bias.size)
+    state_history = []
+    
+    total_add = 0
+    total_prun = 0
+    add = []
+    prun = []
+    step=0
 
-    need_new = [0, 1, 4]
-    W = [[0., 0., 0., 0., 0.],
-         [0., 0., 0., 0., 0.],
-         [0., 0., 0., 0., 0.8082361],
-         [0., 0., 0., 0., 0.],
-         [0., 0., 0., 0., 0.],
-         [0., 0., 0., 0., 0.],
-         [0.21610, 0., 0., 0., 0.],
-         [0., 0.43948, 0., 0., 0.],
-         [0., 0.75003, 0., 0., 0.], ]
-    # create a sparse matrix from W
-    W = sparse.coo_matrix(W)
+    for i in range(increment*5):
+        state = update_reservoir(W, Win, input_data[i], state, leaky_rate, bias, activation_function)
+        state_history.append(state)
 
-    select_pairs_connexion(need_new, W, is_inter_matrix=False)
+    # size of simulation 
+    number_steps = int((input_data.size-increment*5)/increment)
+    for k in range(number_steps): 
+        delta_z = compute_synaptic_change(state_history[-increment:], target_rate, growth_parameter, average="WHOLE")
+        W, _, nb_new_add, nb_new_prun = bounded_adsp(W, state, delta_z, value)
+    
+        for i in range(increment):
+            state = update_reservoir(W, Win, input_data[increment*(k+5)+i], state, leaky_rate, bias, activation_function)
+            state_history.append(state)
+            
+        total_add += nb_new_add
+        total_prun += nb_new_prun
+        add.append(total_add)
+        prun.append(total_prun)
+        step += 1
+        
+    add = np.array(add)
+    prun = np.array(prun)
 
+    if visualize:
+        plt.figure()
+        plt.plot(np.arange(step)*INCREMENT, add, label="total number of added connexion")
+        plt.plot(np.arange(step)*INCREMENT, prun, label="total number of prunned connexion")
+        plt.plot(np.arange(step)*INCREMENT, add-prun, label="difference")
+        plt.plot(np.arange(step)*INCREMENT, [0]*step, linestyle=(0, (1, 10)))
+        plt.legend()
+        plt.grid()
+    return W
