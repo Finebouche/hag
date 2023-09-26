@@ -1,30 +1,47 @@
 from scipy import sparse
 import numpy as np
 
-def compute_synaptic_change(states, target_activation_levels, growth_parameter, change_type="linear", average="QUEUE", queue_size = 5, minimum_calcium_concentration=0.1):
-    # Calculate the synaptic change based on https://doi.org/10.3389/fnana.2016.00057
-    states = np.array(states)
-    if change_type == "linear":
-        delta_z = (target_activation_levels - states) / growth_parameter
+class TwoDimArrayWrapper:
+    def __init__(self, input_data):
+        if input_data.ndim != 2:
+            raise ValueError("Expected a 2D array.")
+        self.input_data = input_data
+        self.shape = input_data.shape
+        self.size = input_data.shape[1]
+        self.flat_data = input_data.flatten()
 
-    elif change_type == "gaussian":
-        a = (target_activation_levels + minimum_calcium_concentration) / 2
-        b = (target_activation_levels - minimum_calcium_concentration) / 1.65
-        delta_z = growth_parameter * (2 * np.expm1(-(states - a) / b) - 1)
+    def __getitem__(self, key):
+        # Handle single element access
+        return self.input_data[:, key]
+
+
+def select_pairs_connexion(need_new, W, is_inter_matrix=False, max_connections=12):
+    need_new = list(need_new)
+    new_connexions = []
+
+    if is_inter_matrix:
+        # all neuron are available for to make a new connection (including the one it has already connection with)
+        available_neurons = list(range(W.shape[1]))
     else:
-        raise ValueError('change_type must be "linear" or "gaussian"')
+        # only neurons that need a new connection are available
+        available_neurons = list(need_new)
 
-    # For the case where we average over a time window (weighted average for 0 size array)
-    if average=="WHOLE":
-        delta_z = np.ma.average(delta_z, axis=0)
-    # else we take the last value from the time window
-    elif average == "LAST":
-        delta_z = delta_z[-1]
-    # else we take the last queue_size values from the time window
-    elif average=="QUEUE":
-        delta_z = np.ma.average(delta_z[-queue_size:], axis=0)
+    for selected_neuron in need_new:
+        available_for_this_neuron = available_neurons.copy()
+        if not is_inter_matrix:
+            # cannot add a connexion with itself
+            available_for_this_neuron.remove(selected_neuron)
+        # If neuron already has more than MAX_NUMBER_OF_PARTNER partners:
+        # the available neurons are the one that already have a connexion with it
+        if np.count_nonzero(W.getrow(selected_neuron).A) >= max_connections:
+            available_for_this_neuron = W.getrow(selected_neuron).nonzero()[1]
 
-    return np.trunc(delta_z)  # -1,5->-1 and 1.5->1
+        # select randomly
+        if len(available_for_this_neuron) > 0:
+            incoming_connexion = np.random.choice(available_for_this_neuron)
+            new_connexions.append((selected_neuron, incoming_connexion))
+
+    return new_connexions
 
 
 def select_pairs_pruning(need_pruning, W):
@@ -39,7 +56,8 @@ def select_pairs_pruning(need_pruning, W):
             incoming_connexion = row[np.random.randint(len(row))]
             new_pruning_pairs.append((selected_neuron, incoming_connexion))
     return new_pruning_pairs
-    
+
+
 def change_connexion(W, i, j, value):
     # i for rows, j for columns
     W = sparse.lil_matrix(W)
@@ -48,12 +66,4 @@ def change_connexion(W, i, j, value):
         W[i, j] = 0
     W = sparse.coo_matrix(W)
     W.eliminate_zeros()
-    return W
-
-def set_connexion(W, i, j, value):
-    W = sparse.lil_matrix(W)
-    W[i, j] = value
-    W = sparse.coo_matrix(W)
-    if value == 0:
-        W.eliminate_zeros()
     return W
