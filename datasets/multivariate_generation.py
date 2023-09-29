@@ -42,27 +42,26 @@ def butterworth_filter(data, lowcut, highcut, fs, btype='band', order=2):
     return lfilter(b, a, data).flatten()
 
 
-def generate_multivariate_dataset(filtered_peak_freqs, X_pretrain, X_train, X_test, sampling_rate, nb_jobs=1, visualize=True):
+def generate_multivariate_dataset(filtered_peak_freqs, X_pretrain, X_train, X_test, sampling_rate, nb_jobs=1, verbosity=1):
+    
     lowcut = np.concatenate(([filtered_peak_freqs[0]], (filtered_peak_freqs[:-1] + filtered_peak_freqs[1:]) / 2))
     highcut = np.concatenate(((filtered_peak_freqs[:-1] + filtered_peak_freqs[1:]) / 2, [filtered_peak_freqs[-1]]))
-    X_pretrain = np.concatenate(X_train[:20], axis=0)  
-
-    if visualize:
-        verbosity = 1
-    else: verbosity = 0
-
+    
     def process_sample(x):
-        return list(map(lambda f: butterworth_filter(x, lowcut[f], highcut[f], fs=sampling_rate), range(len(filtered_peak_freqs))))
-
+        return list(
+            map(lambda f: butterworth_filter(x, lowcut[f], highcut[f], fs=sampling_rate), range(len(filtered_peak_freqs)))
+        )
         
     # Pretrain data
-    modulated_time_series = np.array(list(map(
-        lambda f: butterworth_filter(X_pretrain.flatten(), lowcut[f], highcut[f], fs=sampling_rate),
-        range(len(filtered_peak_freqs))
-    )))
-    # Train
-    X_train_band = np.array(Parallel(n_jobs=nb_jobs, verbose=verbosity)(delayed(process_sample)(x) for x in X_train), dtype=object)
-    # Test
-    X_test_band = np.array(Parallel(n_jobs=nb_jobs, verbose=verbosity)(delayed(process_sample)(x) for x in X_test), dtype=object)
+    modulated_time_series = np.array(process_sample(X_pretrain.flatten()))
+
+    if len(X_train[0].shape)>1:
+        # Train
+        X_train_band = np.array(Parallel(n_jobs=nb_jobs, verbose=verbosity)(delayed(process_sample)(x) for x in X_train), dtype=object)
+        # Test
+        X_test_band = np.array(Parallel(n_jobs=nb_jobs, verbose=verbosity)(delayed(process_sample)(x) for x in X_test), dtype=object)
+    else: 
+        X_train_band = np.array(process_sample(X_train.flatten()))
+        X_test_band = np.array(process_sample(X_test.flatten()))
 
     return modulated_time_series, X_train_band, X_test_band

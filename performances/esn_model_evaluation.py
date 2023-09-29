@@ -30,7 +30,6 @@ def train_and_predict_model(W, Win, bias, activation_function, ridge_coef, X_tra
 
     readout.fit(np.array(states_train), Y_train)
 
-    Y_pred = []
     def predict(x):
         states = reservoir.run(x, reset=True)
         y = readout.run(states[-1, np.newaxis])
