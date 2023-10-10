@@ -11,9 +11,12 @@ class TwoDimArrayWrapper:
         self.flat_data = input_data.flatten()
 
     def __getitem__(self, key):
+        # Handle slice access
+        if isinstance(key, slice):
+            sliced_data = self.input_data[:, key.start:key.stop:key.step]
+            return TwoDimArrayWrapper(sliced_data)
         # Handle single element access
         return self.input_data[:, key]
-
 
 def select_pairs_connexion(need_new, W, is_inter_matrix=False, max_connections=12):
     need_new = list(need_new)

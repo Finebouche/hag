@@ -1,15 +1,20 @@
 import numpy as np
 import reservoirpy
-reservoirpy.verbosity(0)
-from reservoirpy.nodes import Reservoir, Ridge, ESN
+reservoirpy.verbosity(level=0)
 from scipy.sparse import csr_matrix
 from joblib import Parallel, delayed
 from sklearn.metrics import mutual_info_score
 from sklearn.metrics import accuracy_score
 
+reservoirpy.verbosity(level=0)
+
+from reservoirpy.nodes import Reservoir, Ridge, ESN
+
+
 def train_and_predict_model(W, Win, bias, activation_function, ridge_coef, X_train, X_test, Y_train, n_jobs):
     # To remember :
     #  For reservoirpy   pre_s = W @ r + Win @ (u + noise_gen(dist=dist, shape=u.shape, gain=g_in)) + bias
+    reservoirpy.verbosity(level=0)
 
     reservoir = Reservoir(units=bias.size,
                           W =csr_matrix(W),

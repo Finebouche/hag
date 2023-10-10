@@ -1,128 +1,100 @@
-from graph_tool.all import arf_layout, Graph, graph_draw, get_hierarchy_tree, radial_tree_layout, \
-    get_hierarchy_control_points, minimize_nested_blockmodel_dl
-import matplotlib.cm as colormaps
 import numpy as np
 import matplotlib.pyplot as plt
-import matplotlib.colors as mcolors
-import imageio
-from tqdm.notebook import tqdm
+import networkx as nx
+from io import BytesIO
 
-def state_to_color(state, max_value):
-    # Normalize the state value to between 0 and 1
-    normalized_state = state / max_value
+import matplotlib.image as mpimg
+from matplotlib.offsetbox import OffsetImage,AnnotationBbox
 
-    # Get the "cividis" colormap
-    cmap = plt.get_cmap("viridis")
 
-    # Convert the normalized state value to a color
-    color = cmap(normalized_state)
+def motif_distribution(W):
+    # N is a tuple (row, col), since W might not be a square matrix
+    N = W.shape[0]
 
-    return list(color)
+    # Define binary connectivity matrix
+    M = np.where(W > 0, 1, 0)
+    M = M - np.diag(np.diag(M))
 
-def create_network(W, Win=None, Wout=None):
-    # Size of the number of connection in the connection matrice
-    row, col = W.row, W.col
-    W = W.toarray() / np.amax(W)
-    n = len(W)
+    M = M.T
+    S = np.where(M == M.T, M, 0)
+    A = M - S
+    Mtilde = np.ones((N, N)) - M
+    Stilde = np.where(Mtilde == Mtilde.T, Mtilde, 0)
+    Stilde = Stilde - np.diag(np.diag(Stilde))
+
+    # Motifs calculation
+    Mot1 = np.sum(np.sum((Stilde @ Stilde) * Stilde)) / 6                          # subgraph 
+    Mot2 = np.sum(np.sum((Stilde @ Stilde) * A))                                   # subgraph 
+    Mot3 = np.sum(np.sum((Stilde @ Stilde) * S)) / 2                               # subgraph 
+    Mot4 = (np.sum(np.sum((A.T @ A) * Mtilde * Mtilde.T)) - np.trace(A.T @ A)) / 2 # subgraph 6
+    Mot5 = (np.sum(np.sum((A @ A.T) * Mtilde * Mtilde.T)) - np.trace(A @ A.T)) / 2 # subgraph 36
+    Mot6 = np.sum(np.sum((A @ A) * Mtilde * Mtilde.T))                             # subgraph 12
+    Mot7 = np.sum(np.sum((S @ A.T) * Mtilde * Mtilde.T))                           # subgraph 74
+    Mot8 = np.sum(np.sum((S @ A) * Mtilde * Mtilde.T))                             # subgraph 14
+    Mot9 = (np.sum(np.sum((S @ S) * Mtilde * Mtilde.T)) - np.trace(S @ S)) / 2     # subgraph 78
+    Mot10 = np.sum(np.sum((A @ A) * A))                                            # subgraph 38
+    Mot11 = np.sum(np.sum((A.T @ A.T) * A)) / 3                                    # subgraph 98
+    Mot12 = np.sum(np.sum((A.T @ A) * S)) / 2                                      # subgraph 108
+    Mot13 = np.sum(np.sum((A @ A) * S))                                            # subgraph 102
+    Mot14 = np.sum(np.sum((A @ A.T) * S)) / 2                                      # subgraph 46
+    Mot15 = np.sum(np.sum((S @ S) * A))                                            # subgraph 110
+    Mot16 = np.sum(np.sum((S @ S) * S)) / 6                                        # subgraph 238
+
+    return [Mot1, Mot2, Mot3, Mot4, Mot5, Mot6, Mot7, Mot8, Mot9, Mot10, Mot11, Mot12, Mot13, Mot14, Mot15, Mot16]
+
+# List of motifs (as edges)
+MOTIFS_EDGES = [
+    [], 
+    [(0,1)], 
+    [(0,1), (1,0)], 
+    [(0,1), (0,2)], # subgraph 6
+    [(1,0), (2,0)],  # subgraph 36
+    [(1,0), (0,2)],  # subgraph 12
+    [(1,0), (0,1), (2,0)],  # subgraph 74
+    [(1,0), (0,1), (0,2)], # subgraph 14
+    [(1,0), (0,1), (0,2), (2,0)], # subgraph 78
+    [(0,1), (0,2), (1,2)], # subgraph 38
+    [(1,0), (1,2), (2,0)], # subgraph 98
+    [(0,1), (0,2), (1,2), (2,1)], # subgraph 108
+    [(0,1), (2,0), (1,2), (2,1)], # subgraph 102
+    [(1,0), (2,0), (1,2), (2,1)], # subgraph 46
+    [(0,1), (2,0), (0,2), (1,2), (2,1)], # subgraph 110
+    [(0,1), (1,0),(2,0), (0,2), (1,2), (2,1)], # subgraph 238
+]
+
+
+def draw_motifs_distribution(motifs_count):
+    # Define a function to draw a motif and return the image
+    def get_motif_image(edges):
+        fig, ax = plt.subplots(figsize=(1, 1))  # Smaller figsize
+        G = nx.DiGraph()
+        G.add_edges_from(edges)
+        pos = nx.shell_layout(G)
+        nx.draw(G, pos, node_size=50, arrowsize=20, node_color='black', ax=ax)
+        plt.axis('off')
+        buf = BytesIO()
+        plt.savefig(buf, format='png', bbox_inches='tight', pad_inches=0)
+        plt.close(fig)
+        buf.seek(0)
+        return mpimg.imread(buf)
     
-    # Initialize the graph
-    g = Graph(directed=True)
+    def offset_image(coord, img, ax):
+        imagebox = OffsetImage(img, zoom=0.4)
+        imagebox.image.axes = ax
+        ab = AnnotationBbox(imagebox, (0, 0), xybox=(39+ coord*32, -20), frameon=False, xycoords='axes points', boxcoords="axes points")
+        ax.add_artist(ab)
     
-    # We add the EDGES properties
-    # For other properties : https://graph-tool.skewed.de/static/doc/autosummary/graph_tool.draw.graph_draw.html#graph_tool.draw.graph_draw    
-    # Other types : https://graph-tool.skewed.de/static/doc/quickstart.html#property-maps
-    # Graph object doc : https://graph-tool.skewed.de/static/doc/autosummary/graph_tool.Graph.html#graph_tool.Graph.vp
+    # Plot the histogram
+    fig, ax = plt.subplots(figsize=(10, 6))
     
-    # edges index and width
-    edge_index = []
-    pen_width = []
+    colors = plt.cm.rainbow(np.linspace(0, 1, len(motifs_count)))
+    bars = ax.bar(range(len(motifs_count)), motifs_count, color=colors, alpha=0.7, log=True)
+    ax.get_xaxis().set_ticklabels([])
     
-    for i in range(len(col)):
-        edge_index.append((row[i], col[i]))
-        pen_width.append(W[row[i]][col[i]])
-
-    if Win is not None:
-        Win = Win.toarray() / np.amax(Win)
-        for i in range(n):
-            edge_index.append((n, i))
-            pen_width.append(Win[i][0])
-
-    if Wout is not None:
-        Wout = Wout.toarray() / np.amax(Wout)
-        for i in range(n):
-            edge_index.append((i, n + 1))
-            pen_width.append(Wout[i])
-            
-    g.add_edge_list(np.array(edge_index))
-    edge_pen_width = g.new_edge_property("double")
-    edge_pen_width.a = np.abs(pen_width) * 3
-
-    # curvatures of the edges
-    state = minimize_nested_blockmodel_dl(g)
-    t = get_hierarchy_tree(state)[0]
-    tpos = radial_tree_layout(t, t.vertex(t.num_vertices() - 1), weighted=True)
-    cts = get_hierarchy_control_points(g, t, tpos)
+    # Plot motifs above each bar as labels
+    for i, (rect, edges) in enumerate(zip(bars, MOTIFS_EDGES)):
+        img = get_motif_image(edges)
+        offset_image(i, img, ax)
     
-    # add those properties
-    g.properties[("e", "pen_width")] = edge_pen_width
-    g.properties[("e", "cts")] = cts
-
-    #We add the VERTEX properties
-    # For other properties : https://graph-tool.skewed.de/static/doc/autosummary/graph_tool.draw.graph_draw.html#graph_tool.draw.graph_draw
-        
-    #vertex text
-    text = g.new_vp("string")
-    for v in g.vertex_index:
-        text[v] = str(v)
-
-    #vertex position
-    pos= g.new_gp("vector<float>")
-    pos = arf_layout(g)
-    # Position of the output node
-    pos[n + 1] = [7, 4]
-    # Position of the input node
-    pos[n] = [1, 4]
     
-    # add the properties
-    g.properties[("v", "text")] = text
-    g.properties[("v", "pos")] = pos
-    
-    return g
-
-    
-def draw_network(g, filename=None):
-    graph_draw(g, pos=g.vp["pos"], output_size=(1000, 1000), 
-               edge_control_points=g.ep["cts"], edge_pen_width=g.ep["pen_width"],
-               vertex_size=15, vertex_text=g.vp["text"], vcmap=matplotlib.cm.inferno,
-               output=filename)
-
-
-    
-def animate_network(g, time_series, input_time_serie=None, output_time_serie=None):
-    max_value=time_series.max()
-    duration, n = len(time_series), len(time_series[0])
-    filenames = []
-    
-    for i in tqdm(range(duration)):
-        # vertex color
-        fill_color = g.new_vp("vector<float>")
-        for j in range(n):
-            fill_color[j] = state_to_color(time_series[i][j], max_value)
-        
-        if input_time_serie is not None:
-            fill_color[n] = state_to_color(input_time_serie[i], max_value)
-            
-        if output_time_serie is not None:
-            fill_color[n+1 if input_time_serie is not None else n] = state_to_color(output_time_serie[i], max_value)
-      
-        output_filename= f"/tmp/frame_{i}.png"
-        graph_draw(g, pos=g.vp["pos"], output_size=(1000, 1000), 
-                   edge_control_points=g.ep["cts"], edge_pen_width=g.ep["pen_width"],
-                   vertex_fill_color=fill_color, vertex_size=30, vertex_text=g.vp["text"], 
-                   output=output_filename)
-        filenames.append(output_filename)
-            
-    with imageio.get_writer('/tmp/network_animation.gif', mode='I') as writer:
-        for filename in filenames:
-            image = imageio.imread(filename)
-            writer.append_data(image)
+    plt.show()

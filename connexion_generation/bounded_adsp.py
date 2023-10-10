@@ -4,7 +4,7 @@ from reservoir.reservoir import update_reservoir
 import matplotlib.pyplot as plt
 from tqdm import tqdm
 
-def compute_synaptic_change(states, target_activation_levels, growth_parameter, change_type="linear", average="QUEUE",
+def compute_synaptic_change(states, target_activation_levels, growth_parameter, change_type="linear", average="WHOLE",
                             queue_size=5, minimum_calcium_concentration=0.1):
     # Calculate the synaptic change based on https://doi.org/10.3389/fnana.2016.00057
     states = np.array(states)
@@ -69,46 +69,58 @@ def bounded_adsp(W_e, state, delta_z, value, W_inhibitory_connexions=np.array([]
     return W_e, W_inhibitory_connexions, total_add, total_prun
 
 def run_HADSP_algorithm(W, Win, bias, leaky_rate, activation_function, input_data, increment, value, target_rate,
-                        growth_parameter, visualize=False):  # last_state
+                        growth_parameter, max_increment=None, average="WHOLE", visualize=False):  # last_state
     state = np.random.uniform(0, 1, bias.size)
     state_history = []
 
     total_add = 0
     total_prun = 0
-    add = []
-    prun = []
+    add = [0]
+    prun = [0]
     step = 0
+    steps = []
 
-    for i in range(increment * 5):
+    if max_increment is None:
+        max_increment = increment
+
+    # initialization
+    init_length = increment * 5
+    for i in range(init_length):
         state = update_reservoir(W, Win, input_data[i], state, leaky_rate, bias, activation_function)
         state_history.append(state)
+    input_data = input_data[init_length:]
 
-    # size of simulation
-    number_steps = int((input_data.size - increment * 5) / increment)
-    for k in tqdm(range(number_steps)):
-        delta_z = compute_synaptic_change(state_history[-increment:], target_rate, growth_parameter, average="WHOLE")
+    pbar = tqdm(total=input_data.size)
+    while input_data.size > max_increment:
+        # randomly select the increment size
+        inc = np.random.randint(increment, max_increment)
+
+        delta_z = compute_synaptic_change(state_history[-inc:], target_rate, growth_parameter, average=average)
         W, _, nb_new_add, nb_new_prun = bounded_adsp(W, state, delta_z, value)
 
-        for i in range(increment):
-            state = update_reservoir(W, Win, input_data[increment * (k + 5) + i], state, leaky_rate, bias,
-                                     activation_function)
+        for i in range(inc):
+            state = update_reservoir(W, Win, input_data[i], state, leaky_rate, bias, activation_function)
             state_history.append(state)
+        input_data = input_data[inc:]
 
         total_add += nb_new_add
         total_prun += nb_new_prun
         add.append(total_add)
         prun.append(total_prun)
-        step += 1
+        step += inc
+        steps.append(step)
+        pbar.update(inc)
 
     add = np.array(add)
     prun = np.array(prun)
+    pbar.close()
 
     if visualize:
         plt.figure()
-        plt.plot(np.arange(step) * increment, add, label="total number of added connexion")
-        plt.plot(np.arange(step) * increment, prun, label="total number of prunned connexion")
-        plt.plot(np.arange(step) * increment, add - prun, label="difference")
-        plt.plot(np.arange(step) * increment, [0] * step, linestyle=(0, (1, 10)))
+        plt.plot(steps, add, label="total number of added connexion")
+        plt.plot(steps, prun, label="total number of prunned connexion")
+        plt.plot(steps, add - prun, label="difference")
+        plt.plot(steps, steps, linestyle=(0, (1, 10)))
         plt.legend()
         plt.grid()
     return W
