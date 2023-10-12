@@ -4,7 +4,7 @@ import networkx as nx
 from io import BytesIO
 
 import matplotlib.image as mpimg
-from matplotlib.offsetbox import OffsetImage,AnnotationBbox
+from matplotlib.offsetbox import OffsetImage, AnnotationBbox
 
 
 def motif_distribution(W):
@@ -23,43 +23,44 @@ def motif_distribution(W):
     Stilde = Stilde - np.diag(np.diag(Stilde))
 
     # Motifs calculation
-    Mot1 = np.sum(np.sum((Stilde @ Stilde) * Stilde)) / 6                          # subgraph 
-    Mot2 = np.sum(np.sum((Stilde @ Stilde) * A))                                   # subgraph 
-    Mot3 = np.sum(np.sum((Stilde @ Stilde) * S)) / 2                               # subgraph 
-    Mot4 = (np.sum(np.sum((A.T @ A) * Mtilde * Mtilde.T)) - np.trace(A.T @ A)) / 2 # subgraph 6
-    Mot5 = (np.sum(np.sum((A @ A.T) * Mtilde * Mtilde.T)) - np.trace(A @ A.T)) / 2 # subgraph 36
-    Mot6 = np.sum(np.sum((A @ A) * Mtilde * Mtilde.T))                             # subgraph 12
-    Mot7 = np.sum(np.sum((S @ A.T) * Mtilde * Mtilde.T))                           # subgraph 74
-    Mot8 = np.sum(np.sum((S @ A) * Mtilde * Mtilde.T))                             # subgraph 14
-    Mot9 = (np.sum(np.sum((S @ S) * Mtilde * Mtilde.T)) - np.trace(S @ S)) / 2     # subgraph 78
-    Mot10 = np.sum(np.sum((A @ A) * A))                                            # subgraph 38
-    Mot11 = np.sum(np.sum((A.T @ A.T) * A)) / 3                                    # subgraph 98
-    Mot12 = np.sum(np.sum((A.T @ A) * S)) / 2                                      # subgraph 108
-    Mot13 = np.sum(np.sum((A @ A) * S))                                            # subgraph 102
-    Mot14 = np.sum(np.sum((A @ A.T) * S)) / 2                                      # subgraph 46
-    Mot15 = np.sum(np.sum((S @ S) * A))                                            # subgraph 110
-    Mot16 = np.sum(np.sum((S @ S) * S)) / 6                                        # subgraph 238
+    Mot1 = np.sum(np.sum((Stilde @ Stilde) * Stilde)) / 6  # subgraph
+    Mot2 = np.sum(np.sum((Stilde @ Stilde) * A))  # subgraph
+    Mot3 = np.sum(np.sum((Stilde @ Stilde) * S)) / 2  # subgraph
+    Mot4 = (np.sum(np.sum((A.T @ A) * Mtilde * Mtilde.T)) - np.trace(A.T @ A)) / 2  # subgraph 6
+    Mot5 = (np.sum(np.sum((A @ A.T) * Mtilde * Mtilde.T)) - np.trace(A @ A.T)) / 2  # subgraph 36
+    Mot6 = np.sum(np.sum((A @ A) * Mtilde * Mtilde.T))  # subgraph 12
+    Mot7 = np.sum(np.sum((S @ A.T) * Mtilde * Mtilde.T))  # subgraph 74
+    Mot8 = np.sum(np.sum((S @ A) * Mtilde * Mtilde.T))  # subgraph 14
+    Mot9 = (np.sum(np.sum((S @ S) * Mtilde * Mtilde.T)) - np.trace(S @ S)) / 2  # subgraph 78
+    Mot10 = np.sum(np.sum((A @ A) * A))  # subgraph 38
+    Mot11 = np.sum(np.sum((A.T @ A.T) * A)) / 3  # subgraph 98
+    Mot12 = np.sum(np.sum((A.T @ A) * S)) / 2  # subgraph 108
+    Mot13 = np.sum(np.sum((A @ A) * S))  # subgraph 102
+    Mot14 = np.sum(np.sum((A @ A.T) * S)) / 2  # subgraph 46
+    Mot15 = np.sum(np.sum((S @ S) * A))  # subgraph 110
+    Mot16 = np.sum(np.sum((S @ S) * S)) / 6  # subgraph 238
 
     return [Mot1, Mot2, Mot3, Mot4, Mot5, Mot6, Mot7, Mot8, Mot9, Mot10, Mot11, Mot12, Mot13, Mot14, Mot15, Mot16]
 
+
 # List of motifs (as edges)
 MOTIFS_EDGES = [
-    [], 
-    [(0,1)], 
-    [(0,1), (1,0)], 
-    [(0,1), (0,2)], # subgraph 6
-    [(1,0), (2,0)],  # subgraph 36
-    [(1,0), (0,2)],  # subgraph 12
-    [(1,0), (0,1), (2,0)],  # subgraph 74
-    [(1,0), (0,1), (0,2)], # subgraph 14
-    [(1,0), (0,1), (0,2), (2,0)], # subgraph 78
-    [(0,1), (0,2), (1,2)], # subgraph 38
-    [(1,0), (1,2), (2,0)], # subgraph 98
-    [(0,1), (0,2), (1,2), (2,1)], # subgraph 108
-    [(0,1), (2,0), (1,2), (2,1)], # subgraph 102
-    [(1,0), (2,0), (1,2), (2,1)], # subgraph 46
-    [(0,1), (2,0), (0,2), (1,2), (2,1)], # subgraph 110
-    [(0,1), (1,0),(2,0), (0,2), (1,2), (2,1)], # subgraph 238
+    [],
+    [(0, 1)],
+    [(0, 1), (1, 0)],
+    [(0, 1), (0, 2)],  # subgraph 6
+    [(1, 0), (2, 0)],  # subgraph 36
+    [(1, 0), (0, 2)],  # subgraph 12
+    [(1, 0), (0, 1), (2, 0)],  # subgraph 74
+    [(1, 0), (0, 1), (0, 2)],  # subgraph 14
+    [(1, 0), (0, 1), (0, 2), (2, 0)],  # subgraph 78
+    [(0, 1), (0, 2), (1, 2)],  # subgraph 38
+    [(1, 0), (1, 2), (2, 0)],  # subgraph 98
+    [(0, 1), (0, 2), (1, 2), (2, 1)],  # subgraph 108
+    [(0, 1), (2, 0), (1, 2), (2, 1)],  # subgraph 102
+    [(1, 0), (2, 0), (1, 2), (2, 1)],  # subgraph 46
+    [(0, 1), (2, 0), (0, 2), (1, 2), (2, 1)],  # subgraph 110
+    [(0, 1), (1, 0), (2, 0), (0, 2), (1, 2), (2, 1)],  # subgraph 238
 ]
 
 
@@ -77,24 +78,24 @@ def draw_motifs_distribution(motifs_count):
         plt.close(fig)
         buf.seek(0)
         return mpimg.imread(buf)
-    
+
     def offset_image(coord, img, ax):
         imagebox = OffsetImage(img, zoom=0.4)
         imagebox.image.axes = ax
-        ab = AnnotationBbox(imagebox, (0, 0), xybox=(39+ coord*32, -20), frameon=False, xycoords='axes points', boxcoords="axes points")
+        ab = AnnotationBbox(imagebox, (0, 0), xybox=(39 + coord * 32, -20), frameon=False, xycoords='axes points',
+                            boxcoords="axes points")
         ax.add_artist(ab)
-    
+
     # Plot the histogram
     fig, ax = plt.subplots(figsize=(10, 6))
-    
+
     colors = plt.cm.rainbow(np.linspace(0, 1, len(motifs_count)))
     bars = ax.bar(range(len(motifs_count)), motifs_count, color=colors, alpha=0.7, log=True)
     ax.get_xaxis().set_ticklabels([])
-    
+
     # Plot motifs above each bar as labels
     for i, (rect, edges) in enumerate(zip(bars, MOTIFS_EDGES)):
         img = get_motif_image(edges)
         offset_image(i, img, ax)
-    
-    
+
     plt.show()
