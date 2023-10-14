@@ -40,6 +40,9 @@ def motif_distribution(W):
     Mot15 = np.sum(np.sum((S @ S) * A))  # subgraph 110
     Mot16 = np.sum(np.sum((S @ S) * S)) / 6  # subgraph 238
 
+    # Sanity check should be (n choose 3) = N * (N-1) * (N-2) / 6
+    assert Mot1 + Mot2 + Mot3 + Mot4 + Mot5 + Mot6 + Mot7 + Mot8 + Mot9 + Mot10 + Mot11 + Mot12 + Mot13 + Mot14 + Mot15 + Mot16 == N * (N-1) * (N-2) / 6
+
     return [Mot1, Mot2, Mot3, Mot4, Mot5, Mot6, Mot7, Mot8, Mot9, Mot10, Mot11, Mot12, Mot13, Mot14, Mot15, Mot16]
 
 
