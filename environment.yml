@@ -1,8 +1,10 @@
 name: hadsp_env
 channels:
+  - pytorch
   - defaults
   - conda-forge
 dependencies:
+  - python=3.9.18
   - numpy
   - scipy
   - matplotlib
@@ -10,6 +12,8 @@ dependencies:
   - pandas
   - scikit-learn
   - pytorch  # 'torch' is named 'pytorch' in conda
+  - torchaudio
+  - ffmpeg
   - tensorflow
   - optuna
   - jupyterlab

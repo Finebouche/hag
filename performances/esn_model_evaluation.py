@@ -1,12 +1,9 @@
 import numpy as np
-import reservoirpy
-reservoirpy.verbosity(level=0)
+
 from scipy.sparse import csr_matrix
 from joblib import Parallel, delayed
-from sklearn.metrics import mutual_info_score
 from sklearn.metrics import accuracy_score
-
-reservoirpy.verbosity(level=0)
+from tqdm import tqdm
 
 from reservoirpy.nodes import Reservoir, Ridge, ESN
 
@@ -14,7 +11,6 @@ from reservoirpy.nodes import Reservoir, Ridge, ESN
 def train_and_predict_model(W, Win, bias, activation_function, ridge_coef, X_train, X_test, Y_train, n_jobs):
     # To remember :
     #  For reservoirpy   pre_s = W @ r + Win @ (u + noise_gen(dist=dist, shape=u.shape, gain=g_in)) + bias
-    reservoirpy.verbosity(level=0)
 
     reservoir = Reservoir(units=bias.size,
                           W =csr_matrix(W),
@@ -24,18 +20,22 @@ def train_and_predict_model(W, Win, bias, activation_function, ridge_coef, X_tra
                           equation='external'
                          )
     readout = Ridge(ridge=ridge_coef)
-    model = ESN(reservoir=reservoir, readout=readout)
-
-    states_train = []
 
     def compute_state(x):
+        import reservoirpy
+        reservoirpy.verbosity(level=0)
+
         return reservoir.run(x, reset=True)[-1, np.newaxis].flatten()
 
-    states_train = Parallel(n_jobs=n_jobs)(delayed(compute_state)(x) for x in X_train)
-
+    states_train = Parallel(n_jobs=n_jobs)(
+        delayed(compute_state)(x) for x in tqdm(X_train, desc="Processing", dynamic_ncols=True)
+    )
     readout.fit(np.array(states_train), Y_train)
 
     def predict(x):
+        import reservoirpy
+        reservoirpy.verbosity(level=0)
+
         states = reservoir.run(x, reset=True)
         y = readout.run(states[-1, np.newaxis])
         return y
