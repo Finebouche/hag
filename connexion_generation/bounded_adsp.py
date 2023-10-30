@@ -30,7 +30,7 @@ def compute_synaptic_change(states, target_activation_levels, growth_parameter, 
 
     return np.trunc(delta_z)  # -1,5->-1 and 1.5->1
 
-def bounded_adsp(W_e, state, delta_z, value, W_inhibitory_connexions=np.array([]), max_connections=12):
+def bounded_adsp(W_e, state, delta_z, value, W_inhibitory_connexions=np.array([]), max_partners=12):
     neurons = np.arange(len(state))
     total_prun = 0
     total_add = 0
@@ -53,7 +53,7 @@ def bounded_adsp(W_e, state, delta_z, value, W_inhibitory_connexions=np.array([]
     need_increase = neurons[delta_z >= 1]
 
     # We add an excitatory connexion to increase the rate
-    new_connexion_pairs = select_pairs_connexion(need_increase, W_e, max_connections=max_connections)
+    new_connexion_pairs = select_pairs_connexion(need_increase, W_e, max_partners=max_partners)
 
     for connexion in new_connexion_pairs:
         W_e = change_connexion(W_e, connexion[0], connexion[1], value)
@@ -81,7 +81,11 @@ def run_HADSP_algorithm(W, Win, bias, leaky_rate, activation_function, input_dat
     steps = []
 
     if max_increment is None:
+        int_logspace = [increment]
         max_increment = increment
+    else:
+        logspace = np.logspace(np.log10(increment), np.log10(max_increment), num=10)
+        int_logspace = np.round(logspace).astype(int)
 
     # initialization
     init_length = increment * 5
@@ -93,7 +97,7 @@ def run_HADSP_algorithm(W, Win, bias, leaky_rate, activation_function, input_dat
     pbar = tqdm(total=input_data.size)
     while input_data.size > max_increment:
         # randomly select the increment size
-        inc = np.random.randint(increment, max_increment)
+        inc = np.random.choice(int_logspace)
 
         delta_z = compute_synaptic_change(state_history[-inc:], target_rate, growth_parameter, average=average)
         W, _, nb_new_add, nb_new_prun = bounded_adsp(W, state, delta_z, value)
@@ -123,4 +127,4 @@ def run_HADSP_algorithm(W, Win, bias, leaky_rate, activation_function, input_dat
         plt.plot(steps, steps, linestyle=(0, (1, 10)))
         plt.legend()
         plt.grid()
-    return W
+    return W, state_history
