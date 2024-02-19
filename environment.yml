@@ -21,3 +21,4 @@ dependencies:
   - pip:
     - reservoirpy
     - jupyterlab-execute-time
+    - jupyterlab-optuna

@@ -1,6 +1,7 @@
 import numpy as np
 import matplotlib.pyplot as plt
 from scipy import signal
+from tqdm import tqdm
 
 def extract_peak_frequencies(input_data, sampling_rate, threshold, nperseg=1024, visualize=True):
     # Estimate power spectral density using Welch's method
@@ -42,26 +43,38 @@ def butterworth_filter(data, lowcut, highcut, fs, btype='band', order=2):
     return lfilter(b, a, data).flatten()
 
 
-def generate_multivariate_dataset(filtered_peak_freqs, X_pretrain, X_train, X_test, sampling_rate, nb_jobs=1, verbosity=1):
+def generate_multivariate_dataset(filtered_peak_freqs, X_pretrain, X_train, X_test, sampling_rate, scaler,
+                                  is_instances_classification, nb_jobs=1, verbosity=1):
     
     lowcut = np.concatenate(([filtered_peak_freqs[0]], (filtered_peak_freqs[:-1] + filtered_peak_freqs[1:]) / 2))
     highcut = np.concatenate(((filtered_peak_freqs[:-1] + filtered_peak_freqs[1:]) / 2, [filtered_peak_freqs[-1]]))
     
     def process_sample(x):
-        return list(
+        return np.array(list(
             map(lambda f: butterworth_filter(x, lowcut[f], highcut[f], fs=sampling_rate), range(len(filtered_peak_freqs)))
-        )
-        
-    # Pretrain data
-    modulated_time_series = np.array(process_sample(X_pretrain.flatten()))
+        )).T
 
-    if len(X_train[0].shape)>1:
+    # Pretrain data
+    modulated_time_series = np.array(process_sample(X_pretrain.flatten())).T
+
+
+    if is_instances_classification: # Multiple instances -> classification
         # Train
-        X_train_band = np.array(Parallel(n_jobs=nb_jobs, verbose=verbosity)(delayed(process_sample)(x) for x in X_train), dtype=object)
+        X_train_band = Parallel(n_jobs=nb_jobs, verbose=verbosity)(delayed(process_sample)(x) for x in X_train)
+        X_train_band = [scaler.fit_transform(time_series) for time_series in tqdm(X_train_band)]
+
         # Test
-        X_test_band = np.array(Parallel(n_jobs=nb_jobs, verbose=verbosity)(delayed(process_sample)(x) for x in X_test), dtype=object)
-    else: 
-        X_train_band = np.array(process_sample(X_train.flatten()))
-        X_test_band = np.array(process_sample(X_test.flatten()))
+        X_test_band = Parallel(n_jobs=nb_jobs, verbose=verbosity)(delayed(process_sample)(x) for x in X_test)
+        X_test_band = [scaler.fit_transform(time_series) for time_series in tqdm(X_test_band)]
+    else:
+        # Concatenate X_train and X_test for continuous processing
+        concatenated_X = np.concatenate([X_train.flatten(), X_test.flatten()])
+        processed_X = process_sample(concatenated_X)
+        standardized_X = scaler.fit_transform(processed_X)
+
+        # Split the processed data back into train and test sets
+        X_train_len = X_train.size  # Get the number of elements in X_train
+        X_train_band = standardized_X[:X_train_len]
+        X_test_band = standardized_X[X_train_len:]
 
     return modulated_time_series, X_train_band, X_test_band

@@ -44,11 +44,12 @@ def train_and_predict_model(W, Win, bias, activation_function, ridge_coef, X_tra
 
     return Y_pred
 
-def compute_score(Y_pred, Y_test, model_name):
+def compute_score(Y_pred, Y_test, model_name, verbosity=1):
     Y_pred_class = [np.argmax(y_p) for y_p in Y_pred]
     Y_test_class = [np.argmax(y_t) for y_t in Y_test]
 
     score = accuracy_score(Y_test_class, Y_pred_class)
 
-    print(f"Accuracy for {model_name}: {score * 100:.3f} %")
+    if verbosity > 0:
+        print(f"Accuracy for {model_name}: {score * 100:.3f} %")
     return score

@@ -3,6 +3,7 @@ import numpy as np
 from tqdm import tqdm
 import os
 import matplotlib.pyplot as plt
+import pandas as pd
 
 from sklearn.preprocessing import LabelEncoder, OneHotEncoder
 from sklearn.model_selection import GroupShuffleSplit
@@ -115,4 +116,48 @@ def load_FSDD_dataset(data_dir, split=0.5, seed=49387, visualize=False):
 
     return sampling_rate, X_train, X_test, Y_train, Y_test 
 
-    
+def load_haart_dataset(train_path, test_path):
+
+    df_train = pd.read_csv(train_path, header=0)
+    df_test = pd.read_csv(test_path, header=0)
+
+    # extract times series from the dataframe column 4 to the end (the first 4 columns are not time series)
+    grouped = df_train.groupby(['ParticipantNo', ' "Substrate"', ' "Cover"', ' "Gesture"'])
+
+    # This will create a dictionary where keys are the unique groupings and values are the multivariate time series data for each group
+    X_train = []
+    for name, group in grouped:
+        X_train.append(group.iloc[:, 4:68].values)
+
+    # extract labels use to group by for each time series
+    Y_train = []
+    for name, group in grouped:
+        Y_train.append(name[-1])
+
+    # do same for test set
+    grouped = df_test.groupby(['ParticipantID', 'Substrate', 'Cover', 'Gesture'])
+
+    X_test = []
+    for name, group in grouped:
+        X_test.append(group.iloc[:, 4:68].values)
+
+    Y_test = []
+    for name, group in grouped:
+        Y_test.append(name[-1])
+
+
+    # encode labels
+    le = LabelEncoder()
+    Y_train_encoded = le.fit_transform(Y_train)
+    Y_test_encoded = le.transform(Y_test)
+
+    # One-hot encode the labels
+    ohe = OneHotEncoder(sparse_output=False)
+    Y_train = ohe.fit_transform(Y_train_encoded.reshape(-1, 1))
+    Y_test = ohe.transform(Y_test_encoded.reshape(-1, 1))
+
+
+    # sampling rate is 54Hz
+    sampling_rate = 54
+
+    return sampling_rate, X_train, Y_train, X_test, Y_test
