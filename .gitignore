@@ -2,3 +2,4 @@
 .idea/
 .ipynb_checkpoints/
 **/.ipynb_checkpoints/
+/datasets/waves_yesno/*
