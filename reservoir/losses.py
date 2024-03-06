@@ -21,21 +21,6 @@ def mse(target_signal, input_signal):
     return error.mean()
 
 
-def rmse(target_signal, input_signal):
-    """
-    rmse(input_signal, target_signal)-> error
-    RMSE calculation.
-    Calculates the root mean square error (RMSE) of the input signal compared to the target signal.
-    Parameters:
-        - input_signal : array
-        - target_signal : array
-    """
-    if len(target_signal) == 1:
-        raise NotImplementedError('The RMSE is not defined for signals of length 1 since they have no variance.')
-
-    return torch.sqrt(mse(target_signal, input_signal))
-
-
 def nmse(target_signal, input_signal):
     """
     nmse(input_signal, target_signal)-> error
@@ -71,3 +56,14 @@ def nrmse(target_signal, input_signal):
         raise NotImplementedError('The NRMSE is not defined for signals of length 1 since they have no variance.')
 
     return torch.sqrt(nmse(target_signal, input_signal))
+
+def nrmse_multivariate(target_signal, input_signal):
+    n_features = target_signal.shape[1]
+    nrmse_scores = []
+
+    for i in range(n_features):
+        nrmse_scores.append(nrmse(target_signal[:, i], input_signal[:, i]))
+
+    return np.mean(nrmse_scores)
+
+

@@ -1,9 +1,9 @@
 import tensorflow as tf
 import numpy as np
 from tqdm import tqdm
-import os
 import matplotlib.pyplot as plt
 import pandas as pd
+import os
 
 from sklearn.preprocessing import LabelEncoder, OneHotEncoder
 from sklearn.model_selection import GroupShuffleSplit
@@ -117,6 +117,22 @@ def load_FSDD_dataset(data_dir, split=0.5, seed=49387, visualize=False):
     return sampling_rate, X_train, X_test, Y_train, Y_test 
 
 def load_haart_dataset(train_path, test_path):
+    # Charge HAART dataset from https://www.cs.ubc.ca/labs/spin/data/HAART%20DataSet.zip if it's not already done
+    # download and unzip the dataset
+    # https://www.cs.ubc.ca/labs/spin/data/
+    import urllib.request
+    import zipfile
+
+    if not os.path.exists('datasets/HAART'):
+        urllib.request.urlretrieve('https://www.cs.ubc.ca/labs/spin/data/HAART%20DataSet.zip',
+                                   'datasets/HAART.zip')
+        # unzip the dataset in "datasets/HAART" folder
+        with zipfile.ZipFile('datasets/HAART.zip', 'r') as zip_ref:
+            zip_ref.extractall('datasets/HAART')
+
+        # delete zip
+        os.remove('datasets/HAART.zip')
+
 
     df_train = pd.read_csv(train_path, header=0)
     df_test = pd.read_csv(test_path, header=0)
@@ -161,3 +177,117 @@ def load_haart_dataset(train_path, test_path):
     sampling_rate = 54
 
     return sampling_rate, X_train, Y_train, X_test, Y_test
+
+
+def load_mackey_glass_dataset(step_ahead=5, visualize=True):
+    from reservoirpy.datasets import mackey_glass
+    timesteps = 15000
+    mg_inputs = mackey_glass(timesteps + step_ahead, tau=17, a=0.2, b=0.1, n=10, x0=1.2, h=1, seed=None)
+
+    # Define the time step of your Mackey-Glass system
+    dt = 0.00001
+    # Compute the equivalent sampling rate
+    sampling_rate = 1 / dt
+
+    X_pretrain = mg_inputs[:5000]
+    X_train = mg_inputs[5000:10000]
+    X_test = mg_inputs[10000:15000]
+    Y_train = mg_inputs[5000 + step_ahead:10000 + step_ahead]
+    Y_test = mg_inputs[10000 + step_ahead:timesteps + step_ahead]
+
+    if visualize:
+        fig, ax = plt.subplots(figsize=(16, 5))
+        ax.plot(range(500), X_test[:500])
+        plt.plot(range(500), Y_test[:500], c="orange")
+        ax.spines['top'].set_visible(False)
+        ax.spines['right'].set_visible(False)
+        ax.tick_params(axis='both', labelsize=20)
+        plt.show()
+
+    return sampling_rate, X_train, X_test, Y_train, Y_test, X_pretrain
+
+def load_lorenz_dataset(step_ahead=5, visualize=True):
+    from reservoirpy.datasets import lorenz
+    timesteps = 15000
+    dt = 0.03
+    lorenz_inputs = lorenz(timesteps  + step_ahead, rho=28.0, sigma=10.0, beta=2.6666666666666665, x0=[1.0, 1.0, 1.0], h=dt, seed=None)
+    # Compute the equivalent sampling rate
+    sampling_rate = 1 / dt
+    X_pretrain = lorenz_inputs[:5000]
+    X_train = lorenz_inputs[5000:10000]
+    X_test = lorenz_inputs[10000:15000]
+    Y_train = lorenz_inputs[5000 + step_ahead:10000 + step_ahead]
+    Y_test = lorenz_inputs[10000 + step_ahead:timesteps + step_ahead]
+
+    if visualize:
+        fig, ax = plt.subplots(figsize=(16, 5))
+        colors_x = ['lightblue', 'blue', 'darkblue']  # Different nuances of blue
+        colors_y = ['peachpuff', 'orange', 'pink']  # Different nuances of orange
+        for i in range(3):
+            ax.plot(range(500), X_test[:500, i], color=colors_x[i])
+        for i in range(3):
+            ax.plot(range(500), Y_test[:500, i], color=colors_y[i])
+        # Customize the plot
+        ax.spines['top'].set_visible(False)
+        ax.spines['right'].set_visible(False)
+        ax.tick_params(axis='both', labelsize=20)
+        plt.legend()
+        plt.show()
+
+    return sampling_rate, X_train, X_test, Y_train, Y_test, X_pretrain
+
+
+def load_dataset_classification(name):
+    if name == "FSDD":
+        sampling_rate, X_train, X_test, Y_train, Y_test = load_FSDD_dataset(data_dir='datasets/fsdd/free-spoken-digit-dataset-master/recordings',visualize=True)
+        X_pretrain = np.concatenate(X_train[:20], axis=0).T
+        is_multivariate = False
+        return is_multivariate, sampling_rate, X_train, X_test, Y_train, Y_test, X_pretrain
+
+    if name == "HAART":
+        sampling_rate, X_train_band, Y_train, X_test_band, Y_test = load_haart_dataset(train_path="datasets/HAART/training.csv", test_path="datasets/HAART/testWITHLABELS.csv")
+        X_pretrain_band = np.concatenate(X_train_band[200:], axis=0).T
+        is_multivariate = True
+        return is_multivariate, sampling_rate, X_train_band, X_test_band, Y_train, Y_test, X_pretrain_band
+
+    if name == "JapaneseVowels":
+        from reservoirpy.datasets import japanese_vowels
+        X_train_band, Y_train, X_test_band, Y_test = japanese_vowels()
+        is_multivariate = True
+        # Sampling rate : 10 kHz
+        # Source : https://archive.ics.uci.edu/dataset/128/japanese+vowels
+        sampling_rate = 10000
+        # pretrain is the same as train
+        X_pretrain_band = np.concatenate(X_train_band, axis=0).T
+        Y_train = np.squeeze(np.array(Y_train), axis=1)
+        Y_test = np.squeeze(np.array(Y_test), axis=1)
+        return is_multivariate, sampling_rate, X_train_band, X_test_band, Y_train, Y_test, X_pretrain_band
+
+    if name == "InsectWingbeat":
+        NotImplemented("Dataset {} is not implemented yet".format(name))
+        from scipy.io import arff
+
+        with open('datasets/InsectWingbeat/InsectWingbeat_TRAIN.arff', 'r') as f:
+            data, meta = arff.loadarff(f)
+
+    if name == "MELD":
+        # https://github.com/declare-lab/MELD
+        NotImplemented("Dataset {} is not implemented yet".format(name))
+
+
+    else:
+        ValueError("The dataset with name {} is not loadable".format(name))
+
+def load_dataset_prediction(name, step_ahead=5, visualize=True):
+    if name == "MackeyGlass":
+        sampling_rate, X_train, X_test, Y_train, Y_test, X_pretrain = load_mackey_glass_dataset()
+        is_multivariate = False
+        return is_multivariate, sampling_rate, X_train, X_test, Y_train, Y_test, X_pretrain
+    if name == "Lorenz":
+        sampling_rate, X_train, X_test, Y_train, Y_test, X_pretrain = load_lorenz_dataset()
+        is_multivariate = True
+        return is_multivariate, sampling_rate, X_train, X_test, Y_train, Y_test, X_pretrain.T
+
+    else:
+        ValueError("The dataset with name {} is not loadable".format(name))
+

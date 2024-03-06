@@ -6,43 +6,59 @@ from sklearn.metrics import accuracy_score
 from tqdm import tqdm
 
 from reservoirpy.nodes import Reservoir, Ridge, ESN
+import reservoirpy
+reservoirpy.verbosity(level=0)
 
-
-def train_and_predict_model(W, Win, bias, activation_function, ridge_coef, X_train, X_test, Y_train, n_jobs):
-    # To remember :
-    #  For reservoirpy   pre_s = W @ r + Win @ (u + noise_gen(dist=dist, shape=u.shape, gain=g_in)) + bias
-
+def init_model(W, Win, bias, activation_function, ridge_coef):
     reservoir = Reservoir(units=bias.size,
-                          W =csr_matrix(W),
-                          Win=csr_matrix(np.diag(Win.toarray().flatten())),
+                          W=csr_matrix(W),
+                          Win=Win,
                           bias=csr_matrix(bias).T,
                           activation=activation_function,
-                          equation='external'
-                         )
+                          equation='external')
     readout = Ridge(ridge=ridge_coef)
+    return reservoir, readout
 
+def train_model_for_classification(reservoir, readout, X_train, Y_train, n_jobs):
     def compute_state(x):
         import reservoirpy
         reservoirpy.verbosity(level=0)
 
         return reservoir.run(x, reset=True)[-1, np.newaxis].flatten()
 
-    states_train = Parallel(n_jobs=n_jobs)(
+    states_to_train_on = Parallel(n_jobs=n_jobs)(
         delayed(compute_state)(x) for x in tqdm(X_train, desc="Processing", dynamic_ncols=True)
     )
-    readout.fit(np.array(states_train), Y_train)
+    readout.fit(np.array(states_to_train_on), Y_train)
 
+def predict_model_for_classification(reservoir, readout, X_test, n_jobs):
     def predict(x):
         import reservoirpy
         reservoirpy.verbosity(level=0)
 
         states = reservoir.run(x, reset=True)
-        y = readout.run(states[-1, np.newaxis])
+        y = readout.run(states[-1, np.newaxis]) # read from the last state of the reservoir
         return y
 
     Y_pred = Parallel(n_jobs=n_jobs)(delayed(predict)(x) for x in X_test)
-
     return Y_pred
+
+def init_train_and_predict_model_for_classification(W, Win, bias, activation_function, ridge_coef, X_train, X_test, Y_train, n_jobs):
+
+    reservoir, readout = init_model(W, Win, bias, activation_function, ridge_coef)
+
+    train_model_for_classification(reservoir, readout, X_train, Y_train, n_jobs)
+
+    Y_pred = predict_model_for_classification(reservoir, readout, X_test, n_jobs)
+
+
+def init_and_train_model_for_prediction(W, Win, bias, activation_function, ridge_coef, X_train, Y_train):
+    reservoir, readout = init_model(W, Win, bias, activation_function, ridge_coef)
+
+    states_to_train_on = reservoir.run(X_train)
+    readout.fit(np.array(states_to_train_on), Y_train)
+
+    return reservoir, readout
 
 def compute_score(Y_pred, Y_test, model_name, verbosity=1):
     Y_pred_class = [np.argmax(y_p) for y_p in Y_pred]

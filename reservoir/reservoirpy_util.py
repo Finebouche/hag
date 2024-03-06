@@ -34,12 +34,16 @@ def plot_readout(readout, that="Wout"):
     plt.show()
 
 
-def plot_results(y_pred, y_test, sample=500):
+def plot_results(y_pred, y_test, start=0, end=500):
+    sample = slice(start, end)
+    x_corrd = np.arange(start, end)
+    print(sample)
     fig = plt.figure(figsize=(15, 7))
     plt.subplot(211)
-    plt.plot(np.arange(sample), y_pred[:sample], lw=3, label="ESN prediction")
-    plt.plot(np.arange(sample), y_test[:sample], linestyle="--", lw=2, label="True value")
-    plt.plot(np.abs(y_test[:sample] - y_pred[:sample]), label="Absolute deviation")
+    plt.plot(x_corrd, y_pred[sample], lw=3, label="ESN prediction")
+    plt.plot(x_corrd, y_test[sample], linestyle="--", lw=2, label="True value")
+    plt.plot(x_corrd, np.abs(y_test[sample] - y_pred[sample]), label="Absolute deviation")
 
-    plt.legend()
+    #plot legend outside the graph
+    plt.legend(loc='center left', bbox_to_anchor=(1, 0.5))
     plt.show()
