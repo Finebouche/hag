@@ -240,7 +240,7 @@ def load_lorenz_dataset(step_ahead=5, visualize=True):
 def load_dataset_classification(name):
     if name == "FSDD":
         sampling_rate, X_train, X_test, Y_train, Y_test = load_FSDD_dataset(data_dir='datasets/fsdd/free-spoken-digit-dataset-master/recordings',visualize=True)
-        X_pretrain = np.concatenate(X_train[:20], axis=0).T
+        X_pretrain = np.concatenate(X_train[:20], axis=0)
         is_multivariate = False
         return is_multivariate, sampling_rate, X_train, X_test, Y_train, Y_test, X_pretrain
 

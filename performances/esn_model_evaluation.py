@@ -40,16 +40,16 @@ def predict_model_for_classification(reservoir, readout, X_test, n_jobs):
         y = readout.run(states[-1, np.newaxis]) # read from the last state of the reservoir
         return y
 
-    Y_pred = Parallel(n_jobs=n_jobs)(delayed(predict)(x) for x in X_test)
+    Y_pred = Parallel(n_jobs=n_jobs)(delayed(predict)(x) for x in tqdm(X_test, desc="Evaluating"))
     return Y_pred
 
-def init_train_and_predict_model_for_classification(W, Win, bias, activation_function, ridge_coef, X_train, X_test, Y_train, n_jobs):
+def init_and_train_model_for_classification(W, Win, bias, activation_function, ridge_coef, X_train, Y_train, n_jobs):
 
     reservoir, readout = init_model(W, Win, bias, activation_function, ridge_coef)
 
     train_model_for_classification(reservoir, readout, X_train, Y_train, n_jobs)
 
-    Y_pred = predict_model_for_classification(reservoir, readout, X_test, n_jobs)
+    return reservoir, readout
 
 
 def init_and_train_model_for_prediction(W, Win, bias, activation_function, ridge_coef, X_train, Y_train):

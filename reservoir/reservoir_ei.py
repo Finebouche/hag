@@ -1,3 +1,6 @@
+from scipy import linalg, sparse, stats
+import numpy as np
+
 def update_ei_reservoir(W_ee, W_ie, W_ei, Win, u, r_e, r_i, leaky_rate, bias_e, bias_i, activation_function):
     pre_s_e = (1 - leaky_rate) * r_e + leaky_rate * (W_ee @ r_e - W_ie @ r_i) + (Win.A.flatten() * u) + bias_e
     pre_s_i = (1 - leaky_rate) * r_i + leaky_rate * W_ei @ r_e + bias_i

@@ -2,6 +2,26 @@ from seaborn import heatmap, color_palette
 from matplotlib import pyplot as plt
 import numpy as np
 
+def plot_readout(readout, that="Wout"):
+    if hasattr(readout, 'Wout'):
+        Wout = readout.Wout
+    else:
+        Wout = readout
+    if hasattr(readout, 'bias'):
+        bias = readout.bias
+        Wout = np.r_[bias, Wout]
+
+    fig = plt.figure(figsize=(15, 5))
+
+    ax = fig.add_subplot(111)
+    ax.grid(axis="y")
+    ax.set_ylabel('Coefs. de {string}'.format(string=that))
+    ax.set_xlabel("Neurones du reservoir")
+    ax.bar(np.arange(Wout.size), Wout.ravel()[::-1])
+
+    plt.show()
+
+
 def show_matrice(W, ax = None, palette = "vlag"):
     if ax is None:
         fig, ax = plt.figure(figsize=(9,7))

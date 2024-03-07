@@ -44,8 +44,6 @@ def extract_peak_frequencies(input_data, sampling_rate, threshold, nperseg=1024,
         plt.axvline(sampling_rate/2, color='r', linestyle='--', label='f limit')
         plt.legend()  # Show legend with the threshold line
         plt.show()
-    
-        print("Filtered peak frequencies: ", filtered_peak_freqs)
 
     if input_data.shape[1] == 1:
         return filtered_peak_freqs[0]

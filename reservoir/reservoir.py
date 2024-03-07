@@ -2,7 +2,6 @@ from scipy import linalg, sparse, stats
 import numpy as np
 from numpy.random import Generator, PCG64
 
-
 def update_reservoir(W, Win, u, r, leaky_rate, bias, activation_function):
     pre_s = (1 - leaky_rate) * r + leaky_rate * (W @ r) + (Win.A.flatten() * u.flatten()) + bias
     return activation_function(pre_s)
