@@ -1,6 +1,6 @@
 from scipy import sparse
 import numpy as np
-from connexion_generation.mi_utility import compute_mutual_information_sklearn
+from connexion_generation.mi_utility import compute_mutual_information
 
 
 class TwoDimArrayWrapper:
@@ -21,8 +21,8 @@ class TwoDimArrayWrapper:
         return self.input_data[:, key]
 
 
-def determine_connection_pairs(neurons_needing_new_connection, connectivity_matrix, is_inter_matrix=False,
-                               max_partners=12, random_seed=None):
+def determine_connection_pairs(neurons_needing_new_connection, connectivity_matrix, states=None,
+                               is_inter_matrix=False, mi_based=False, max_partners=12, random_seed=None, n_jobs=1):
     """
     Determine pairs of neurons for establishing new connections based on specified criteria.
 
@@ -31,30 +31,58 @@ def determine_connection_pairs(neurons_needing_new_connection, connectivity_matr
     """
     if random_seed is not None:
         np.random.seed(random_seed)
+    if states is None and mi_based:
+        raise ValueError("States must be provided if mutual information based pruning is used.")
 
     new_connections = []
-    available_neurons = list(range(connectivity_matrix.shape[1])) if is_inter_matrix else list(
-        neurons_needing_new_connection)
+    available_neurons = list(range(connectivity_matrix.shape[1])) if is_inter_matrix \
+        else list(neurons_needing_new_connection)
 
-    for neuron in neurons_needing_new_connection:
-        available_for_this_neuron = available_neurons.copy()
-        if not is_inter_matrix:
-            # cannot add a connexion with itself
-            available_for_this_neuron.remove(neuron)
-        # If neuron already has more than MAX_NUMBER_OF_PARTNER partners:
-        # the available neurons are the one that already have a connexion with it
-        if np.count_nonzero(connectivity_matrix.getrow(neuron).A) >= max_partners:
-            available_for_this_neuron = connectivity_matrix.getrow(neuron).nonzero()[1]
 
-        # select randomly
-        if len(available_for_this_neuron) > 0:
-            incoming_connexion = np.random.choice(available_for_this_neuron)
+    if mi_based:
+
+        mi_for_available_neurons = compute_mutual_information(states, [available_neurons, neurons_needing_new_connection], n_jobs=n_jobs)
+        for neuron in neurons_needing_new_connection:
+            available_for_this_neuron = available_neurons.copy()
+            if not is_inter_matrix:
+                # cannot add a connexion with itself
+                available_for_this_neuron.remove(neuron)
+            # If neuron already has more than MAX_NUMBER_OF_PARTNER partners:
+            # the available neurons are the one that already have a connexion with it
+            if np.count_nonzero(connectivity_matrix.getrow(neuron).A) >= max_partners:
+                available_for_this_neuron = connectivity_matrix.getrow(neuron).nonzero()[1]
+            if len(available_for_this_neuron) == 0:
+                raise ValueError("No available neurons for connexion, this should not happen.")
+
+            # select the connexion with the highest mutual information
+            mi_interresting = mi_for_available_neurons[neuron, available_for_this_neuron]
+   
+            # Find the indices of all occurrences of the maximum value
+            max_value_indices = np.where(mi_interresting == np.max(mi_interresting))[0]
+
+            incoming_connexion = np.random.choice(max_value_indices)
+
             new_connections.append((neuron, incoming_connexion))
+    else:
+        for neuron in neurons_needing_new_connection:
+            available_for_this_neuron = available_neurons.copy()
+            if not is_inter_matrix:
+                # cannot add a connexion with itself
+                available_for_this_neuron.remove(neuron)
+            # If neuron already has more than MAX_NUMBER_OF_PARTNER partners:
+            # the available neurons are the one that already have a connexion with it
+            if np.count_nonzero(connectivity_matrix.getrow(neuron).A) >= max_partners:
+                available_for_this_neuron = connectivity_matrix.getrow(neuron).nonzero()[1]
+
+            # select randomly
+            if len(available_for_this_neuron) > 0:
+                incoming_connexion = np.random.choice(available_for_this_neuron)
+                new_connections.append((neuron, incoming_connexion))
 
     return new_connections
 
 
-def determine_pruning_pairs(neurons_for_pruning, connectivity_matrix, states, mi_based=False, random_seed=None):
+def determine_pruning_pairs(neurons_for_pruning, connectivity_matrix, states=None, mi_based=False, random_seed=None, n_jobs=1):
     """
     Identifies pairs of neurons for pruning from a connectivity matrix.
 
@@ -64,12 +92,14 @@ def determine_pruning_pairs(neurons_for_pruning, connectivity_matrix, states, mi
 
     if random_seed is not None:
         np.random.seed(random_seed)
+    if states is None and mi_based:
+        raise ValueError("States must be provided if mutual information based pruning is used.")
 
     new_pruning_pairs = []
     if mi_based:
         for neuron in neurons_for_pruning:
             connections = connectivity_matrix.getrow(neuron).nonzero()[1]
-            mi = compute_mutual_information_sklearn(states, [connections, [neuron]])
+            mi = compute_mutual_information(states, [connections, [neuron]], n_jobs=n_jobs)
             # We prune the connexion with the highest mutual information
             new_pruning_pairs.append((neuron, connections[np.argmax(mi)]))
     else:

@@ -1,8 +1,9 @@
 import numpy as np
 import matplotlib.pyplot as plt
 from scipy import signal
-from tqdm import tqdm
 from matplotlib.colors import to_rgb, to_rgba
+from scipy.signal import butter, lfilter, cheby2
+from joblib import Parallel, delayed
 
 
 def extract_peak_frequencies(input_data, sampling_rate, threshold, nperseg=1024, visualize=True):
@@ -21,8 +22,8 @@ def extract_peak_frequencies(input_data, sampling_rate, threshold, nperseg=1024,
         peak_powers = Pxx_den[peak_indices]
 
         # Define a power threshold and select the peaks based on that threshold
-        power_threshold = threshold*np.max(Pxx_den[peak_indices])
-        filtered_peak_freqs.append(peak_freqs[peak_powers > power_threshold])
+        relative_threshold = threshold*np.max(Pxx_den[peak_indices])
+        filtered_peak_freqs.append(peak_freqs[peak_powers > relative_threshold])
         if visualize:
             lines = plt.semilogy(f, Pxx_den)
             line_color = to_rgb(lines[0].get_color())
@@ -50,15 +51,14 @@ def extract_peak_frequencies(input_data, sampling_rate, threshold, nperseg=1024,
     else:
         return np.array(filtered_peak_freqs)
 
-from scipy.signal import butter, lfilter
-from joblib import Parallel, delayed
 
 def butterworth_filter(data, lowcut, highcut, fs, btype='band', order=2):
-    b, a = butter(order, [lowcut/(fs/2), highcut/(fs/2)], btype=btype)
+    #b, a = butter(order, [lowcut/(fs/2), highcut/(fs/2)], btype=btype)
+    b, a = cheby2(order, 20,  [lowcut/(fs/2), highcut/(fs/2)], btype=btype)
     return lfilter(b, a, data).flatten()
 
 
-def generate_multivariate_dataset(filtered_peak_freqs, X_pretrain, X_train, X_test, sampling_rate, scaler,
+def generate_multivariate_dataset(filtered_peak_freqs, X_pretrain, X_train, X_test, sampling_rate,
                                   is_instances_classification, nb_jobs=1, verbosity=1):
     
     lowcut = np.concatenate(([filtered_peak_freqs[0]], (filtered_peak_freqs[:-1] + filtered_peak_freqs[1:]) / 2))
@@ -72,11 +72,9 @@ def generate_multivariate_dataset(filtered_peak_freqs, X_pretrain, X_train, X_te
     # Pretrain data
     modulated_time_series = np.array(process_sample(X_pretrain.flatten())).T
 
-
     if is_instances_classification: # Multiple instances -> classification
         # Train
         X_train_band = Parallel(n_jobs=nb_jobs, verbose=verbosity)(delayed(process_sample)(x) for x in X_train)
-
         # Test
         X_test_band = Parallel(n_jobs=nb_jobs, verbose=verbosity)(delayed(process_sample)(x) for x in X_test)
     else:

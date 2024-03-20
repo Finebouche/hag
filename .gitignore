@@ -2,4 +2,5 @@
 .idea/
 .ipynb_checkpoints/
 **/.ipynb_checkpoints/
-/datasets/HAART/*
+/datasets/*/*
+wandb_api_key.txt
