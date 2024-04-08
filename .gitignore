@@ -4,3 +4,4 @@
 **/.ipynb_checkpoints/
 /datasets/*/*
 wandb_api_key.txt
+*.sqlite3

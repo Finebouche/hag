@@ -30,7 +30,6 @@ def init_model(W, Win, bias, leaking_rate, activation_function, ridge_coef=None,
 
 
 def train_model_for_classification(reservoir, readout, X_train, Y_train, n_jobs, mode, rls=False, lms=False):
-
     if mode == "sequence-to-vector":
         def compute_state(x):
             import reservoirpy
@@ -43,11 +42,11 @@ def train_model_for_classification(reservoir, readout, X_train, Y_train, n_jobs,
         )
         readout.fit(np.array(states_to_train_on), Y_train)
 
-    elif mode =="sequence-to-sequence":
+    elif mode == "sequence-to-sequence":
         states_to_train_on = np.array([item for sublist in X_train for item in sublist])
         # make Y_train repeat_targets
         # for each sequence in X_train, the corresponding target is Ytrain repeated as many times as the sequence length
-        Y_train = [[Y_train[i]]*len(x) for i, x in enumerate(X_train)]
+        Y_train = [[Y_train[i]] * len(x) for i, x in enumerate(X_train)]
         Y_train = np.array([item for sublist in Y_train for item in sublist])
 
         readout.fit(states_to_train_on, Y_train, warmup=2)
@@ -55,15 +54,13 @@ def train_model_for_classification(reservoir, readout, X_train, Y_train, n_jobs,
         raise ValueError(f"Invalid mode: {mode}")
 
 
-
 def init_and_train_model_for_classification(W, Win, bias, leaking_rate, activation_function, X_train, Y_train,
-                                            n_jobs, ridge_coef = None, mode="sequence-to-vector", rls = False, lms = False):
+                                            n_jobs, ridge_coef=None, mode="sequence-to-vector", rls=False, lms=False):
     reservoir, readout = init_model(W, Win, bias, leaking_rate, activation_function, ridge_coef, rls, lms)
 
     train_model_for_classification(reservoir, readout, X_train, Y_train, n_jobs, mode, rls, lms)
 
     return reservoir, readout
-
 
 
 def init_and_train_model_for_prediction(W, Win, bias, leaking_rate, activation_function, X_train, Y_train,
@@ -80,8 +77,8 @@ def init_and_train_model_for_prediction(W, Win, bias, leaking_rate, activation_f
     return esn
 
 
-def predict_model_for_classification(reservoir, readout, X_test, n_jobs,  mode="sequence-to-vector", rls = False, lms = False):
-
+def predict_model_for_classification(reservoir, readout, X_test, n_jobs, mode="sequence-to-vector", rls=False,
+                                     lms=False):
     if mode == "sequence-to-vector":
         def predict(x):
             import reservoirpy
@@ -97,7 +94,8 @@ def predict_model_for_classification(reservoir, readout, X_test, n_jobs,  mode="
 
     return Y_pred
 
-def compute_score(Y_pred, Y_test, is_instances_classification, model_name = "", verbosity=0):
+
+def compute_score(Y_pred, Y_test, is_instances_classification, model_name="", verbosity=0):
     if is_instances_classification:
         Y_pred_class = [np.argmax(y_p) for y_p in Y_pred]
         Y_test_class = [np.argmax(y_t) for y_t in Y_test]

@@ -8,15 +8,16 @@ import os
 from sklearn.preprocessing import LabelEncoder, OneHotEncoder
 from sklearn.model_selection import GroupShuffleSplit
 
+
 def process_audio(file_path):
     filename = tf.strings.split(file_path, '/')[-1]
-    
+
     # Extract the label from the filename
     label = tf.strings.split(filename, '_')[0]
     speaker = tf.strings.split(filename, '_')[1]
     audio = tf.io.read_file(file_path)
     audio, sampling_rate = tf.audio.decode_wav(audio, desired_channels=1)
-    
+
     return {
         'label': label,
         'audio': audio,
@@ -52,69 +53,75 @@ def visualize_speaker_distribution(train_speakers, test_speakers):
     # Show the plots
     plt.tight_layout()
     plt.show()
-    
 
-def load_FSDD_dataset(data_dir, split=0.5, seed=49387, visualize=False):
-        
+
+def load_FSDD_dataset(data_dir, test_split=2 / 3, validation_split=0.25, seed=49387, visualize=False):
     # Get the list of all audio files in the dataset directory
     audio_files = [os.path.join(data_dir, file) for file in os.listdir(data_dir) if file.endswith('.wav')]
-    
+
     # Create a TensorFlow dataset from the audio files
     audio_files_dataset = tf.data.Dataset.from_tensor_slices(audio_files)
-    
+
     # Print the number of audio files in the dataset
     print("Number of audio files:", len(audio_files))
-    
+
     audio_files_dataset = audio_files_dataset.map(process_audio, num_parallel_calls=tf.data.AUTOTUNE)
-    
+
     feature_dict = []
     sampling_rates = []
-    
+
     for data, sampling_rate in tqdm(audio_files_dataset):
         feature_dict.append(data)
         sampling_rates.append(sampling_rate.numpy())
-    
+
     # Calculate and print the mean sampling rate
     sampling_rate = np.mean(np.array(sampling_rates))
-    print("Mean sampling rate:", sampling_rate) # Should be 8000
-    
+    print("Mean sampling rate:", sampling_rate)  # Should be 8000
+
     # List to store the features, labels and speakers
     features = []
     labels = []
     speakers = []
-    
+
     # Iterate over the feature dictionary and store the features, labels and speakers
     for item in feature_dict:
         features.append(item['audio'].numpy())  # Use numpy() to convert the tensor to a numpy array
         labels.append(item['label'].numpy())  # Use numpy() to convert the tensor to a numpy array
         speakers.append(item['speaker'].numpy())  # Use numpy() to convert the tensor to a numpy array
-    
+
     # Convert the features, labels and speakers to numpy arrays
     X = np.array(features, dtype=object)
     Y = np.array(labels)
     groups = np.array(speakers)
-    
+
     # Encode the labels
     le = LabelEncoder()
     Y_encoded = le.fit_transform(Y)
-    
+
     # One-hot encode the labels
     ohe = OneHotEncoder(sparse_output=False)
     Y_one_hot = ohe.fit_transform(Y_encoded.reshape(-1, 1))
-    
+
     # Split the data into training and test sets
-    gss = GroupShuffleSplit(n_splits=1, test_size=split, random_state=seed)
-    train_idx, test_idx = next(gss.split(X, Y_one_hot, groups))  # Use the speaker groups for the split
-    X_train, X_test = X[train_idx], X[test_idx]
-    Y_train, Y_test = Y_one_hot[train_idx], Y_one_hot[test_idx]
-    train_speakers, test_speakers = groups[train_idx], groups[test_idx]
+    gss_test = GroupShuffleSplit(n_splits=1, test_size=test_split, random_state=seed)
+    train_val_idx, test_idx = next(gss_test.split(X, Y_one_hot, groups))  # Use the speaker groups for the split
+    X_train_val, X_test = X[train_val_idx], X[test_idx]
+    Y_train_val, Y_test = Y_one_hot[train_val_idx], Y_one_hot[test_idx]
+    train_val_speakers, test_speakers = groups[train_val_idx], groups[test_idx]
+
+    # Now split the training+validation set into training and validation sets.
+    gss_val = GroupShuffleSplit(n_splits=1, test_size=validation_split, random_state=seed)
+    train_idx, val_idx = next(gss_val.split(X_train_val, Y_train_val, train_val_speakers))
+    X_train, X_val = X_train_val[train_idx], X_train_val[val_idx]
+    Y_train, Y_val = Y_train_val[train_idx], Y_train_val[val_idx]
+    train_speakers, val_speakers = train_val_speakers[train_idx], train_val_speakers[val_idx]
 
     # Call the visualization function
     if visualize:
         visualize_speaker_distribution(train_speakers, test_speakers)
 
+    return sampling_rate, X_train, X_val, X_test, Y_train, Y_val, Y_test
 
-    return sampling_rate, X_train, X_test, Y_train, Y_test 
 
 def load_haart_dataset(train_path, test_path):
     # Charge HAART dataset from https://www.cs.ubc.ca/labs/spin/data/HAART%20DataSet.zip if it's not already done
@@ -132,7 +139,6 @@ def load_haart_dataset(train_path, test_path):
 
         # delete zip
         os.remove('datasets/HAART.zip')
-
 
     df_train = pd.read_csv(train_path, header=0)
     df_test = pd.read_csv(test_path, header=0)
@@ -161,7 +167,6 @@ def load_haart_dataset(train_path, test_path):
     for name, group in grouped:
         Y_test.append(name[-1])
 
-
     # encode labels
     le = LabelEncoder()
     Y_train_encoded = le.fit_transform(Y_train)
@@ -172,7 +177,6 @@ def load_haart_dataset(train_path, test_path):
     Y_train = ohe.fit_transform(Y_train_encoded.reshape(-1, 1))
     Y_test = ohe.transform(Y_test_encoded.reshape(-1, 1))
 
-
     # sampling rate is 54Hz
     sampling_rate = 54
 
@@ -181,7 +185,7 @@ def load_haart_dataset(train_path, test_path):
 
 def load_mackey_glass_dataset(step_ahead=5, visualize=True):
     from reservoirpy.datasets import mackey_glass
-    timesteps = 15000
+    timesteps = 20000
     mg_inputs = mackey_glass(timesteps + step_ahead, tau=17, a=0.2, b=0.1, n=10, x0=1.2, h=1, seed=None)
 
     # Define the time step of your Mackey-Glass system
@@ -191,9 +195,11 @@ def load_mackey_glass_dataset(step_ahead=5, visualize=True):
 
     X_pretrain = mg_inputs[:5000]
     X_train = mg_inputs[5000:10000]
-    X_test = mg_inputs[10000:15000]
+    X_val = mg_inputs[10000:15000]
+    X_test = mg_inputs[15000:20000]
     Y_train = mg_inputs[5000 + step_ahead:10000 + step_ahead]
-    Y_test = mg_inputs[10000 + step_ahead:timesteps + step_ahead]
+    Y_val = mg_inputs[10000 + step_ahead:15000 + step_ahead]
+    Y_test = mg_inputs[15000 + step_ahead:timesteps + step_ahead]
 
     if visualize:
         fig, ax = plt.subplots(figsize=(16, 5))
@@ -204,20 +210,24 @@ def load_mackey_glass_dataset(step_ahead=5, visualize=True):
         ax.tick_params(axis='both', labelsize=20)
         plt.show()
 
-    return sampling_rate, X_train, X_test, Y_train, Y_test, X_pretrain
+    return sampling_rate, X_train, X_val, X_test, Y_train, Y_val, Y_test, X_pretrain
+
 
 def load_lorenz_dataset(step_ahead=5, visualize=True):
     from reservoirpy.datasets import lorenz
-    timesteps = 15000
+    timesteps = 20000
     dt = 0.03
-    lorenz_inputs = lorenz(timesteps  + step_ahead, rho=28.0, sigma=10.0, beta=2.6666666666666665, x0=[1.0, 1.0, 1.0], h=dt, seed=None)
+    lorenz_inputs = lorenz(timesteps + step_ahead, rho=28.0, sigma=10.0, beta=2.6666666666666665, x0=[1.0, 1.0, 1.0],
+                           h=dt, seed=None)
     # Compute the equivalent sampling rate
     sampling_rate = 1 / dt
     X_pretrain = lorenz_inputs[:5000]
     X_train = lorenz_inputs[5000:10000]
-    X_test = lorenz_inputs[10000:15000]
+    X_val = lorenz_inputs[10000:15000]
+    X_test = lorenz_inputs[15000:20000]
     Y_train = lorenz_inputs[5000 + step_ahead:10000 + step_ahead]
-    Y_test = lorenz_inputs[10000 + step_ahead:timesteps + step_ahead]
+    Y_val = lorenz_inputs[10000 + step_ahead:15000 + step_ahead]
+    Y_test = lorenz_inputs[15000 + step_ahead:timesteps + step_ahead]
 
     if visualize:
         fig, ax = plt.subplots(figsize=(16, 5))
@@ -234,18 +244,20 @@ def load_lorenz_dataset(step_ahead=5, visualize=True):
         plt.legend()
         plt.show()
 
-    return sampling_rate, X_train, X_test, Y_train, Y_test, X_pretrain
+    return sampling_rate, X_train, X_val, X_test, Y_train, Y_val, Y_test, X_pretrain
 
 
 def load_dataset_classification(name):
     if name == "FSDD":
-        sampling_rate, X_train, X_test, Y_train, Y_test = load_FSDD_dataset(data_dir='datasets/fsdd/free-spoken-digit-dataset-master/recordings',visualize=True)
+        sampling_rate, X_train, X_val, X_test, Y_train, Y_val, Y_test = load_FSDD_dataset(
+            data_dir='datasets/fsdd/free-spoken-digit-dataset-master/recordings', visualize=True)
         X_pretrain = np.concatenate(X_train[:20], axis=0)
         is_multivariate = False
-        return is_multivariate, sampling_rate, X_train, X_test, Y_train, Y_test, X_pretrain
+        return is_multivariate, sampling_rate, X_train, X_val, X_test, Y_train, Y_val, Y_test, X_pretrain
 
     if name == "HAART":
-        sampling_rate, X_train_band, Y_train, X_test_band, Y_test = load_haart_dataset(train_path="datasets/HAART/training.csv", test_path="datasets/HAART/testWITHLABELS.csv")
+        sampling_rate, X_train_band, Y_train, X_test_band, Y_test = load_haart_dataset(
+            train_path="datasets/HAART/training.csv", test_path="datasets/HAART/testWITHLABELS.csv")
         X_pretrain_band = np.concatenate(X_train_band[200:], axis=0).T
         is_multivariate = True
         return is_multivariate, sampling_rate, X_train_band, X_test_band, Y_train, Y_test, X_pretrain_band
@@ -278,16 +290,16 @@ def load_dataset_classification(name):
     else:
         ValueError("The dataset with name {} is not loadable".format(name))
 
+
 def load_dataset_prediction(name, step_ahead=5, visualize=True):
     if name == "MackeyGlass":
-        sampling_rate, X_train, X_test, Y_train, Y_test, X_pretrain = load_mackey_glass_dataset()
+        sampling_rate, X_train, X_val, X_test, Y_train, Y_val, Y_test, X_pretrain = load_mackey_glass_dataset()
         is_multivariate = False
-        return is_multivariate, sampling_rate, X_train, X_test, Y_train, Y_test, X_pretrain
+        return is_multivariate, sampling_rate, X_train, X_val, X_test, Y_train, Y_val, Y_test, X_pretrain
     if name == "Lorenz":
-        sampling_rate, X_train, X_test, Y_train, Y_test, X_pretrain = load_lorenz_dataset()
+        sampling_rate, X_train, X_val, X_test, Y_train, Y_val, Y_test, X_pretrain = load_lorenz_dataset()
         is_multivariate = True
-        return is_multivariate, sampling_rate, X_train, X_test, Y_train, Y_test, X_pretrain.T
+        return is_multivariate, sampling_rate, X_train, X_val, X_test, Y_train, Y_val, Y_test, X_pretrain.T
 
     else:
         ValueError("The dataset with name {} is not loadable".format(name))
-

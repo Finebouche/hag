@@ -34,8 +34,7 @@ def compute_synaptic_change(states, target_activation_levels, growth_parameter, 
     return np.trunc(delta_z)  # -1,5->-1 and 1.5->1
 
 
-def compute_synaptic_change_variance(states, target_activation_levels, growth_parameter, change_type="linear", average="WHOLE",
-                                     queue_size=5, minimum_calcium_concentration=0.1):
+def compute_synaptic_change_variance(states, target_activation_levels, growth_parameter, average="WHOLE", queue_size=5):
     # Calculate the synaptic change based on variance as per user requirement
     states = np.array(states)
     delta_z = (target_activation_levels - states) / growth_parameter
@@ -71,7 +70,7 @@ def bounded_hadsp(W_e, states, delta_z, weight_increment, W_inhibitory_connexion
     if min(W_inhibitory_connexions.shape) > 0:
         new_connexion_pairs = determine_connection_pairs(need_pruning, W_inhibitory_connexions, True)
         for connexion in new_connexion_pairs:
-            W_inhibitory_connexions = change_connexion(W_inhibitory_connexions, connexion[0], connexion[1], value)
+            W_inhibitory_connexions = change_connexion(W_inhibitory_connexions, connexion[0], connexion[1], weight_increment)
             total_add += 1
 
     # INCREASE THE RATE
@@ -85,7 +84,7 @@ def bounded_hadsp(W_e, states, delta_z, weight_increment, W_inhibitory_connexion
     if min(W_inhibitory_connexions.shape) > 0:
         new_prune_pairs = determine_pruning_pairs(need_pruning, W_inhibitory_connexions, states, mi_based)
         for connexion in new_prune_pairs:
-            W_inhibitory_connexions = change_connexion(W_inhibitory_connexions, connexion[0], connexion[1], -value)
+            W_inhibitory_connexions = change_connexion(W_inhibitory_connexions, connexion[0], connexion[1], -weight_increment)
             total_prun += 1
 
     return W_e, W_inhibitory_connexions, total_add, total_prun

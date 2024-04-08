@@ -52,7 +52,7 @@ def extract_peak_frequencies(input_data, sampling_rate, threshold, nperseg=1024,
         return np.array(filtered_peak_freqs)
 
 
-def butterworth_filter(data, lowcut, highcut, fs, btype='band', order=2):
+def filter(data, lowcut, highcut, fs, btype='band', order=4):
     #b, a = butter(order, [lowcut/(fs/2), highcut/(fs/2)], btype=btype)
     b, a = cheby2(order, 20,  [lowcut/(fs/2), highcut/(fs/2)], btype=btype)
     return lfilter(b, a, data).flatten()
@@ -66,7 +66,7 @@ def generate_multivariate_dataset(filtered_peak_freqs, X_pretrain, X_train, X_te
     
     def process_sample(x):
         return np.array(list(
-            map(lambda f: butterworth_filter(x, lowcut[f], highcut[f], fs=sampling_rate), range(len(filtered_peak_freqs)))
+            map(lambda f: filter(x, lowcut[f], highcut[f], fs=sampling_rate), range(len(filtered_peak_freqs)))
         )).T
 
     # Pretrain data

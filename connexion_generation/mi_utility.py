@@ -2,7 +2,6 @@
 import numpy as np
 from joblib import Parallel, delayed
 from sklearn.metrics import mutual_info_score
-from scipy.special import xlogy
 import time  # Import the time module
 from multiprocessing import cpu_count
 
