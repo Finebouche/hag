@@ -7,7 +7,7 @@ import os
 
 from sklearn.preprocessing import LabelEncoder, OneHotEncoder
 from sklearn.model_selection import GroupShuffleSplit
-
+from sklearn.model_selection import train_test_split
 
 def process_audio(file_path):
     filename = tf.strings.split(file_path, '/')[-1]
@@ -247,33 +247,37 @@ def load_lorenz_dataset(step_ahead=5, visualize=True):
     return sampling_rate, X_train, X_val, X_test, Y_train, Y_val, Y_test, X_pretrain
 
 
-def load_dataset_classification(name):
+def load_dataset_classification(name, seed=None):
     if name == "FSDD":
         sampling_rate, X_train, X_val, X_test, Y_train, Y_val, Y_test = load_FSDD_dataset(
             data_dir='datasets/fsdd/free-spoken-digit-dataset-master/recordings', visualize=True)
-        X_pretrain = np.concatenate(X_train[:20], axis=0)
+        X_train, X_val, Y_train, Y_val = train_test_split(X_train, Y_train, test_size=0.2, random_state=seed)
+
+        X_pretrain = X_train[:20]
         is_multivariate = False
         return is_multivariate, sampling_rate, X_train, X_val, X_test, Y_train, Y_val, Y_test, X_pretrain
 
     if name == "HAART":
         sampling_rate, X_train_band, Y_train, X_test_band, Y_test = load_haart_dataset(
             train_path="datasets/HAART/training.csv", test_path="datasets/HAART/testWITHLABELS.csv")
-        X_pretrain_band = np.concatenate(X_train_band[200:], axis=0).T
+        X_train, X_val, Y_train, Y_val = train_test_split(X_train_band, Y_train, test_size=0.2, random_state=seed)
+        X_pretrain_band = X_train_band[200:]
         is_multivariate = True
         return is_multivariate, sampling_rate, X_train_band, X_test_band, Y_train, Y_test, X_pretrain_band
 
     if name == "JapaneseVowels":
         from reservoirpy.datasets import japanese_vowels
         X_train_band, Y_train, X_test_band, Y_test = japanese_vowels()
+        X_train_band, X_val_band, Y_train, Y_val = train_test_split(X_train_band, Y_train, test_size=0.2, random_state=seed)
         is_multivariate = True
         # Sampling rate : 10 kHz
         # Source : https://archive.ics.uci.edu/dataset/128/japanese+vowels
         sampling_rate = 10000
         # pretrain is the same as train
-        X_pretrain_band = np.concatenate(X_train_band, axis=0).T
+        X_pretrain_band = X_train_band
         Y_train = np.squeeze(np.array(Y_train), axis=1)
         Y_test = np.squeeze(np.array(Y_test), axis=1)
-        return is_multivariate, sampling_rate, X_train_band, X_test_band, Y_train, Y_test, X_pretrain_band
+        return is_multivariate, sampling_rate, X_train_band, X_val_band, X_test_band, Y_train, Y_val, Y_test, X_pretrain_band
 
     if name == "InsectWingbeat":
         NotImplemented("Dataset {} is not implemented yet".format(name))

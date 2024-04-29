@@ -34,26 +34,6 @@ def compute_synaptic_change(states, target_activation_levels, growth_parameter, 
     return np.trunc(delta_z)  # -1,5->-1 and 1.5->1
 
 
-def compute_synaptic_change_variance(states, target_activation_levels, growth_parameter, average="WHOLE", queue_size=5):
-    # Calculate the synaptic change based on variance as per user requirement
-    states = np.array(states)
-    delta_z = (target_activation_levels - states) / growth_parameter
-
-    # we compute variance over a time window
-    if average == "WHOLE":
-        delta_z = np.var(delta_z, axis=0)
-    # else we take the variance of the last value from the time window, which doesn't make sense for a single value
-    # so for LAST, it's either not applicable or we keep as is, because variance of a single value is always 0.
-    elif average == "LAST":
-        # For a single value, variance is 0; could also return the value itself if needed, but here it's not meaningful
-        delta_z = 0
-    # else we take the variance of the last queue_size values from the time window
-    elif average == "QUEUE":
-        delta_z = np.var(delta_z[-queue_size:], axis=0)
-
-    return np.trunc(delta_z)  # Apply truncation similar to the original implementation
-
-
 def bounded_hadsp(W_e, states, delta_z, weight_increment, W_inhibitory_connexions=np.array([]), max_partners=12, mi_based=False):
     neurons = np.arange(len(states[0]))
     total_prun = 0
@@ -91,7 +71,8 @@ def bounded_hadsp(W_e, states, delta_z, weight_increment, W_inhibitory_connexion
 
 
 def run_hadsp_algorithm(W, Win, bias, leaky_rate, activation_function, input_data, time_increment, weight_increment, target_rate,
-                        growth_parameter, max_increment=None, mi_based=False, average="WHOLE", visualize=False):
+                        growth_parameter, max_increment=None, mi_based=False, average="WHOLE",
+                        instances=False, common_index=0, visualize=False):
     state = np.random.uniform(0, 1, bias.size)
     state_history = []
 
@@ -109,22 +90,36 @@ def run_hadsp_algorithm(W, Win, bias, leaky_rate, activation_function, input_dat
         logspace = np.logspace(np.log10(time_increment), np.log10(max_increment), num=10)
         int_logspace = np.round(logspace).astype(int)
 
-    # initialization
-    init_length = time_increment * 5
-    for i in range(init_length):
-        state = update_reservoir(W, Win, input_data[i], state, leaky_rate, bias, activation_function)
-        state_history.append(state)
-    input_data = input_data[init_length:]
-
-    pbar = tqdm(total=input_data.size)
-    while input_data.size > max_increment:
+    if not instances:
         # randomly select the increment size
         inc = np.random.choice(int_logspace)
+        init_length = time_increment * 5
+        init_array = input_data[:init_length]
+        input_data = input_data[init_length:]
+    else:  # if is true, take the next instance of the instance array input_data
+        init_array = np.concatenate(input_data[:3], axis=common_index).T
+        input_data = input_data[3:]
 
-        for i in range(inc):
-            state = update_reservoir(W, Win, input_data[i], state, leaky_rate, bias, activation_function)
+    # initialization
+    for input_value in init_array:
+        state = update_reservoir(W, Win, input_value, state, leaky_rate, bias, activation_function)
+        state_history.append(state)
+
+    pbar = tqdm(total=len(input_data))
+    while (len(input_data) > max_increment and not instances) or (len(input_data) > 0 and instances):
+        if not instances:
+            # randomly select the increment size
+            inc = np.random.choice(int_logspace)
+            input_array = input_data[:inc]
+            input_data = input_data[inc:]
+        else:  # if is true, take the next instance of the instance array input_data
+            input_array = input_data[0].T
+            input_data = input_data[1:]
+            inc = len(input_array)
+
+        for input_value in input_array:
+            state = update_reservoir(W, Win, input_value, state, leaky_rate, bias, activation_function)
             state_history.append(state)
-        input_data = input_data[inc:]
 
         delta_z = compute_synaptic_change(state_history[-inc:], target_rate, growth_parameter, average=average)
         W, _, nb_new_add, nb_new_prun = bounded_hadsp(W, state_history[-inc:], delta_z, weight_increment, mi_based=mi_based)

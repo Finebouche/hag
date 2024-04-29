@@ -4,9 +4,8 @@ from scipy.sparse import csr_matrix
 from joblib import Parallel, delayed
 from sklearn.metrics import accuracy_score
 from tqdm import tqdm
-from reservoir.losses import nrmse, nrmse_multivariate
-
-from reservoirpy.nodes import Reservoir, Ridge, ESN, RLS, LMS
+from performances.losses import nrmse_multivariate
+from reservoirpy.nodes import Reservoir, Ridge, RLS, LMS
 import reservoirpy
 
 reservoirpy.verbosity(level=0)

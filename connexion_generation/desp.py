@@ -70,7 +70,7 @@ def bounded_desp(W_e, states, variance, min_variance, max_variance, weight_incre
 
 def run_desp_algorithm(W, Win, bias, leaky_rate, activation_function, input_data, time_increment, weight_increment,
                        min_variance, max_variance, max_increment=None, max_partners=12, mi_based=False, average="WHOLE",
-                       n_jobs=1, visualize=False):
+                       instances=False, common_index=0, n_jobs=1, visualize=False):
     state = np.random.uniform(0, 1, bias.size)
     state_history = []
     variance_history = []
@@ -89,22 +89,36 @@ def run_desp_algorithm(W, Win, bias, leaky_rate, activation_function, input_data
         logspace = np.logspace(np.log10(time_increment), np.log10(max_increment), num=10)
         int_logspace = np.round(logspace).astype(int)
 
-    # initialization
-    init_length = time_increment * 5
-    for i in range(init_length):
-        state = update_reservoir(W, Win, input_data[i], state, leaky_rate, bias, activation_function)
-        state_history.append(state)
-    input_data = input_data[init_length:]
-
-    pbar = tqdm(total=input_data.size)
-    while input_data.size > max_increment:
+    if not instances:
         # randomly select the increment size
         inc = np.random.choice(int_logspace)
+        init_length = time_increment * 5
+        init_array = input_data[:init_length]
+        input_data = input_data[init_length:]
+    else:  # if is true, take the next instance of the instance array input_data
+        init_array = np.concatenate(input_data[:3], axis=common_index).T
+        input_data = input_data[3:]
 
-        for i in range(inc):
-            state = update_reservoir(W, Win, input_data[i], state, leaky_rate, bias, activation_function)
+    # initialization
+    for input_value in init_array:
+        state = update_reservoir(W, Win, input_value, state, leaky_rate, bias, activation_function)
+        state_history.append(state)
+
+    pbar = tqdm(total=len(input_data))
+    while (len(input_data) > max_increment and not instances) or (len(input_data) > 0 and instances):
+        if not instances:
+            # randomly select the increment size
+            inc = np.random.choice(int_logspace)
+            input_array = input_data[:inc]
+            input_data = input_data[inc:]
+        else:  # if is true, take the next instance of the instance array input_data
+            input_array = input_data[0].T
+            input_data = input_data[1:]
+            inc = len(input_array)
+
+        for input_value in input_array:
+            state = update_reservoir(W, Win, input_value, state, leaky_rate, bias, activation_function)
             state_history.append(state)
-        input_data = input_data[inc:]
 
         variance = compute_variance(state_history[-inc:], average=average)
         # happened variance to variance_history for a number of inc

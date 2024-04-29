@@ -2,24 +2,6 @@ from scipy import sparse
 import numpy as np
 from connexion_generation.mi_utility import compute_mutual_information
 
-class TwoDimArrayWrapper:
-    def __init__(self, input_data):
-        if input_data.ndim != 2:
-            raise ValueError("Expected a 2D array.")
-        self.A = input_data
-        self.data = input_data
-        self.shape = input_data.shape
-        self.size = input_data.shape[1]
-        self.flat_data = input_data.flatten()
-
-    def __getitem__(self, key):
-        # Handle slice access
-        if isinstance(key, slice):
-            sliced_data = self.data[:, key.start:key.stop:key.step]
-            return TwoDimArrayWrapper(sliced_data)
-        # Handle single element access
-        return self.data[:, key]
-
 
 def determine_connection_pairs(neurons_needing_new_connection, connectivity_matrix, states=None,
                                is_inter_matrix=False, mi_based=False, max_partners=12, random_seed=None, n_jobs=1):

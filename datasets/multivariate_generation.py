@@ -8,7 +8,7 @@ from joblib import Parallel, delayed
 
 def extract_peak_frequencies(input_data, sampling_rate, threshold, nperseg=1024, visualize=True):
     assert threshold < 1, "Threshold should be a fraction of the maximum power"
-    print("Frequency limit: ", np.round(sampling_rate/2), "(Shannon sampling theorem)")
+    print("Frequency limit: ", np.round(sampling_rate / 2), "(Shannon sampling theorem)")
     filtered_peak_freqs = []
     max_power = 0
     max_frequency = 0
@@ -22,7 +22,7 @@ def extract_peak_frequencies(input_data, sampling_rate, threshold, nperseg=1024,
         peak_powers = Pxx_den[peak_indices]
 
         # Define a power threshold and select the peaks based on that threshold
-        relative_threshold = threshold*np.max(Pxx_den[peak_indices])
+        relative_threshold = threshold * np.max(Pxx_den[peak_indices])
         filtered_peak_freqs.append(peak_freqs[peak_powers > relative_threshold])
         if visualize:
             lines = plt.semilogy(f, Pxx_den)
@@ -36,13 +36,13 @@ def extract_peak_frequencies(input_data, sampling_rate, threshold, nperseg=1024,
             max_frequency = np.max(peak_freqs[peak_powers > (threshold * max_power * 1e-2)])
 
     if visualize:
-        plt.ylim([threshold*max_power*1e-2, max_power*1e1])
+        plt.ylim([threshold * max_power * 1e-2, max_power * 1e1])
         plt.xlim([0, max_frequency])
         plt.xlabel('frequency [Hz]')
         plt.ylabel('PSD [V**2/Hz]')
         # Add threshold lines
-        plt.axhline(threshold*max_power, color='g', linestyle='--', label='P threshold')
-        plt.axvline(sampling_rate/2, color='r', linestyle='--', label='f limit')
+        plt.axhline(threshold * max_power, color='g', linestyle='--', label='P threshold')
+        plt.axvline(sampling_rate / 2, color='r', linestyle='--', label='f limit')
         plt.legend()  # Show legend with the threshold line
         plt.show()
 
@@ -53,38 +53,62 @@ def extract_peak_frequencies(input_data, sampling_rate, threshold, nperseg=1024,
 
 
 def filter(data, lowcut, highcut, fs, btype='band', order=4):
-    #b, a = butter(order, [lowcut/(fs/2), highcut/(fs/2)], btype=btype)
-    b, a = cheby2(order, 20,  [lowcut/(fs/2), highcut/(fs/2)], btype=btype)
+    b, a = butter(order, [lowcut / (fs / 2), highcut / (fs / 2)], btype=btype)
+    # b, a = cheby2(order, 20,  [lowcut/(fs/2), highcut/(fs/2)], btype=btype)
     return lfilter(b, a, data).flatten()
 
 
-def generate_multivariate_dataset(filtered_peak_freqs, X_pretrain, X_train, X_test, sampling_rate,
-                                  is_instances_classification, nb_jobs=1, verbosity=1):
-    
+def generate_multivariate_dataset(filtered_peak_freqs, X, sampling_rate, is_instances_classification, nb_jobs=1,
+                                  verbosity=1):
     lowcut = np.concatenate(([filtered_peak_freqs[0]], (filtered_peak_freqs[:-1] + filtered_peak_freqs[1:]) / 2))
     highcut = np.concatenate(((filtered_peak_freqs[:-1] + filtered_peak_freqs[1:]) / 2, [filtered_peak_freqs[-1]]))
-    
+
     def process_sample(x):
         return np.array(list(
             map(lambda f: filter(x, lowcut[f], highcut[f], fs=sampling_rate), range(len(filtered_peak_freqs)))
         )).T
 
-    # Pretrain data
-    modulated_time_series = np.array(process_sample(X_pretrain.flatten())).T
-
-    if is_instances_classification: # Multiple instances -> classification
-        # Train
-        X_train_band = Parallel(n_jobs=nb_jobs, verbose=verbosity)(delayed(process_sample)(x) for x in X_train)
-        # Test
-        X_test_band = Parallel(n_jobs=nb_jobs, verbose=verbosity)(delayed(process_sample)(x) for x in X_test)
+    if is_instances_classification:  # Multiple instances -> classification
+        X_band = Parallel(n_jobs=nb_jobs, verbose=verbosity)(delayed(process_sample)(x) for x in X)
+        print("hello")
     else:
         # Concatenate X_train and X_test for continuous processing
-        concatenated_X = np.concatenate([X_train.flatten(), X_test.flatten()])
-        processed_X = process_sample(concatenated_X)
+        X_band = process_sample(X)
 
-        # Split the processed data back into train and test sets
-        X_train_len = X_train.size  # Get the number of elements in X_train
-        X_train_band = processed_X[:X_train_len]
-        X_test_band = processed_X[X_train_len:]
+    return X_band
 
-    return modulated_time_series, X_train_band, X_test_band
+
+if __name__ == "__main__":
+    # Generate a synthetic dataset
+    fs = 1000  # Sampling frequency
+    t = np.linspace(0, 1, fs)  # Time axis
+    # Generate signals with two frequencies
+    f1, f2 = 2, 15  # Frequencies to include in the signal
+    X = np.sin(2 * np.pi * f1 * t) + np.sin(2 * np.pi * f2 * t)
+    print("Original shape: ", X.reshape(-1, 1).shape)
+
+    # Define peak frequencies around which to filter
+    filtered_peak_freqs = extract_peak_frequencies(X, fs, threshold=1e-5, nperseg=1024, visualize=False)
+    print(filtered_peak_freqs)
+
+    # Generate multivariate dataset
+    X_band = generate_multivariate_dataset(filtered_peak_freqs, X.reshape(-1, 1), fs, is_instances_classification=False,
+                                           nb_jobs=1,
+                                           verbosity=0)
+
+    print(X_band.shape)
+    # Plot the original and filtered signals on the same graph
+    # Plot the original signal
+    plt.plot(t, X, label='Original signal', color='blue')
+
+    # Plot the filtered signals
+    # Note: If X_band is 2D, this assumes that each column is a filtered version of the original signal.
+    for i, filtered_signal in enumerate(X_band.T):
+        plt.plot(t, filtered_signal, label=f'Filtered signal {i + 1}', linestyle='--')
+
+    plt.xlabel('Time [s]')
+    plt.ylabel('Amplitude')
+    plt.title('Original and Filtered Signals')
+    plt.legend()
+    plt.show()
+    print(X_band)
