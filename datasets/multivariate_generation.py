@@ -2,7 +2,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from scipy import signal
 from matplotlib.colors import to_rgb, to_rgba
-from scipy.signal import butter, lfilter, cheby2
+from scipy.signal import butter, cheby2, sosfiltfilt
 from joblib import Parallel, delayed
 
 
@@ -14,6 +14,7 @@ def extract_peak_frequencies(input_data, sampling_rate, threshold, nperseg=1024,
     max_frequency = 0
     for i in range(input_data.shape[1]):
         # Estimate power spectral density using Welch's method
+        # https://dsp.stackexchange.com/questions/81640/trying-to-understand-the-nperseg-effect-of-welch-method
         f, Pxx_den = signal.welch(input_data[:, i], sampling_rate, nperseg=nperseg)
 
         # Find the peaks in the power spectral density
@@ -52,57 +53,56 @@ def extract_peak_frequencies(input_data, sampling_rate, threshold, nperseg=1024,
         return np.array(filtered_peak_freqs)
 
 
-def filter(data, lowcut, highcut, fs, btype='band', order=4):
-    b, a = butter(order, [lowcut / (fs / 2), highcut / (fs / 2)], btype=btype)
-    # b, a = cheby2(order, 20,  [lowcut/(fs/2), highcut/(fs/2)], btype=btype)
-    return lfilter(b, a, data).flatten()
+def filter(x, lowcut, highcut, fs, order=6):
+    #sos = butter(order, [lowcut, highcut], btype="bandpass", fs=fs, output='sos')
+    sos = cheby2(order, 20, [lowcut, highcut], btype='bandpass', fs=fs, output='sos')
+    return sosfiltfilt(sos, x).flatten()
 
 
 def generate_multivariate_dataset(filtered_peak_freqs, X, sampling_rate, is_instances_classification, nb_jobs=1,
                                   verbosity=1):
-    lowcut = np.concatenate(([filtered_peak_freqs[0]], (filtered_peak_freqs[:-1] + filtered_peak_freqs[1:]) / 2))
-    highcut = np.concatenate(((filtered_peak_freqs[:-1] + filtered_peak_freqs[1:]) / 2, [filtered_peak_freqs[-1]]))
+    extended_freqs = np.concatenate(([0], filtered_peak_freqs, [sampling_rate / 2]))
+    # Calculate bandwidth as half the inter-frequency distances
+    bandwidth = np.diff(extended_freqs) / 2
+    # Calculate lowcut and highcut frequencies
+    lowcut = filtered_peak_freqs - bandwidth[:-1]
+    highcut = filtered_peak_freqs + bandwidth[1:]
 
     def process_sample(x):
-        return np.array(list(
-            map(lambda f: filter(x, lowcut[f], highcut[f], fs=sampling_rate), range(len(filtered_peak_freqs)))
-        )).T
+        return np.array([
+            filter(x, lowcut[freq_index], highcut[freq_index], fs=sampling_rate) for freq_index in
+            range(len(filtered_peak_freqs))
+        ])
 
-    if is_instances_classification:  # Multiple instances -> classification
+    if is_instances_classification:  # classification -> Multiple instances
         X_band = Parallel(n_jobs=nb_jobs, verbose=verbosity)(delayed(process_sample)(x) for x in X)
-        print("hello")
     else:
-        # Concatenate X_train and X_test for continuous processing
-        X_band = process_sample(X)
+        X_band = process_sample(X.T)
 
-    return X_band
+    return X_band.T
 
 
 if __name__ == "__main__":
+
     # Generate a synthetic dataset
     fs = 1000  # Sampling frequency
-    t = np.linspace(0, 1, fs)  # Time axis
+    t = np.linspace(0, 2, 2 * fs)  # Time axis
     # Generate signals with two frequencies
-    f1, f2 = 2, 15  # Frequencies to include in the signal
+    f1, f2 = 10, 30  # Frequencies to include in the signal
     X = np.sin(2 * np.pi * f1 * t) + np.sin(2 * np.pi * f2 * t)
-    print("Original shape: ", X.reshape(-1, 1).shape)
 
     # Define peak frequencies around which to filter
-    filtered_peak_freqs = extract_peak_frequencies(X, fs, threshold=1e-5, nperseg=1024, visualize=False)
-    print(filtered_peak_freqs)
+    filtered_peak_freqs = extract_peak_frequencies(X.reshape(-1, 1), fs, threshold=1e-5, nperseg=fs, visualize=True)
+    print("filtered_peak_freqs", filtered_peak_freqs)
 
     # Generate multivariate dataset
     X_band = generate_multivariate_dataset(filtered_peak_freqs, X.reshape(-1, 1), fs, is_instances_classification=False,
                                            nb_jobs=1,
                                            verbosity=0)
 
-    print(X_band.shape)
+    plt.figure(figsize=(24, 6))
     # Plot the original and filtered signals on the same graph
-    # Plot the original signal
     plt.plot(t, X, label='Original signal', color='blue')
-
-    # Plot the filtered signals
-    # Note: If X_band is 2D, this assumes that each column is a filtered version of the original signal.
     for i, filtered_signal in enumerate(X_band.T):
         plt.plot(t, filtered_signal, label=f'Filtered signal {i + 1}', linestyle='--')
 
@@ -111,4 +111,3 @@ if __name__ == "__main__":
     plt.title('Original and Filtered Signals')
     plt.legend()
     plt.show()
-    print(X_band)
