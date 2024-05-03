@@ -91,8 +91,8 @@ def run_desp_algorithm(W, Win, bias, leaky_rate, activation_function, input_data
 
     if instances:   # if is true, take the next instance of the instance array input_data
         # check that input data comon dimension is the same
-        assert len(set([instance.shape[0] for instance in input_data])) == 1,  "common dimension must be 0"
-        init_array = np.concatenate(input_data[:3], axis=1).T
+        assert len(set([instance.shape[1] for instance in input_data])) == 1,  "common dimension must be 1"
+        init_array = np.concatenate(input_data[:3], axis=0)
         input_data = input_data[3:]
     else:
         # randomly select the increment size
@@ -108,7 +108,7 @@ def run_desp_algorithm(W, Win, bias, leaky_rate, activation_function, input_data
     pbar = tqdm(total=len(input_data))
     while (len(input_data) > max_increment and not instances) or (len(input_data) > 0 and instances):
         if instances:   # if is true, take the next instance of the instance array input_data
-            input_array = input_data[0].T
+            input_array = input_data[0]
             input_data = input_data[1:]
             inc = 1
             state_inc = inc*input_array.shape[0]
