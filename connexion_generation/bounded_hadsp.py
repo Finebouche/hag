@@ -90,15 +90,16 @@ def run_hadsp_algorithm(W, Win, bias, leaky_rate, activation_function, input_dat
         logspace = np.logspace(np.log10(time_increment), np.log10(max_increment), num=10)
         int_logspace = np.round(logspace).astype(int)
 
-    if not instances:
+    if instances:   # if is true, take the next instance of the instance array input_data
+        # check that input data comon dimension is the same
+        assert len(set([instance.shape[0] for instance in input_data])) == 1,  "common dimension must be 0"
+        init_array = np.concatenate(input_data[:3], axis=1).T
+        input_data = input_data[3:]
+    else:
         # randomly select the increment size
-        inc = np.random.choice(int_logspace)
         init_length = time_increment * 5
         init_array = input_data[:init_length]
         input_data = input_data[init_length:]
-    else:  # if is true, take the next instance of the instance array input_data
-        init_array = np.concatenate(input_data[:3], axis=common_index).T
-        input_data = input_data[3:]
 
     # initialization
     for input_value in init_array:
@@ -107,15 +108,16 @@ def run_hadsp_algorithm(W, Win, bias, leaky_rate, activation_function, input_dat
 
     pbar = tqdm(total=len(input_data))
     while (len(input_data) > max_increment and not instances) or (len(input_data) > 0 and instances):
-        if not instances:
+        if instances:   # if is true, take the next instance of the instance array input_data
+            input_array = input_data[0].T
+            input_data = input_data[1:]
+            inc = 1
+        else:
             # randomly select the increment size
             inc = np.random.choice(int_logspace)
             input_array = input_data[:inc]
             input_data = input_data[inc:]
-        else:  # if is true, take the next instance of the instance array input_data
-            input_array = input_data[0].T
-            input_data = input_data[1:]
-            inc = len(input_array)
+
 
         for input_value in input_array:
             state = update_reservoir(W, Win, input_value, state, leaky_rate, bias, activation_function)
