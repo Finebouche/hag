@@ -114,7 +114,7 @@ def load_FSDD_dataset(data_dir, test_split=2 / 3, validation_split=0.25, seed=No
     if visualize:
         visualize_speaker_distribution(train_speakers, test_speakers)
 
-    return sampling_rate, X_train, X_test, Y_train, Y_test, groups
+    return sampling_rate, X_train, X_test, Y_train, Y_test, train_speakers
 
 
 def load_haart_dataset(train_path, test_path):
@@ -251,19 +251,21 @@ def load_dataset_classification(name, seed=None):
         sampling_rate, X_train_band, Y_train, X_test_band, Y_test = load_haart_dataset(
             train_path="datasets/HAART/training.csv", test_path="datasets/HAART/testWITHLABELS.csv")
         is_multivariate = True
-        return is_multivariate, sampling_rate, X_train_band, X_test_band, Y_train, Y_test, []
+        groups = None
+        return is_multivariate, sampling_rate, X_train_band, X_test_band, Y_train, Y_test, groups
 
     if name == "JapaneseVowels":
         from reservoirpy.datasets import japanese_vowels
         X_train_band, Y_train, X_test_band, Y_test = japanese_vowels()
         is_multivariate = True
+        groups = None
         # Sampling rate : 10 kHz
         # Source : https://archive.ics.uci.edu/dataset/128/japanese+vowels
         sampling_rate = 10000
         # pretrain is the same as train
         Y_train = np.squeeze(np.array(Y_train), axis=1)
         Y_test = np.squeeze(np.array(Y_test), axis=1)
-        return is_multivariate, sampling_rate, X_train_band, X_test_band, Y_train, Y_test, []
+        return is_multivariate, sampling_rate, X_train_band, X_test_band, Y_train, Y_test, groups
 
     if name == "InsectWingbeat":
         NotImplemented("Dataset {} is not implemented yet".format(name))
@@ -274,8 +276,7 @@ def load_dataset_classification(name, seed=None):
 
     if name == "MELD":
         # https://github.com/declare-lab/MELD
-        NotImplemented("Dataset {} is not implemented yet".format(name))
-
+        NotImplemented("Dataset {} is nto implemented yet".format(name))
 
     else:
         ValueError("The dataset with name {} is not loadable".format(name))

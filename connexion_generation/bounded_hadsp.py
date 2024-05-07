@@ -70,9 +70,9 @@ def bounded_hadsp(W_e, states, delta_z, weight_increment, W_inhibitory_connexion
     return W_e, W_inhibitory_connexions, total_add, total_prun
 
 
-def run_hadsp_algorithm(W, Win, bias, leaky_rate, activation_function, input_data, time_increment, weight_increment, target_rate,
-                        growth_parameter, max_increment=None, mi_based=False, average="WHOLE",
-                        instances=False, common_index=0, visualize=False):
+def run_hadsp_algorithm(W, Win, bias, leaky_rate, activation_function, input_data, time_increment, weight_increment,
+                        target_rate, growth_parameter, instances, max_increment=None, mi_based=False, average="WHOLE",
+                        visualize=False):
     state = np.random.uniform(0, 1, bias.size)
     state_history = []
 
@@ -106,25 +106,26 @@ def run_hadsp_algorithm(W, Win, bias, leaky_rate, activation_function, input_dat
         state = update_reservoir(W, Win, input_value, state, leaky_rate, bias, activation_function)
         state_history.append(state)
 
-    pbar = tqdm(total=len(input_data))
+    pbar = tqdm(total=len(input_data), desc="HADSP")
     while (len(input_data) > max_increment and not instances) or (len(input_data) > 0 and instances):
         if instances:   # if is true, take the next instance of the instance array input_data
             input_array = input_data[0]
             input_data = input_data[1:]
             inc = 1
+            state_inc = inc*input_array.shape[0]
         else:
             # randomly select the increment size
             inc = np.random.choice(int_logspace)
             input_array = input_data[:inc]
             input_data = input_data[inc:]
-
+            state_inc = inc
 
         for input_value in input_array:
             state = update_reservoir(W, Win, input_value, state, leaky_rate, bias, activation_function)
             state_history.append(state)
 
-        delta_z = compute_synaptic_change(state_history[-inc:], target_rate, growth_parameter, average=average)
-        W, _, nb_new_add, nb_new_prun = bounded_hadsp(W, state_history[-inc:], delta_z, weight_increment, mi_based=mi_based)
+        delta_z = compute_synaptic_change(state_history[-state_inc:], target_rate, growth_parameter, average=average)
+        W, _, nb_new_add, nb_new_prun = bounded_hadsp(W, state_history[-state_inc:], delta_z, weight_increment, mi_based=mi_based)
 
         total_add += nb_new_add
         total_prun += nb_new_prun

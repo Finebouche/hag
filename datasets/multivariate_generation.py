@@ -8,7 +8,8 @@ from joblib import Parallel, delayed
 
 def extract_peak_frequencies(input_data, sampling_rate, threshold, nperseg=1024, visualize=True):
     assert threshold < 1, "Threshold should be a fraction of the maximum power"
-    print("Frequency limit: ", np.round(sampling_rate / 2), "(Shannon sampling theorem)")
+    if visualize == True:
+        print("Frequency limit: ", np.round(sampling_rate / 2), "(Shannon sampling theorem)")
     filtered_peak_freqs = []
     max_power = 0
     max_frequency = 0
@@ -50,7 +51,7 @@ def extract_peak_frequencies(input_data, sampling_rate, threshold, nperseg=1024,
     if input_data.shape[1] == 1:
         return filtered_peak_freqs[0]
     else:
-        return np.array(filtered_peak_freqs)
+        return np.array(filtered_peak_freqs, dtype=object)
 
 
 def filter(x, lowcut, highcut, fs, order=6):

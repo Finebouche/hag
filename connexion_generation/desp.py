@@ -69,8 +69,8 @@ def bounded_desp(W_e, states, variance, min_variance, max_variance, weight_incre
 
 
 def run_desp_algorithm(W, Win, bias, leaky_rate, activation_function, input_data, time_increment, weight_increment,
-                       min_variance, max_variance, max_increment=None, max_partners=12, mi_based=False, average="WHOLE",
-                       instances=False, n_jobs=1, visualize=False):
+                       min_variance, max_variance, instances, max_increment=None, max_partners=12, mi_based=False,
+                       average="WHOLE", n_jobs=1, visualize=False):
     state = np.random.uniform(0, 1, bias.size)
     state_history = []
     variance_history = []
@@ -105,7 +105,7 @@ def run_desp_algorithm(W, Win, bias, leaky_rate, activation_function, input_data
         state = update_reservoir(W, Win, input_value, state, leaky_rate, bias, activation_function)
         state_history.append(state)
 
-    pbar = tqdm(total=len(input_data))
+    pbar = tqdm(total=len(input_data), desc="DESP")
     while (len(input_data) > max_increment and not instances) or (len(input_data) > 0 and instances):
         if instances:   # if is true, take the next instance of the instance array input_data
             input_array = input_data[0]
