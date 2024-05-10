@@ -1,5 +1,4 @@
 import numpy as np
-from tqdm import tqdm
 
 
 def flexible_indexing(data, indices):
@@ -18,11 +17,13 @@ def scale_data(X_train, X_val, X_test, scaler, is_instances_classification):
         # Transform the training, validation and test data using the same scaler
         X_train = np.array([scaler.transform(time_series) for time_series in X_train], dtype=object)
         X_val = np.array([scaler.transform(time_series) for time_series in X_val], dtype=object)
-        X_test = np.array([scaler.transform(time_series) for time_series in X_test], dtype=object)
+        if X_test is not None:
+            X_test = np.array([scaler.transform(time_series) for time_series in X_test], dtype=object)
     else:
         X_train = scaler.fit_transform(X_train)
         X_val = scaler.transform(X_val)
-        X_test = scaler.transform(X_test)
+        if X_test is not None:
+            X_test = scaler.transform(X_test)
     return X_train, X_val, X_test
 
 

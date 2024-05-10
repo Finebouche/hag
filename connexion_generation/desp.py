@@ -75,10 +75,11 @@ def run_desp_algorithm(W, Win, bias, leaky_rate, activation_function, input_data
     state_history = []
     variance_history = []
 
-    total_add = 0
-    total_prun = 0
-    add = [0]
-    prun = [0]
+    if visualize:
+        total_add = 0
+        total_prun = 0
+        add = [0]
+        prun = [0]
     step = 0
     steps = []
 
@@ -130,20 +131,20 @@ def run_desp_algorithm(W, Win, bias, leaky_rate, activation_function, input_data
         W, _, nb_new_add, nb_new_prun = bounded_desp(W, np.array(state_history[-inc:]).T, variance, min_variance,
                                                      max_variance, weight_increment, max_partners=max_partners,
                                                      mi_based=mi_based, n_jobs=n_jobs)
-
-        total_add += nb_new_add
-        total_prun += nb_new_prun
-        add.append(total_add)
-        prun.append(total_prun)
+        if visualize:
+            total_add += nb_new_add
+            total_prun += nb_new_prun
+            add.append(total_add)
+            prun.append(total_prun)
         step += inc
         steps.append(step)
         pbar.update(inc)
 
-    add = np.array(add)
-    prun = np.array(prun)
     pbar.close()
 
     if visualize:
+        add = np.array(add)
+        prun = np.array(prun)
         plt.figure()
         plt.plot(steps, add, label="total number of added connexion")
         plt.plot(steps, prun, label="total number of prunned connexion")

@@ -73,14 +73,14 @@ def generate_multivariate_dataset(filtered_peak_freqs, X, sampling_rate, is_inst
         return np.array([
             filter(x, lowcut[freq_index], highcut[freq_index], fs=sampling_rate) for freq_index in
             range(len(filtered_peak_freqs))
-        ])
+        ]).T
 
     if is_instances_classification:  # classification -> Multiple instances
-        X_band = Parallel(n_jobs=nb_jobs, verbose=verbosity)(delayed(process_sample)(x) for x in X)
+        X_band = Parallel(n_jobs=nb_jobs, verbose=verbosity)(delayed(process_sample)(x.T) for x in X)
     else:
         X_band = process_sample(X.T)
 
-    return X_band.T
+    return X_band
 
 
 if __name__ == "__main__":

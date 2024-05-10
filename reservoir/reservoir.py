@@ -3,7 +3,7 @@ import numpy as np
 from numpy.random import Generator, PCG64
 
 def update_reservoir(W, Win, u, r, leaky_rate, bias, activation_function):
-    pre_s = (1 - leaky_rate) * r + leaky_rate * (W @ r) + (Win.A.flatten() * u.flatten()) + bias
+    pre_s = (1 - leaky_rate) * r + leaky_rate * (W @ r) + (Win @ u.flatten()) + bias
     return activation_function(pre_s)
 
 
@@ -114,7 +114,7 @@ def constant_synaptic_scaling(W, synaptic_activation_target):
 
 # https://stackoverflow.com/questions/16016959/scipy-stats-seed
 
-def init_matrices(n, input_connectivity, connectivity, spectral_radius=1, w_distribution=stats.uniform(0, 1),
+def init_matrices(n, input_connectivity, connectivity, K, spectral_radius=1, w_distribution=stats.uniform(0, 1),
                   win_distribution=stats.norm(1, 0.5), seed=111):
     #
     # The distribution generation functions
@@ -137,7 +137,16 @@ def init_matrices(n, input_connectivity, connectivity, spectral_radius=1, w_dist
     # Reservoir matrix
     W = sparse.random(n[0], n[1], density=connectivity, random_state=seed, data_rvs=w_distribution.rvs)
     # Input matrix
-    Win = sparse.random(n[0], 1, density=input_connectivity, random_state=seed, data_rvs=win_distribution.rvs)
+    # We want the Win matrix to explicitly map each input directly to a specific segment of neurons,
+    # with each segment receiving the same input value duplicated K times.
+    common_size = n[0] // K
+
+    Win = np.zeros((n[0], common_size))
+    for i in range(common_size):
+        start_index = i * K
+        end_index = start_index + K
+        Win[start_index:end_index, i] = w_distribution.rvs(K)
+
 
     # We set the diagonal to zero only for a square matrix
     if n[0] == n[1] and n[0] > 0:

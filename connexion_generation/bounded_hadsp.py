@@ -76,10 +76,11 @@ def run_hadsp_algorithm(W, Win, bias, leaky_rate, activation_function, input_dat
     state = np.random.uniform(0, 1, bias.size)
     state_history = []
 
-    total_add = 0
-    total_prun = 0
-    add = [0]
-    prun = [0]
+    if visualize:
+        total_add = 0
+        total_prun = 0
+        add = [0]
+        prun = [0]
     step = 0
     steps = []
 
@@ -127,19 +128,20 @@ def run_hadsp_algorithm(W, Win, bias, leaky_rate, activation_function, input_dat
         delta_z = compute_synaptic_change(state_history[-state_inc:], target_rate, growth_parameter, average=average)
         W, _, nb_new_add, nb_new_prun = bounded_hadsp(W, state_history[-state_inc:], delta_z, weight_increment, mi_based=mi_based)
 
-        total_add += nb_new_add
-        total_prun += nb_new_prun
-        add.append(total_add)
-        prun.append(total_prun)
+        if visualize:
+            total_add += nb_new_add
+            total_prun += nb_new_prun
+            add.append(total_add)
+            prun.append(total_prun)
         step += inc
         steps.append(step)
         pbar.update(inc)
 
-    add = np.array(add)
-    prun = np.array(prun)
     pbar.close()
 
     if visualize:
+        add = np.array(add)
+        prun = np.array(prun)
         plt.figure()
         plt.plot(steps, add, label="total number of added connexion")
         plt.plot(steps, prun, label="total number of prunned connexion")

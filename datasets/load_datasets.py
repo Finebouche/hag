@@ -55,7 +55,7 @@ def visualize_speaker_distribution(train_speakers, test_speakers):
     plt.show()
 
 
-def load_FSDD_dataset(data_dir, test_split=2 / 3, validation_split=0.25, seed=None, visualize=False):
+def load_FSDD_dataset(data_dir, test_split=1 / 3, validation_split=0.25, seed=None, visualize=False):
     # Get the list of all audio files in the dataset directory
     audio_files = [os.path.join(data_dir, file) for file in os.listdir(data_dir) if file.endswith('.wav')]
 
