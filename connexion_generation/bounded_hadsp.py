@@ -72,7 +72,7 @@ def bounded_hadsp(W_e, states, delta_z, weight_increment, W_inhibitory_connexion
 
 def run_hadsp_algorithm(W, Win, bias, leaky_rate, activation_function, input_data, time_increment, weight_increment,
                         target_rate, growth_parameter, instances, max_increment=None, mi_based=False, average="WHOLE",
-                        visualize=False):
+                        visualize=False, record_history=False):
     state = np.random.uniform(0, 1, bias.size)
     state_history = []
 
@@ -128,6 +128,8 @@ def run_hadsp_algorithm(W, Win, bias, leaky_rate, activation_function, input_dat
         delta_z = compute_synaptic_change(state_history[-state_inc:], target_rate, growth_parameter, average=average)
         W, _, nb_new_add, nb_new_prun = bounded_hadsp(W, state_history[-state_inc:], delta_z, weight_increment, mi_based=mi_based)
 
+        if not record_history:
+            state_history = []
         if visualize:
             total_add += nb_new_add
             total_prun += nb_new_prun

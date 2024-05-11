@@ -70,7 +70,7 @@ def bounded_desp(W_e, states, variance, min_variance, max_variance, weight_incre
 
 def run_desp_algorithm(W, Win, bias, leaky_rate, activation_function, input_data, time_increment, weight_increment,
                        min_variance, max_variance, instances, max_increment=None, max_partners=12, mi_based=False,
-                       average="WHOLE", n_jobs=1, visualize=False):
+                       average="WHOLE", n_jobs=1, visualize=False, record_history=False):
     state = np.random.uniform(0, 1, bias.size)
     state_history = []
     variance_history = []
@@ -125,12 +125,16 @@ def run_desp_algorithm(W, Win, bias, leaky_rate, activation_function, input_data
             state_history.append(state)
 
         variance = compute_variance(state_history[-state_inc:], average=average)
-        # happened variance to variance_history for a number of inc
-        variance_history.extend([variance] * state_inc)
 
         W, _, nb_new_add, nb_new_prun = bounded_desp(W, np.array(state_history[-inc:]).T, variance, min_variance,
                                                      max_variance, weight_increment, max_partners=max_partners,
                                                      mi_based=mi_based, n_jobs=n_jobs)
+
+        if not record_history:
+            state_history = []
+        else:  # happened variance to variance_history for a number of inc
+            variance_history.extend([variance] * state_inc)
+
         if visualize:
             total_add += nb_new_add
             total_prun += nb_new_prun

@@ -5,10 +5,9 @@ from matplotlib.colors import to_rgb, to_rgba
 from scipy.signal import butter, cheby2, sosfiltfilt
 from joblib import Parallel, delayed
 
-
-def extract_peak_frequencies(input_data, sampling_rate, threshold, nperseg=1024, visualize=True):
+def extract_peak_frequencies(input_data, sampling_rate, threshold, smooth=True, window_length=10, nperseg=1024, visualize=True):
     assert threshold < 1, "Threshold should be a fraction of the maximum power"
-    if visualize == True:
+    if visualize:
         print("Frequency limit: ", np.round(sampling_rate / 2), "(Shannon sampling theorem)")
     filtered_peak_freqs = []
     max_power = 0
@@ -18,6 +17,17 @@ def extract_peak_frequencies(input_data, sampling_rate, threshold, nperseg=1024,
         # https://dsp.stackexchange.com/questions/81640/trying-to-understand-the-nperseg-effect-of-welch-method
         f, Pxx_den = signal.welch(input_data[:, i], sampling_rate, nperseg=nperseg)
 
+        # Smoothing the Power Spectral Density (Pxx_den) before peak detection can be a beneficial approach,
+        # especially when dealing with noisy data. Smoothing helps in reducing the effect of random fluctuations in
+        # the spectrum, which might otherwise result in the detection of spurious peaks. It also helps in emphasizing
+        # the more significant, broader peaks that are often of greater interest in signal processing tasks.
+        if smooth:
+            # Create a Gaussian window
+            gaus_window = signal.gaussian(window_length, std=7)
+            gaus_window /= np.sum(gaus_window)
+            # Apply the Gaussian filter
+            Pxx_den = signal.convolve(Pxx_den, gaus_window, mode='same')
+
         # Find the peaks in the power spectral density
         peak_indices, _ = signal.find_peaks(Pxx_den)
         peak_freqs = f[peak_indices]
@@ -26,11 +36,13 @@ def extract_peak_frequencies(input_data, sampling_rate, threshold, nperseg=1024,
         # Define a power threshold and select the peaks based on that threshold
         relative_threshold = threshold * np.max(Pxx_den[peak_indices])
         filtered_peak_freqs.append(peak_freqs[peak_powers > relative_threshold])
+
         if visualize:
             lines = plt.semilogy(f, Pxx_den)
             line_color = to_rgb(lines[0].get_color())
             darkened_color = to_rgba([x * 0.7 for x in line_color])
             plt.plot(peak_freqs, Pxx_den[peak_indices], "o", color=darkened_color, markersize=4, label=i)
+
         # Calculate the maximum power peak and the maximum frequency
         if np.max(Pxx_den[peak_indices]) > max_power:
             max_power = np.max(Pxx_den[peak_indices])
