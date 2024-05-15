@@ -1,80 +1,32 @@
 # Code for Dynamic Equilibrium Structural Plasticity
 import numpy as np
-from connexion_generation.utility import change_connexion, determine_pruning_pairs, determine_connection_pairs
+from connexion_generation.utility import hadsp
 from reservoir.reservoir import update_reservoir
 import matplotlib.pyplot as plt
 from tqdm import tqdm
 
 
-def compute_variance(states, average="WHOLE", queue_size=10):
+def compute_variance(states, variance_target, variance_spread, average="WHOLE", queue_size=10):
     # Calculate the synaptic change based on variance as per user requirement
     states = np.array(states)
 
     # we calculate SEM over a time window
     if average == "WHOLE":
         sem = np.std(states, axis=0)
-    # else we take the variance of the last value from the time window, which doesn't make sense for a single value
-    # so for LAST, it's either not applicable or we keep as is, because variance of a single value is always 0.
-    # else we take the variance of the last queue_size values from the time window
     elif average == "QUEUE":
         sem = np.std(states[-queue_size:], axis=0)
     else:
         raise ValueError("Average must be one of 'WHOLE', 'QUEUE'")
 
-    return sem  # Apply truncation similar to the original implementation
-
-
-def bounded_desp(W_e, states, variance, min_variance, max_variance, weight_increment,
-                 W_inhibitory_connexions=np.array([]), max_partners=12, method="random", n_jobs=1):
-    states = np.array(states).T
-    nb_neurons = W_e.shape[0]
-    neurons = np.arange(nb_neurons)
-    total_prun = 0
-    total_add = 0
-    assert states.shape[0] == nb_neurons, "Wrong state shape. "
-
-    # DECREASE THE VARIANCE
-    need_pruning = neurons[variance >= max_variance]
-
-    # select the connexion with the highest mutual information
-    new_prune_pairs = determine_pruning_pairs(need_pruning, W_e, states, method, n_jobs=n_jobs)
-
-    for connexion in new_prune_pairs:
-        W_e = change_connexion(W_e, connexion[0], connexion[1], -weight_increment)
-        total_prun += 1
-    # We add inhibitory connexion to decrease the rate
-    if min(W_inhibitory_connexions.shape) > 0:
-        new_connexion_pairs = determine_connection_pairs(need_pruning, W_inhibitory_connexions, states, method,
-                                                         is_inter_matrix=True, n_jobs=n_jobs)
-        for connexion in new_connexion_pairs:
-            W_inhibitory_connexions = change_connexion(W_inhibitory_connexions, connexion[0], connexion[1],
-                                                       weight_increment)
-            total_add += 1
-
-    # INCREASE THE VARIANCE
-    need_increase = neurons[variance <= min_variance]
-    # select a neuron with the highest mutual information
-    new_connexion_pairs = determine_connection_pairs(need_increase, W_e, states, method, max_partners=max_partners, n_jobs=n_jobs)
-    for connexion in new_connexion_pairs:
-        W_e = change_connexion(W_e, connexion[0], connexion[1], weight_increment)
-        total_add += 1
-    # If needed we prune inhibitory connexion to increase the rate
-    if min(W_inhibitory_connexions.shape) > 0:
-        new_prune_pairs = determine_pruning_pairs(need_pruning, W_inhibitory_connexions, states, method, n_jobs=n_jobs)
-        for connexion in new_prune_pairs:
-            W_inhibitory_connexions = change_connexion(W_inhibitory_connexions, connexion[0], connexion[1],
-                                                       -weight_increment)
-            total_prun += 1
-
-    return W_e, W_inhibitory_connexions, total_add, total_prun
+    return (sem - variance_target)/variance_spread
 
 
 def run_desp_algorithm(W, Win, bias, leaky_rate, activation_function, input_data, time_increment, weight_increment,
-                       min_variance, max_variance, instances, max_increment=None, max_partners=12, method="random",
+                       variance_target, variance_spread, instances, max_increment=None, max_partners=12, method="random",
                        average="WHOLE", n_jobs=1, visualize=False, record_history=False):
     state = np.random.uniform(0, 1, bias.size)
     state_history = []
-    variance_history = []
+    delta_z_history = []
 
     if visualize:
         total_add = 0
@@ -125,16 +77,15 @@ def run_desp_algorithm(W, Win, bias, leaky_rate, activation_function, input_data
             state = update_reservoir(W, Win, input_value, state, leaky_rate, bias, activation_function)
             state_history.append(state)
 
-        variance = compute_variance(state_history[-state_inc:], average=average)
+        delta_z = compute_variance(state_history[-state_inc:], variance_target, variance_spread, average=average)
 
-        W, _, nb_new_add, nb_new_prun = bounded_desp(W, state_history[-state_inc:], variance, min_variance,
-                                                     max_variance, weight_increment, max_partners=max_partners,
+        W, _, nb_new_add, nb_new_prun = hadsp(W, state_history[-state_inc:], delta_z, weight_increment, max_partners=max_partners,
                                                      method=method, n_jobs=n_jobs)
 
         if not record_history:
             state_history = []
         else:  # happened variance to variance_history for a number of inc
-            variance_history.extend([variance] * 10)
+            delta_z_history.extend([delta_z] * 10)
 
         if visualize:
             total_add += nb_new_add
@@ -158,4 +109,4 @@ def run_desp_algorithm(W, Win, bias, leaky_rate, activation_function, input_data
         plt.legend()
         plt.grid()
 
-    return W, state_history, variance_history
+    return W, state_history, delta_z_history

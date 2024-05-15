@@ -1,7 +1,7 @@
 # Code for Homeostatic Activity Dependant Structural Plasticity
 
 import numpy as np
-from connexion_generation.utility import change_connexion, determine_pruning_pairs, determine_connection_pairs
+from connexion_generation.utility import hadsp
 from reservoir.reservoir import update_reservoir
 import matplotlib.pyplot as plt
 from tqdm import tqdm
@@ -12,7 +12,7 @@ def compute_synaptic_change(states, target_activation_levels, rate_spread, chang
     # Calculate the synaptic change based on https://doi.org/10.3389/fnana.2016.00057
     states = np.array(states)
     if change_type == "linear":
-        delta_z = (target_activation_levels - states) / rate_spread
+        delta_z = (states - target_activation_levels) / rate_spread
 
     elif change_type == "gaussian":
         a = (target_activation_levels + minimum_calcium_concentration) / 2
@@ -24,61 +24,20 @@ def compute_synaptic_change(states, target_activation_levels, rate_spread, chang
     # We average over a time window (weighted average for 0 size array)
     if average == "WHOLE":
         delta_z = np.ma.average(delta_z, axis=0)
-    # else we take the last value from the time window
-    elif average == "LAST":
-        delta_z = delta_z[-1]
-    # else we take the last queue_size values from the time window
     elif average == "QUEUE":
         delta_z = np.ma.average(delta_z[-queue_size:], axis=0)
+    else:
+        raise ValueError("Average must be one of 'WHOLE', 'QUEUE'")
 
-    return np.trunc(delta_z)  # -1,5->-1 and 1.5->1
-
-
-def bounded_hadsp(W_e, states, delta_z, weight_increment, W_inhibitory_connexions=np.array([]), max_partners=12, method="random"):
-    states = np.array(states).T
-    nb_neurons = W_e.shape[0]
-    neurons = np.arange(nb_neurons)
-    total_prun = 0
-    total_add = 0
-    assert states.shape[0] == nb_neurons, "Wrong state shape. "
-
-    # DECREASE THE RATE
-    need_pruning = neurons[delta_z <= -1]
-    # We prune excitatory connexion to decrease the rate
-    new_prune_pairs = determine_pruning_pairs(need_pruning, W_e, states, method)
-    for connexion in new_prune_pairs:
-        W_e = change_connexion(W_e, connexion[0], connexion[1], -weight_increment)
-        total_prun += 1
-    # We add inhibitory connexion to decrease the rate
-    if min(W_inhibitory_connexions.shape) > 0:
-        new_connexion_pairs = determine_connection_pairs(need_pruning, W_inhibitory_connexions, states, method,
-                                                         is_inter_matrix=True)
-        for connexion in new_connexion_pairs:
-            W_inhibitory_connexions = change_connexion(W_inhibitory_connexions, connexion[0], connexion[1], weight_increment)
-            total_add += 1
-
-    # INCREASE THE RATE
-    need_increase = neurons[delta_z >= 1]
-    # We add an excitatory connexion to increase the rate
-    new_connexion_pairs = determine_connection_pairs(need_increase, W_e, states, method, max_partners=max_partners)
-    for connexion in new_connexion_pairs:
-        W_e = change_connexion(W_e, connexion[0], connexion[1], weight_increment)
-        total_add += 1
-    # If needed we prune inhibitory connexion to increase the rate
-    if min(W_inhibitory_connexions.shape) > 0:
-        new_prune_pairs = determine_pruning_pairs(need_pruning, W_inhibitory_connexions, states, method)
-        for connexion in new_prune_pairs:
-            W_inhibitory_connexions = change_connexion(W_inhibitory_connexions, connexion[0], connexion[1], -weight_increment)
-            total_prun += 1
-
-    return W_e, W_inhibitory_connexions, total_add, total_prun
+    return delta_z # -1,5->-1 and 1.5->1
 
 
 def run_hadsp_algorithm(W, Win, bias, leaky_rate, activation_function, input_data, time_increment, weight_increment,
                         target_rate, rate_spread, instances, max_increment=None, max_partners=12, method="random",
-                        average="WHOLE", visualize=False, record_history=False):
+                        average="WHOLE", n_jobs=1, visualize=False, record_history=False):
     state = np.random.uniform(0, 1, bias.size)
     state_history = []
+    delta_z_history = []
 
     if visualize:
         total_add = 0
@@ -130,10 +89,13 @@ def run_hadsp_algorithm(W, Win, bias, leaky_rate, activation_function, input_dat
             state_history.append(state)
 
         delta_z = compute_synaptic_change(state_history[-state_inc:], target_rate, rate_spread, average=average)
-        W, _, nb_new_add, nb_new_prun = bounded_hadsp(W, state_history[-state_inc:], delta_z, weight_increment, max_partners=max_partners, method=method)
+        W, _, nb_new_add, nb_new_prun = hadsp(W, state_history[-state_inc:], delta_z, weight_increment, max_partners=max_partners, method=method, n_jobs=n_jobs)
 
         if not record_history:
             state_history = []
+        else:  # happened variance to variance_history for a number of inc
+            delta_z_history.extend([delta_z] * 10)
+
         if visualize:
             total_add += nb_new_add
             total_prun += nb_new_prun
@@ -155,4 +117,4 @@ def run_hadsp_algorithm(W, Win, bias, leaky_rate, activation_function, input_dat
         plt.plot(steps, steps, linestyle=(0, (1, 10)))
         plt.legend()
         plt.grid()
-    return W, state_history
+    return W, state_history, delta_z_history
