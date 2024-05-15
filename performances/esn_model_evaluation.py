@@ -28,7 +28,7 @@ def init_model(W, Win, bias, leaking_rate, activation_function, ridge_coef=None,
     return reservoir, readout
 
 
-def train_model_for_classification(reservoir, readout, X_train, Y_train, n_jobs, mode, rls=False, lms=False):
+def train_model_for_classification(reservoir, readout, X_train, Y_train, n_jobs, mode):
     if mode == "sequence-to-vector":
         def compute_state(x):
             import reservoirpy
@@ -57,7 +57,7 @@ def init_and_train_model_for_classification(W, Win, bias, leaking_rate, activati
                                             n_jobs, ridge_coef=None, mode="sequence-to-vector", rls=False, lms=False):
     reservoir, readout = init_model(W, Win, bias, leaking_rate, activation_function, ridge_coef, rls, lms)
 
-    train_model_for_classification(reservoir, readout, X_train, Y_train, n_jobs, mode, rls, lms)
+    train_model_for_classification(reservoir, readout, X_train, Y_train, n_jobs, mode)
 
     return reservoir, readout
 
@@ -76,8 +76,7 @@ def init_and_train_model_for_prediction(W, Win, bias, leaking_rate, activation_f
     return esn
 
 
-def predict_model_for_classification(reservoir, readout, X_test, n_jobs, mode="sequence-to-vector", rls=False,
-                                     lms=False):
+def predict_model_for_classification(reservoir, readout, X_test, n_jobs, mode="sequence-to-vector"):
     if mode == "sequence-to-vector":
         def predict(x):
             import reservoirpy

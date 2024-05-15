@@ -7,7 +7,7 @@ def spectral_radius(W):
     return max(abs(eigen))
 
 
-def pearson(states1, states2):
+def compute_pearson(states1, states2):
     # Takes states and produces a pearson similarity
     mean1 = np.mean(states1)
     mean2 = np.mean(states2)
@@ -18,7 +18,7 @@ def pearson(states1, states2):
     return numerator / denominator
 
 
-# for a network of size n, compute pearson for every neurons
+# for a network of size n, compute pearson for every neuron
 def pearson_matrix(states):
     n = states.shape[1]
     pearson_matrix = np.zeros((n, n))

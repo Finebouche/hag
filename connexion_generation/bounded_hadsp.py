@@ -7,17 +7,17 @@ import matplotlib.pyplot as plt
 from tqdm import tqdm
 
 
-def compute_synaptic_change(states, target_activation_levels, growth_parameter, change_type="linear", average="WHOLE",
+def compute_synaptic_change(states, target_activation_levels, rate_spread, change_type="linear", average="WHOLE",
                             queue_size=5, minimum_calcium_concentration=0.1):
     # Calculate the synaptic change based on https://doi.org/10.3389/fnana.2016.00057
     states = np.array(states)
     if change_type == "linear":
-        delta_z = (target_activation_levels - states) / growth_parameter
+        delta_z = (target_activation_levels - states) / rate_spread
 
     elif change_type == "gaussian":
         a = (target_activation_levels + minimum_calcium_concentration) / 2
         b = (target_activation_levels - minimum_calcium_concentration) / 1.65
-        delta_z = growth_parameter * (2 * np.expm1(-(states - a) / b) - 1)
+        delta_z = rate_spread * (2 * np.expm1(-(states - a) / b) - 1)
     else:
         raise ValueError('change_type must be "linear" or "gaussian"')
 
@@ -34,21 +34,25 @@ def compute_synaptic_change(states, target_activation_levels, growth_parameter, 
     return np.trunc(delta_z)  # -1,5->-1 and 1.5->1
 
 
-def bounded_hadsp(W_e, states, delta_z, weight_increment, W_inhibitory_connexions=np.array([]), max_partners=12, mi_based=False):
-    neurons = np.arange(len(states[0]))
+def bounded_hadsp(W_e, states, delta_z, weight_increment, W_inhibitory_connexions=np.array([]), max_partners=12, method="random"):
+    states = np.array(states).T
+    nb_neurons = W_e.shape[0]
+    neurons = np.arange(nb_neurons)
     total_prun = 0
     total_add = 0
+    assert states.shape[0] == nb_neurons, "Wrong state shape. "
 
     # DECREASE THE RATE
     need_pruning = neurons[delta_z <= -1]
     # We prune excitatory connexion to decrease the rate
-    new_prune_pairs = determine_pruning_pairs(need_pruning, W_e, states, mi_based)
+    new_prune_pairs = determine_pruning_pairs(need_pruning, W_e, states, method)
     for connexion in new_prune_pairs:
         W_e = change_connexion(W_e, connexion[0], connexion[1], -weight_increment)
         total_prun += 1
     # We add inhibitory connexion to decrease the rate
     if min(W_inhibitory_connexions.shape) > 0:
-        new_connexion_pairs = determine_connection_pairs(need_pruning, W_inhibitory_connexions, True)
+        new_connexion_pairs = determine_connection_pairs(need_pruning, W_inhibitory_connexions, states, method,
+                                                         is_inter_matrix=True)
         for connexion in new_connexion_pairs:
             W_inhibitory_connexions = change_connexion(W_inhibitory_connexions, connexion[0], connexion[1], weight_increment)
             total_add += 1
@@ -56,13 +60,13 @@ def bounded_hadsp(W_e, states, delta_z, weight_increment, W_inhibitory_connexion
     # INCREASE THE RATE
     need_increase = neurons[delta_z >= 1]
     # We add an excitatory connexion to increase the rate
-    new_connexion_pairs = determine_connection_pairs(need_increase, W_e, max_partners=max_partners)
+    new_connexion_pairs = determine_connection_pairs(need_increase, W_e, states, method, max_partners=max_partners)
     for connexion in new_connexion_pairs:
         W_e = change_connexion(W_e, connexion[0], connexion[1], weight_increment)
         total_add += 1
     # If needed we prune inhibitory connexion to increase the rate
     if min(W_inhibitory_connexions.shape) > 0:
-        new_prune_pairs = determine_pruning_pairs(need_pruning, W_inhibitory_connexions, states, mi_based)
+        new_prune_pairs = determine_pruning_pairs(need_pruning, W_inhibitory_connexions, states, method)
         for connexion in new_prune_pairs:
             W_inhibitory_connexions = change_connexion(W_inhibitory_connexions, connexion[0], connexion[1], -weight_increment)
             total_prun += 1
@@ -71,8 +75,8 @@ def bounded_hadsp(W_e, states, delta_z, weight_increment, W_inhibitory_connexion
 
 
 def run_hadsp_algorithm(W, Win, bias, leaky_rate, activation_function, input_data, time_increment, weight_increment,
-                        target_rate, growth_parameter, instances, max_increment=None, mi_based=False, average="WHOLE",
-                        visualize=False, record_history=False):
+                        target_rate, rate_spread, instances, max_increment=None, max_partners=12, method="random",
+                        average="WHOLE", visualize=False, record_history=False):
     state = np.random.uniform(0, 1, bias.size)
     state_history = []
 
@@ -125,8 +129,8 @@ def run_hadsp_algorithm(W, Win, bias, leaky_rate, activation_function, input_dat
             state = update_reservoir(W, Win, input_value, state, leaky_rate, bias, activation_function)
             state_history.append(state)
 
-        delta_z = compute_synaptic_change(state_history[-state_inc:], target_rate, growth_parameter, average=average)
-        W, _, nb_new_add, nb_new_prun = bounded_hadsp(W, state_history[-state_inc:], delta_z, weight_increment, mi_based=mi_based)
+        delta_z = compute_synaptic_change(state_history[-state_inc:], target_rate, rate_spread, average=average)
+        W, _, nb_new_add, nb_new_prun = bounded_hadsp(W, state_history[-state_inc:], delta_z, weight_increment, max_partners=max_partners, method=method)
 
         if not record_history:
             state_history = []

@@ -25,25 +25,27 @@ def compute_variance(states, average="WHOLE", queue_size=10):
 
 
 def bounded_desp(W_e, states, variance, min_variance, max_variance, weight_increment,
-                 W_inhibitory_connexions=np.array([]), max_partners=12, mi_based=False, n_jobs=1):
-    neurons = np.arange(W_e.shape[0])
+                 W_inhibitory_connexions=np.array([]), max_partners=12, method="random", n_jobs=1):
+    states = np.array(states).T
+    nb_neurons = W_e.shape[0]
+    neurons = np.arange(nb_neurons)
     total_prun = 0
     total_add = 0
-    assert states.shape[0] == W_e.shape[
-        0], "The number of neurons in the states and the number of rows in W_e must be the same."
+    assert states.shape[0] == nb_neurons, "Wrong state shape. "
 
     # DECREASE THE VARIANCE
     need_pruning = neurons[variance >= max_variance]
 
     # select the connexion with the highest mutual information
-    new_prune_pairs = determine_pruning_pairs(need_pruning, W_e, states, mi_based=mi_based, n_jobs=n_jobs)
+    new_prune_pairs = determine_pruning_pairs(need_pruning, W_e, states, method, n_jobs=n_jobs)
 
     for connexion in new_prune_pairs:
         W_e = change_connexion(W_e, connexion[0], connexion[1], -weight_increment)
         total_prun += 1
     # We add inhibitory connexion to decrease the rate
     if min(W_inhibitory_connexions.shape) > 0:
-        new_connexion_pairs = determine_connection_pairs(need_pruning, W_inhibitory_connexions, True)
+        new_connexion_pairs = determine_connection_pairs(need_pruning, W_inhibitory_connexions, states, method,
+                                                         is_inter_matrix=True, n_jobs=n_jobs)
         for connexion in new_connexion_pairs:
             W_inhibitory_connexions = change_connexion(W_inhibitory_connexions, connexion[0], connexion[1],
                                                        weight_increment)
@@ -52,14 +54,13 @@ def bounded_desp(W_e, states, variance, min_variance, max_variance, weight_incre
     # INCREASE THE VARIANCE
     need_increase = neurons[variance <= min_variance]
     # select a neuron with the highest mutual information
-    new_connexion_pairs = determine_connection_pairs(need_increase, W_e, states, mi_based=mi_based,
-                                                     max_partners=max_partners, n_jobs=n_jobs)
+    new_connexion_pairs = determine_connection_pairs(need_increase, W_e, states, method, max_partners=max_partners, n_jobs=n_jobs)
     for connexion in new_connexion_pairs:
         W_e = change_connexion(W_e, connexion[0], connexion[1], weight_increment)
         total_add += 1
     # If needed we prune inhibitory connexion to increase the rate
     if min(W_inhibitory_connexions.shape) > 0:
-        new_prune_pairs = determine_pruning_pairs(need_pruning, W_inhibitory_connexions)
+        new_prune_pairs = determine_pruning_pairs(need_pruning, W_inhibitory_connexions, states, method, n_jobs=n_jobs)
         for connexion in new_prune_pairs:
             W_inhibitory_connexions = change_connexion(W_inhibitory_connexions, connexion[0], connexion[1],
                                                        -weight_increment)
@@ -69,7 +70,7 @@ def bounded_desp(W_e, states, variance, min_variance, max_variance, weight_incre
 
 
 def run_desp_algorithm(W, Win, bias, leaky_rate, activation_function, input_data, time_increment, weight_increment,
-                       min_variance, max_variance, instances, max_increment=None, max_partners=12, mi_based=False,
+                       min_variance, max_variance, instances, max_increment=None, max_partners=12, method="random",
                        average="WHOLE", n_jobs=1, visualize=False, record_history=False):
     state = np.random.uniform(0, 1, bias.size)
     state_history = []
@@ -126,14 +127,14 @@ def run_desp_algorithm(W, Win, bias, leaky_rate, activation_function, input_data
 
         variance = compute_variance(state_history[-state_inc:], average=average)
 
-        W, _, nb_new_add, nb_new_prun = bounded_desp(W, np.array(state_history[-inc:]).T, variance, min_variance,
+        W, _, nb_new_add, nb_new_prun = bounded_desp(W, state_history[-state_inc:], variance, min_variance,
                                                      max_variance, weight_increment, max_partners=max_partners,
-                                                     mi_based=mi_based, n_jobs=n_jobs)
+                                                     method=method, n_jobs=n_jobs)
 
         if not record_history:
             state_history = []
         else:  # happened variance to variance_history for a number of inc
-            variance_history.extend([variance] * state_inc)
+            variance_history.extend([variance] * 10)
 
         if visualize:
             total_add += nb_new_add

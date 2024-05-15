@@ -1,10 +1,28 @@
 from scipy import sparse
 import numpy as np
-from connexion_generation.mi_utility import compute_mutual_information
+from connexion_generation.correlation_utility import compute_mutual_information, compute_pearson_corr
 
 
-def determine_connection_pairs(neurons_needing_new_connection, connectivity_matrix, states=None,
-                               is_inter_matrix=False, mi_based=False, max_partners=12, random_seed=None, n_jobs=1):
+def available_neurons(neuron, connectivity_matrix, neurons_pool, max_partners=12, is_inter_matrix=False):
+    # If neuron already has more than MAX_NUMBER_OF_PARTNER partners:
+    # the available neurons are the one that already have a connexion with it
+    noun_zeros = connectivity_matrix.getrow(neuron).nonzero()[1]
+
+    if len(noun_zeros) >= max_partners:
+        available_for_this_neuron = noun_zeros
+    else:
+        available_for_this_neuron = neurons_pool.copy()
+        if not is_inter_matrix:
+            # cannot add a connexion with itself
+            available_for_this_neuron.remove(neuron)
+    if len(available_for_this_neuron) == 0:
+        raise ValueError("No available neurons for connection, this should not happen.")
+
+    return available_for_this_neuron
+
+
+def determine_connection_pairs(neurons_needing_new_connection, connectivity_matrix, states=None, method="random",
+                               is_inter_matrix=False, max_partners=12, random_seed=None, n_jobs=1):
     """
     Determine pairs of neurons for establishing new connections based on specified criteria.
 
@@ -13,64 +31,75 @@ def determine_connection_pairs(neurons_needing_new_connection, connectivity_matr
     """
     if random_seed is not None:
         np.random.seed(random_seed)
-    if states is None and mi_based:
-        raise ValueError("States must be provided if mutual information based pruning is used.")
+    if states is None and (method == "mi" or method == "pearson"):
+        raise ValueError("States must be provided if mutual information or pearson based pruning is used.")
 
     new_connections = []
-    available_neurons = list(range(connectivity_matrix.shape[1])) if is_inter_matrix \
+    neurons_pool = list(range(connectivity_matrix.shape[1])) if is_inter_matrix \
         else list(neurons_needing_new_connection)
-    if len(available_neurons) <= 1:
+    if len(neurons_pool) <= 1:
         return []
 
-    if mi_based:
-        mi_for_available_neurons = compute_mutual_information(states, [available_neurons, neurons_needing_new_connection], n_jobs=n_jobs)
+    if method == "mi":
+        set_of_possible_pairs = set()
         for neuron in neurons_needing_new_connection:
-            # If neuron already has more than MAX_NUMBER_OF_PARTNER partners:
-            # the available neurons are the one that already have a connexion with it
-            noun_zero = connectivity_matrix.getrow(neuron).nonzero()[1]
-            if len(noun_zero) >= max_partners:
-                available_for_this_neuron = noun_zero
-            else:
-                available_for_this_neuron = available_neurons.copy()
-                if not is_inter_matrix:
-                    # cannot add a connexion with itself
-                    available_for_this_neuron.remove(neuron)
+            available_for_this_neuron = available_neurons(neuron, connectivity_matrix, neurons_pool, max_partners)
+            # add the possible pairs to the set
+            set_of_possible_pairs.update(
+                (min(neuron, available_neuron), max(neuron, available_neuron))
+                for available_neuron in available_for_this_neuron
+            )
 
-            if len(available_for_this_neuron) == 0:
-                raise ValueError("No available neurons for connexion, this should not happen.")
-            else:
-                # select the connexion with the highest mutual information
-                mi_interresting = mi_for_available_neurons[neuron, available_for_this_neuron]
+        mi_for_available_neurons = compute_mutual_information(states, set_of_possible_pairs, n_jobs=n_jobs)
 
-                # Step 2: Get the indices in `mi_interresting` that correspond to this maximum value
-                mi_interresting_max_indices = np.where(mi_interresting == np.max(mi_interresting))[0]
+        for neuron in neurons_needing_new_connection:
+            available_for_this_neuron = available_neurons(neuron, connectivity_matrix, neurons_pool, max_partners)
 
-                # Step 3: Map these indices back to the original `available_for_this_neuron` array
-                max_value_indices = [available_for_this_neuron[idx] for idx in mi_interresting_max_indices]
-                incoming_connexion = np.random.choice(max_value_indices)
+            # select the connexion with the highest mutual information
+            mi_for_this_neuron = mi_for_available_neurons[neuron, available_for_this_neuron]
+            # Step 2: Get the indices in `mi_interresting` that correspond to this maximum value
+            max_value_indices = np.array(available_for_this_neuron)[
+                np.isclose(mi_for_this_neuron, np.max(mi_for_this_neuron))]
 
-                new_connections.append((neuron, incoming_connexion))
+            incoming_connexion = np.random.choice(max_value_indices)
+            new_connections.append((neuron, incoming_connexion))
+
+    elif method == "pearson":
+        # print(neurons_needing_new_connection)
+
+        for neuron in neurons_needing_new_connection:
+            available_for_this_neuron = available_neurons(neuron, connectivity_matrix, neurons_pool, max_partners)
+
+            # Compute Pearson correlations for all potential connections
+            # correlations = np.corrcoef(states[neuron, :], states[available_for_this_neuron, :])[0, 1:].flatten()
+            correlations = compute_pearson_corr(states[neuron, 1:], states[available_for_this_neuron, :-1])
+
+            # Check that lenght of available_for_this_neuron and correlations are the same
+            if len(available_for_this_neuron) != len(correlations):
+                raise ValueError("Length of available_for_this_neuron and correlations are not the same.")
+            # Step 2: Get the indices in available_for_this_neuron that correspond to this maximum value
+
+            # Find the neuron with the maximum Pearson correlation (use isclose to handle floating point errors)
+            max_value_indices = np.array(available_for_this_neuron)[np.isclose(correlations, np.max(correlations))]
+
+            incoming_connexion = np.random.choice(max_value_indices)
+            new_connections.append((neuron, incoming_connexion))
+
+    elif method == "random":
+        for neuron in neurons_needing_new_connection:
+            available_for_this_neuron = available_neurons(neuron, connectivity_matrix, neurons_pool, max_partners)
+
+            incoming_connexion = np.random.choice(available_for_this_neuron)
+            new_connections.append((neuron, incoming_connexion))
+
     else:
-        for neuron in neurons_needing_new_connection:
-            # If neuron already has more than MAX_NUMBER_OF_PARTNER partners:
-            # the available neurons are the one that already have a connexion with it
-            if np.count_nonzero(connectivity_matrix.getrow(neuron).A) >= max_partners:
-                available_for_this_neuron = connectivity_matrix.getrow(neuron).nonzero()[1]
-            else:
-                available_for_this_neuron = available_neurons.copy()
-                if not is_inter_matrix:
-                    # cannot add a connexion with itself
-                    available_for_this_neuron.remove(neuron)
-            if len(available_for_this_neuron) == 0:
-                raise ValueError("No available neurons for connexion, this should not happen.")
-            else:
-                incoming_connexion = np.random.choice(available_for_this_neuron)
-                new_connections.append((neuron, incoming_connexion))
+        raise ValueError("Invalid method. Must be one of 'mi', 'pearson', 'random'.")
 
     return new_connections
 
 
-def determine_pruning_pairs(neurons_for_pruning, connectivity_matrix, states=None, mi_based=False, random_seed=None, n_jobs=1):
+def determine_pruning_pairs(neurons_for_pruning, connectivity_matrix, states=None, method="random", random_seed=None,
+                            n_jobs=1):
     """
     Identifies pairs of neurons for pruning from a connectivity matrix.
 
@@ -80,34 +109,50 @@ def determine_pruning_pairs(neurons_for_pruning, connectivity_matrix, states=Non
 
     if random_seed is not None:
         np.random.seed(random_seed)
-    if states is None and mi_based:
-        raise ValueError("States must be provided if mutual information based pruning is used.")
+    if states is None and (method == "mi" or method == "pearson"):
+        raise ValueError("States must be provided if mutual information or pearson based pruning is used.")
 
     new_pruning_pairs = []
-    if mi_based:
+    if method == "mi":
         for neuron in neurons_for_pruning:
             connections = connectivity_matrix.getrow(neuron).nonzero()[1]
             if len(connections) == 0:
                 continue
             mi = compute_mutual_information(states, [connections, [neuron]], n_jobs=n_jobs)
-            # We prune the connexion with the lowest mutual information
-            # select the connexion with the highest mutual information
 
-            # Step 1: Get the indices in `mi_interresting` that correspond to this minimum value
             mi_interresting = mi[neuron, connections]
-            mi_interresting_min_indices = np.where(mi_interresting == np.min(mi_interresting))[0]
+            min_value_indices = np.array(connections)[np.isclose(mi_interresting, np.min(mi_interresting))]
+            chosen_connection = np.random.choice(min_value_indices)
 
-            # Step 2: Map these indices back to the original `available_for_this_neuron` array
-            min_value_indices = [connections[idx] for idx in mi_interresting_min_indices]
-            incoming_connexion = np.random.choice(min_value_indices)
-
-            new_pruning_pairs.append((neuron, incoming_connexion))
-    else:
+            new_pruning_pairs.append((neuron, chosen_connection))
+    elif method == "pearson":
         for neuron in neurons_for_pruning:
             connections = connectivity_matrix.getrow(neuron).nonzero()[1]
-            if connections.size > 0:
-                chosen_connection = np.random.choice(connections)
-                new_pruning_pairs.append((neuron, chosen_connection))
+            if len(connections) == 0:
+                continue
+
+            # Compute Pearson correlations for all potential connections
+            correlations = np.corrcoef(states[neuron, :], states[connections, :])[0, 1:]
+
+            # Find the neuron with the maximum Pearson correlation
+            min_value_indices = np.array(connections)[np.isclose(correlations, np.min(correlations))]
+
+            incoming_connexion = np.random.choice(min_value_indices)
+
+            if incoming_connexion is None:
+                raise ValueError("No incoming connection found for neuron, this should not happen.")
+            else:
+                new_pruning_pairs.append((neuron, incoming_connexion))
+
+    elif method == "random":
+        for neuron in neurons_for_pruning:
+            connections = connectivity_matrix.getrow(neuron).nonzero()[1]
+            if len(connections) == 0:
+                continue
+            chosen_connection = np.random.choice(connections)
+            new_pruning_pairs.append((neuron, chosen_connection))
+    else:
+        raise ValueError("Invalid method. Must be one of 'mi', 'pearson', 'random'.")
 
     return new_pruning_pairs
 
