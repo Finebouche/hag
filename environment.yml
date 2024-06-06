@@ -17,6 +17,7 @@ dependencies:
   - tensorflow
   - optuna
   - jupyterlab
+  - tqdm
   - pip
   - pip:
     - reservoirpy

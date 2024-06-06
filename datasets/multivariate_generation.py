@@ -4,8 +4,12 @@ from scipy import signal
 from matplotlib.colors import to_rgb, to_rgba
 from scipy.signal import butter, cheby2, sosfiltfilt
 from joblib import Parallel, delayed
+from scipy.signal import ShortTimeFFT
+from scipy.signal.windows import gaussian
 
-def extract_peak_frequencies(input_data, sampling_rate, threshold, smooth=True, window_length=10, nperseg=1024, visualize=True):
+
+def extract_peak_frequencies(input_data, sampling_rate, threshold, smooth=True, window_length=10, nperseg=1024,
+                             visualize=True):
     assert threshold < 1, "Threshold should be a fraction of the maximum power"
     if visualize:
         print("Frequency limit: ", np.round(sampling_rate / 2), "(Shannon sampling theorem)")
@@ -66,33 +70,50 @@ def extract_peak_frequencies(input_data, sampling_rate, threshold, smooth=True, 
         return np.array(filtered_peak_freqs, dtype=object)
 
 
-def filter(x, lowcut, highcut, fs, order=6):
-    #sos = butter(order, [lowcut, highcut], btype="bandpass", fs=fs, output='sos')
-    sos = cheby2(order, 20, [lowcut, highcut], btype='bandpass', fs=fs, output='sos')
+def band_filter(x, low_cut, high_cut, fs, order=6):
+    # sos = butter(order, [low_cut, high_cut], btype="bandpass", fs=fs, output='sos')
+    sos = cheby2(order, 20, [low_cut, high_cut], btype='bandpass', fs=fs, output='sos')
     return sosfiltfilt(sos, x).flatten()
 
 
-def generate_multivariate_dataset(filtered_peak_freqs, X, sampling_rate, is_instances_classification, nb_jobs=1,
-                                  verbosity=1):
+def compute_spectrogram(x, fs, nperseg=256, noverlap=128):
+    g_std = 8  # standard deviation for Gaussian window in samples
+    w = gaussian(50, std=g_std, sym=True)  # symmetric Gaussian window
+    SFT = ShortTimeFFT(w, hop=20, fs=fs)
+    Sx = SFT.stft(x.flatten())
+    return Sx
+
+
+def generate_multivariate_dataset(filtered_peak_freqs, X, sampling_rate, is_instances_classification,
+                                  use_spectrogram=False, nb_jobs=1, verbosity=1):
     extended_freqs = np.concatenate(([0], filtered_peak_freqs, [sampling_rate / 2]))
     # Calculate bandwidth as half the inter-frequency distances
     bandwidth = np.diff(extended_freqs) / 2
-    # Calculate lowcut and highcut frequencies
-    lowcut = filtered_peak_freqs - bandwidth[:-1]
-    highcut = filtered_peak_freqs + bandwidth[1:]
+    # Calculate low_cut and high_cut frequencies
+    low_cut = filtered_peak_freqs - bandwidth[:-1]
+    high_cut = filtered_peak_freqs + bandwidth[1:]
 
-    def process_sample(x):
+    def filter_instance_frequencies(x):
         return np.array([
-            filter(x, lowcut[freq_index], highcut[freq_index], fs=sampling_rate) for freq_index in
+            band_filter(x, low_cut[freq_index], high_cut[freq_index], fs=sampling_rate) for freq_index in
             range(len(filtered_peak_freqs))
         ]).T
 
-    if is_instances_classification:  # classification -> Multiple instances
-        X_band = Parallel(n_jobs=nb_jobs, verbose=verbosity)(delayed(process_sample)(x.T) for x in X)
-    else:
-        X_band = process_sample(X.T)
+    def compute_instance_spectrogram(x):
+        Sx = compute_spectrogram(x, fs=sampling_rate)
+        return abs(Sx).T
 
-    return X_band
+    if use_spectrogram:
+        process_instance_func = compute_instance_spectrogram
+    else:
+        process_instance_func = filter_instance_frequencies
+
+    if is_instances_classification:  # classification -> Multiple instances
+        x_band = Parallel(n_jobs=nb_jobs, verbose=verbosity)(delayed(process_instance_func)(x.T) for x in X)
+    else:
+        x_band = process_instance_func(X.T)
+
+    return x_band
 
 
 if __name__ == "__main__":

@@ -58,7 +58,7 @@ def compute_mi_for_pair(activity1, activity2, bin_edges):
     return mi
 
 
-def compute_mutual_information(states, neuron_groups, bins=10, n_jobs=1, sklearn=False):
+def compute_mutual_information(states, neuron_groups, bins=10, sklearn=False):
     if isinstance(neuron_groups, set):
         optimized_pairs = neuron_groups
         all_neurons = {neuron for pair in optimized_pairs for neuron in pair}
@@ -84,11 +84,11 @@ def compute_mutual_information(states, neuron_groups, bins=10, n_jobs=1, sklearn
     bin_edges = np.histogram_bin_edges(np.concatenate([states[neuron] for neuron in all_neurons]), bins=bins)
 
     if sklearn:
-        results = Parallel(n_jobs=n_jobs)(
+        results = Parallel(n_jobs=1)(
              delayed(mutual_info_score)(states[neuron1, :], states[neuron2, :]) for neuron1, neuron2 in optimized_pairs
         )
     else:
-        results = Parallel(n_jobs=n_jobs)(
+        results = Parallel(n_jobs=1)(
             delayed(compute_mi_for_pair)(states[neuron1, :], states[neuron2, :], bin_edges) for neuron1, neuron2 in optimized_pairs
         )
 
