@@ -103,9 +103,9 @@ def generate_multivariate_dataset(filtered_peak_freqs, X, sampling_rate, is_inst
         Sx = compute_spectrogram(x, fs=sampling_rate)
         return abs(Sx).T
 
-    if use_spectrogram:
+    if use_spectrogram and is_instances_classification:
         process_instance_func = compute_instance_spectrogram
-    else:
+    else: # always use band filter for prediction
         process_instance_func = filter_instance_frequencies
 
     if is_instances_classification:  # classification -> Multiple instances

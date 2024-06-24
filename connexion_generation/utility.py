@@ -7,7 +7,7 @@ from joblib import Parallel, delayed
 def available_neurons(neuron, connectivity_matrix, neurons_pool, max_partners=12, is_inter_matrix=False):
     # If neuron already has more than MAX_NUMBER_OF_PARTNER partners:
     # the available neurons are the one that already have a connexion with it
-    non_zeros = connectivity_matrix.getrow(neuron).nonzero()[1]
+    non_zeros = connectivity_matrix[neuron].nonzero()[0]
 
     if len(non_zeros) >= max_partners:
         available_for_this_neuron = non_zeros
@@ -133,7 +133,7 @@ def determine_pruning_pairs(neurons_for_pruning, connectivity_matrix, states=Non
     new_pruning_pairs = []
     if method == "mi":
         for neuron in neurons_for_pruning:
-            connections = connectivity_matrix.getrow(neuron).nonzero()[1]
+            connections = connectivity_matrix[neuron].nonzero()[0]
             if len(connections) == 0:
                 continue
             mi = compute_mutual_information(states, [connections, [neuron]])[neuron, connections]
@@ -147,7 +147,7 @@ def determine_pruning_pairs(neurons_for_pruning, connectivity_matrix, states=Non
 
     elif method == "pearson":
         for neuron in neurons_for_pruning:
-            connections = connectivity_matrix.getrow(neuron).nonzero()[1]
+            connections = connectivity_matrix[neuron].nonzero()[0]
             if len(connections) == 0:
                 continue
 
@@ -171,7 +171,7 @@ def determine_pruning_pairs(neurons_for_pruning, connectivity_matrix, states=Non
 
     elif method == "random":
         for neuron in neurons_for_pruning:
-            connections = connectivity_matrix.getrow(neuron).nonzero()[1]
+            connections = connectivity_matrix[neuron].nonzero()[0]
             if len(connections) == 0:
                 continue
             chosen_connection = np.random.choice(connections)
@@ -187,10 +187,7 @@ def determine_pruning_pairs(neurons_for_pruning, connectivity_matrix, states=Non
 
 def change_connexion(W, i, j, value):
     # i for rows, j for columns
-    W = sparse.lil_matrix(W)
     W[i, j] = W[i, j] + value
     if W[i, j] < 0:
         W[i, j] = 0
-    W = sparse.coo_matrix(W)
-    W.eliminate_zeros()
     return W

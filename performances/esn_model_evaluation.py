@@ -67,7 +67,6 @@ def init_and_train_model_for_prediction(W, Win, bias, leaking_rate, activation_f
     reservoir, readout = init_model(W, Win, bias, leaking_rate, activation_function, ridge_coef, rls, lms)
 
     esn = reservoir >> readout
-
     if rls or lms:
         esn.train(X_train, Y_train)
     else:

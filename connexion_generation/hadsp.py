@@ -5,7 +5,6 @@ from reservoir.reservoir import update_reservoir
 import matplotlib.pyplot as plt
 from tqdm import tqdm
 
-
 def compute_variance(states, target_variance, variance_spread, average="WHOLE", queue_size=10):
     # Calculate the synaptic change based on variance as per user requirement
     states = np.array(states)
@@ -49,8 +48,8 @@ def compute_synaptic_change(states, target_rate, rate_spread, change_type="linea
 def run_algorithm(W, Win, bias, leaky_rate, activation_function, input_data, time_increment, weight_increment,
                   target, spread, algorithm_type, is_instance, use_full_instance=False, max_increment=None, max_partners=12, method="random",
                   average="WHOLE", n_jobs=1, visualize=False, record_history=False):
-    state = np.random.uniform(0, 1, bias.size)
-    state_history = []
+    neurons_state = np.random.uniform(0, 1, bias.size)
+    states_history = []
     delta_z_history = []
 
     if visualize:
@@ -84,8 +83,8 @@ def run_algorithm(W, Win, bias, leaky_rate, activation_function, input_data, tim
 
     # initialization
     for input_value in init_array:
-        state = update_reservoir(W, Win, input_value, state, leaky_rate, bias, activation_function)
-        state_history.append(state)
+        neurons_state = update_reservoir(W, Win, input_value, neurons_state, leaky_rate, bias, activation_function)
+        states_history.append(neurons_state)
 
     pbar = tqdm(total=len(input_data), desc=algorithm_type + " " + method + " algorithm")
     while (len(input_data) > max_increment and not is_instance) or (len(input_data) > 0 and is_instance):
@@ -102,21 +101,28 @@ def run_algorithm(W, Win, bias, leaky_rate, activation_function, input_data, tim
             state_inc = inc
 
         for input_value in input_array:
-            state = update_reservoir(W, Win, input_value, state, leaky_rate, bias, activation_function)
-            state_history.append(state)
+            neurons_state = update_reservoir(W, Win, input_value, neurons_state, leaky_rate, bias, activation_function)
+            states_history.append(neurons_state)
 
         if algorithm_type == "hadsp":
-            delta_z = compute_synaptic_change(state_history[-state_inc:], target, spread, average=average)
+            delta_z = compute_synaptic_change(states_history[-state_inc:], target, spread, average=average)
         elif algorithm_type == "desp":
-            delta_z = compute_variance(state_history[-state_inc:], target, spread, average=average)
+            delta_z = compute_variance(states_history[-state_inc:], target, spread, average=average)
         else:
             raise ValueError("type must be one of 'hadsp', 'desp'")
 
-        W, _, nb_new_add, nb_new_prun = hadsp_step(W, state_history[-state_inc:], delta_z, weight_increment,
+        W, _, nb_new_add, nb_new_prun = hadsp_step(W, states_history[-state_inc:], delta_z, weight_increment,
                                                    max_partners=max_partners, method=method, n_jobs=n_jobs)
 
+        if algorithm_type == "desp":
+            # implement intrinsic homeostatic plasticity based on saturation of states
+            neurons_states = np.array(states_history[-state_inc:]).T
+            for neuron_states, i in zip(neurons_states, range(bias.size)):
+                if np.all(neuron_states >= 0.9):
+                    W[i, :] = W[i, :] * 0.9  # Now you can modify it directly
+
         if not record_history:
-            state_history = []
+            states_history = []
         elif use_full_instance:  # happened variance to variance_history for a number of inc
             delta_z_history.extend([delta_z] * 10)
         else:
@@ -143,7 +149,7 @@ def run_algorithm(W, Win, bias, leaky_rate, activation_function, input_data, tim
         plt.plot(steps, steps, linestyle=(0, (1, 10)))
         plt.legend()
         plt.grid()
-    return W, state_history, delta_z_history
+    return W, states_history, delta_z_history
 
 
 def hadsp_step(W_e, states, delta_z, weight_increment, W_inhibitory=np.array([]), max_partners=12, method="random", n_jobs=1):
@@ -166,8 +172,6 @@ def hadsp_step(W_e, states, delta_z, weight_increment, W_inhibitory=np.array([])
         for connexion in new_connexion_pairs:
             W_inhibitory = change_connexion(W_inhibitory, connexion[0], connexion[1], weight_increment)
             total_add += 1
-
-
 
     need_increase = neurons[delta_z <= -1]
     # We add an excitatory connexion to drive delta_z up

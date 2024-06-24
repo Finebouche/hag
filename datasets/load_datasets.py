@@ -242,7 +242,7 @@ def load_lorenz_dataset(step_ahead=5, visualize=True):
 def load_dataset_classification(name, seed=None):
     if name == "FSDD":
         sampling_rate, X_train, X_test, Y_train, Y_test, groups = load_FSDD_dataset(
-            data_dir='datasets/fsdd/free-spoken-digit-dataset-master/recordings', visualize=True)
+            data_dir='datasets/fsdd/free-spoken-digit-dataset-master/recordings', seed=seed, visualize=True)
 
         is_multivariate = False
         return is_multivariate, sampling_rate, X_train, X_test, Y_train, Y_test, groups
