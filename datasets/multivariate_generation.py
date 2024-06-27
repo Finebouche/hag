@@ -76,16 +76,8 @@ def band_filter(x, low_cut, high_cut, fs, order=6):
     return sosfiltfilt(sos, x).flatten()
 
 
-def compute_spectrogram(x, fs, nperseg=256, noverlap=128):
-    g_std = 8  # standard deviation for Gaussian window in samples
-    w = gaussian(50, std=g_std, sym=True)  # symmetric Gaussian window
-    SFT = ShortTimeFFT(w, hop=20, fs=fs)
-    Sx = SFT.stft(x.flatten())
-    return Sx
-
-
 def generate_multivariate_dataset(filtered_peak_freqs, X, sampling_rate, is_instances_classification,
-                                  use_spectrogram=False, nb_jobs=1, verbosity=1):
+                                  use_spectrogram=False, hop=20, nb_jobs=1, verbosity=1):
     extended_freqs = np.concatenate(([0], filtered_peak_freqs, [sampling_rate / 2]))
     # Calculate bandwidth as half the inter-frequency distances
     bandwidth = np.diff(extended_freqs) / 2
@@ -100,7 +92,10 @@ def generate_multivariate_dataset(filtered_peak_freqs, X, sampling_rate, is_inst
         ]).T
 
     def compute_instance_spectrogram(x):
-        Sx = compute_spectrogram(x, fs=sampling_rate)
+        g_std = 8  # standard deviation for Gaussian window in samples
+        w = gaussian(50, std=g_std, sym=True)  # symmetric Gaussian window
+        SFT = ShortTimeFFT(w, hop=hop, fs=sampling_rate)
+        Sx = SFT.stft(x.flatten())
         return abs(Sx).T
 
     if use_spectrogram and is_instances_classification:

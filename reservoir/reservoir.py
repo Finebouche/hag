@@ -1,4 +1,4 @@
-from scipy import linalg, sparse, stats
+from scipy import sparse, stats
 import numpy as np
 from numpy.random import Generator, PCG64
 

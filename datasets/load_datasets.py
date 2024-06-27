@@ -143,7 +143,7 @@ def load_haart_dataset(train_path, test_path):
     # This will create a dictionary where keys are the unique groupings and values are the multivariate time series data for each group
     X_train = []
     for name, group in grouped:
-        X_train.append(group.iloc[:, 4:68].values)
+        X_train.append(group.iloc[:, 4:68].values.astype(np.float64))
 
     # extract labels use to group by for each time series
     Y_train = []
@@ -155,7 +155,7 @@ def load_haart_dataset(train_path, test_path):
 
     X_test = []
     for name, group in grouped:
-        X_test.append(group.iloc[:, 4:68].values)
+        X_test.append(group.iloc[:, 4:68].values.astype(np.float64))
 
     Y_test = []
     for name, group in grouped:
