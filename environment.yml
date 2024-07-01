@@ -6,13 +6,14 @@ channels:
 dependencies:
   - python=3.11
   - numpy
-  - scipy
+  - scipy>=1.12
   - matplotlib
   - seaborn
   - pandas
   - scikit-learn
   - pytorch  # 'torch' is named 'pytorch' in conda
   - torchaudio
+  - aeon
   - ffmpeg
   - tensorflow
   - optuna
