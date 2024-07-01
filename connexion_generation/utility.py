@@ -60,7 +60,7 @@ def determine_connection_pairs(neurons_needing_new_connection, connectivity_matr
         )
 
     elif method == "pearson":
-        for neuron in neurons_needing_new_connection:
+        def compute_pearson_for_neuron(neuron):
             available_for_this_neuron = available_neurons(neuron, connectivity_matrix, neurons_pool, max_partners)
             # correlations = np.corrcoef(states[neuron, :], states[available_for_this_neuron, :])[0, 1:].flatten()
             correlations = np.corrcoef(states[neuron, 1:], states[available_for_this_neuron, :-1])[0, 1:]
@@ -69,39 +69,13 @@ def determine_connection_pairs(neurons_needing_new_connection, connectivity_matr
             corr_max = np.nanmax(correlations)
             max_value_indices = np.array(available_for_this_neuron)[np.isclose(correlations, corr_max)]
 
-            if np.isnan(max_value_indices).all():
-                max_value_indices = available_for_this_neuron
-            try:
-                incoming_connexion = np.random.choice(max_value_indices)
-            except ValueError:
-                # print every variable
-                print("neuron", neuron)
-                print("available_for_this_neuron", available_for_this_neuron)
-                print("correlations", correlations)
-                print("corr_max", corr_max)
-                print("max_value_indices", max_value_indices)
-                print("states", states)
-                print("isclose", np.isclose(correlations, corr_max))
+            incoming_connexion = np.random.choice(max_value_indices)
+            return (neuron, incoming_connexion)
 
-            new_connections.append((neuron, incoming_connexion))
-
-        # def compute_pearson_for_neuron(neuron):
-        #     available_for_this_neuron = available_neurons(neuron, connectivity_matrix, neurons_pool, max_partners)
-        #     # correlations = np.corrcoef(states[neuron, :], states[available_for_this_neuron, :])[0, 1:].flatten()
-        #     correlations = np.corrcoef(states[neuron, 1:], states[available_for_this_neuron, :-1])[0, 1:]
-        #     # Find the neuron with the maximum Pearson correlation (use isclose to handle floating point errors)
-        #
-        #     corr_max = np.nanmax(correlations)
-        #     max_value_indices = np.array(available_for_this_neuron)[np.isclose(correlations, corr_max)]
-        #
-        #     incoming_connexion = np.random.choice(max_value_indices)
-        #     return (neuron, incoming_connexion)
-        #
-        #
-        # new_connections = Parallel(n_jobs=n_jobs)(
-        #     delayed(compute_pearson_for_neuron)(neuron)
-        #     for neuron in neurons_needing_new_connection
-        # )
+        new_connections = Parallel(n_jobs=n_jobs)(
+            delayed(compute_pearson_for_neuron)(neuron)
+            for neuron in neurons_needing_new_connection
+        )
 
     elif method == "random":
         for neuron in neurons_needing_new_connection:
@@ -157,7 +131,7 @@ def determine_pruning_pairs(neurons_for_pruning, connectivity_matrix, states=Non
             # Find the neuron with the maximum Pearson correlation
             corr_min = np.nanmin(correlations)
             if corr_min == np.nan:
-                print("Correlation is nan")
+                print("Correlation is nan, should not append")
                 print("correlations", correlations)
                 print("neuron", neuron)
                 print("connections", connections)
