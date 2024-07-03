@@ -1,4 +1,3 @@
-from scipy import sparse
 import numpy as np
 from connexion_generation.correlation_utility import compute_mutual_information, compute_pearson_corr
 from joblib import Parallel, delayed
@@ -35,57 +34,33 @@ def determine_connection_pairs(neurons_needing_new_connection, connectivity_matr
     if states is None and (method == "mi" or method == "pearson"):
         raise ValueError("States must be provided if mutual information or pearson based pruning is used.")
 
-    new_connections = []
     neurons_pool = list(range(connectivity_matrix.shape[1])) if is_inter_matrix \
         else list(neurons_needing_new_connection)
     if len(neurons_pool) <= 1:
         return []
 
-    if method == "mi":
-        def compute_mi_for_neuron(neuron):
-            available_for_this_neuron = available_neurons(neuron, connectivity_matrix, neurons_pool, max_partners)
-            mi_for_available_neurons = compute_mutual_information(states, [available_for_this_neuron, [neuron]])
+    def compute_new_connexion(neuron):
+        available_for_neuron = available_neurons(neuron, connectivity_matrix, neurons_pool, max_partners)
 
-            # select the connection with the highest mutual information
-            mi_for_this_neuron = mi_for_available_neurons[neuron, available_for_this_neuron]
-            max_value_indices = np.array(available_for_this_neuron)[
-                np.isclose(mi_for_this_neuron, np.nanmax(mi_for_this_neuron))]
+        if method == "mi":
+            mi_for_available_neurons = compute_mutual_information(states, [available_for_neuron, [neuron]])
+            mi_for_neuron = mi_for_available_neurons[neuron, available_for_neuron]
+            neuron_to_choose_from = np.array(available_for_neuron)[np.isclose(mi_for_neuron, np.nanmax(mi_for_neuron))]
+        elif method == "pearson":
+            correlations = compute_pearson_corr(states, [neuron], available_for_neuron)
+            neuron_to_choose_from = np.array(available_for_neuron)[np.isclose(correlations, np.nanmax(correlations))]
+        elif method == "random":
+            neuron_to_choose_from = available_for_neuron
+        else:
+            raise ValueError("Invalid method. Must be one of 'mi', 'pearson'.")
 
-            incoming_connexion = np.random.choice(max_value_indices)
-            return (neuron, incoming_connexion)
+        incoming_neuron = np.random.choice(neuron_to_choose_from)
+        return neuron, incoming_neuron
 
-        new_connections = Parallel(n_jobs=n_jobs)(
-            delayed(compute_mi_for_neuron)(neuron)
-            for neuron in neurons_needing_new_connection
-        )
-
-    elif method == "pearson":
-        def compute_pearson_for_neuron(neuron):
-            available_for_this_neuron = available_neurons(neuron, connectivity_matrix, neurons_pool, max_partners)
-            # correlations = np.corrcoef(states[neuron, :], states[available_for_this_neuron, :])[0, 1:].flatten()
-            correlations = np.corrcoef(states[neuron, 1:], states[available_for_this_neuron, :-1])[0, 1:]
-            # Find the neuron with the maximum Pearson correlation (use isclose to handle floating point errors)
-
-            corr_max = np.nanmax(correlations)
-            max_value_indices = np.array(available_for_this_neuron)[np.isclose(correlations, corr_max)]
-
-            incoming_connexion = np.random.choice(max_value_indices)
-            return (neuron, incoming_connexion)
-
-        new_connections = Parallel(n_jobs=n_jobs)(
-            delayed(compute_pearson_for_neuron)(neuron)
-            for neuron in neurons_needing_new_connection
-        )
-
-    elif method == "random":
-        for neuron in neurons_needing_new_connection:
-            available_for_this_neuron = available_neurons(neuron, connectivity_matrix, neurons_pool, max_partners)
-
-            incoming_connexion = np.random.choice(available_for_this_neuron)
-            new_connections.append((neuron, incoming_connexion))
-
-    else:
-        raise ValueError("Invalid method. Must be one of 'mi', 'pearson', 'random'.")
+    new_connections = Parallel(n_jobs=n_jobs)(
+        delayed(compute_new_connexion)(neuron)
+        for neuron in neurons_needing_new_connection
+    )
 
     return new_connections
 
@@ -105,63 +80,26 @@ def determine_pruning_pairs(neurons_for_pruning, connectivity_matrix, states=Non
         raise ValueError("States must be provided if mutual information or pearson based pruning is used.")
 
     new_pruning_pairs = []
-    if method == "mi":
-        for neuron in neurons_for_pruning:
-            connections = connectivity_matrix[neuron].nonzero()[0]
-            if len(connections) == 0:
-                continue
+    for neuron in neurons_for_pruning:
+        connections = connectivity_matrix[neuron].nonzero()[0]
+        if len(connections) == 0:
+            continue
+        if method == "mi":
             mi = compute_mutual_information(states, [connections, [neuron]])[neuron, connections]
-
-            min_value_indices = np.array(connections)[np.isclose(mi, np.nanmin(mi))]
-            chosen_connection = np.random.choice(min_value_indices)
-            if chosen_connection is None:
-                raise ValueError("No incoming connection found for neuron, this should not happen.")
-            else:
-                new_pruning_pairs.append((neuron, chosen_connection))
-
-    elif method == "pearson":
-        for neuron in neurons_for_pruning:
-            connections = connectivity_matrix[neuron].nonzero()[0]
-            if len(connections) == 0:
-                continue
-
-            # Compute Pearson correlations for all potential connections
+            neuron_to_choose_from = np.array(connections)[np.isclose(mi, np.nanmin(mi))]
+        elif method == "pearson":
             correlations = np.corrcoef(states[neuron, 1:], states[connections, :-1])[0, 1:]
-
-            # Find the neuron with the maximum Pearson correlation
             corr_min = np.nanmin(correlations)
-            if corr_min == np.nan:
-                print("Correlation is nan, should not append")
-                print("correlations", correlations)
-                print("neuron", neuron)
-                print("connections", connections)
-                print("states", states)
-            min_value_indices = np.array(connections)[np.isclose(correlations, corr_min)]
-            chosen_connection = np.random.choice(min_value_indices)
-            if chosen_connection is None:
-                raise ValueError("No incoming connection found for neuron, this should not happen.")
-            else:
-                new_pruning_pairs.append((neuron, chosen_connection))
+            neuron_to_choose_from = np.array(connections)[np.isclose(correlations, corr_min)]
+        elif method == "random":
+            neuron_to_choose_from = connections
+        else:
+            raise ValueError("Invalid method. Must be one of 'mi', 'pearson', 'random'.")
 
-    elif method == "random":
-        for neuron in neurons_for_pruning:
-            connections = connectivity_matrix[neuron].nonzero()[0]
-            if len(connections) == 0:
-                continue
-            chosen_connection = np.random.choice(connections)
-            if chosen_connection is None:
-                raise ValueError("No incoming connection found for neuron, this should not happen.")
-            else:
-                new_pruning_pairs.append((neuron, chosen_connection))
-    else:
-        raise ValueError("Invalid method. Must be one of 'mi', 'pearson', 'random'.")
+        chosen_connection = np.random.choice(neuron_to_choose_from)
+        if chosen_connection is None:
+            raise ValueError("No incoming connection found for neuron, this should not happen.")
+        else:
+            new_pruning_pairs.append((neuron, chosen_connection))
 
     return new_pruning_pairs
-
-
-def change_connexion(W, i, j, value):
-    # i for rows, j for columns
-    W[i, j] = W[i, j] + value
-    if W[i, j] < 0:
-        W[i, j] = 0
-    return W

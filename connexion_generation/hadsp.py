@@ -1,9 +1,9 @@
-# Code for Homeostatic Activity Dependant Structural Plasticity
 import numpy as np
-from connexion_generation.utility import determine_connection_pairs, determine_pruning_pairs, change_connexion
+from connexion_generation.utility import determine_connection_pairs, determine_pruning_pairs
 from reservoir.reservoir import update_reservoir
 import matplotlib.pyplot as plt
 from tqdm import tqdm
+
 
 def compute_variance(states, target_variance, variance_spread, average="WHOLE", queue_size=10):
     # Calculate the synaptic change based on variance as per user requirement
@@ -46,8 +46,9 @@ def compute_synaptic_change(states, target_rate, rate_spread, change_type="linea
 
 
 def run_algorithm(W, Win, bias, leaky_rate, activation_function, input_data, time_increment, weight_increment,
-                  target, spread, algorithm_type, is_instance, use_full_instance=False, max_increment=None, max_partners=12, method="random",
-                  average="WHOLE", n_jobs=1, visualize=False, record_history=False):
+                  target, spread, algorithm_type, is_instance, use_full_instance=False, max_increment=None,
+                  max_partners=12, method="random", intrinsic_saturation=0.9, intrinsic_coef=0.9, average="WHOLE",
+                  n_jobs=1, visualize=False, record_history=False):
     neurons_state = np.random.uniform(0, 1, bias.size)
     states_history = []
     delta_z_history = []
@@ -118,8 +119,8 @@ def run_algorithm(W, Win, bias, leaky_rate, activation_function, input_data, tim
             # implement intrinsic homeostatic plasticity based on saturation of states
             neurons_states = np.array(states_history[-state_inc:]).T
             for neuron_states, i in zip(neurons_states, range(bias.size)):
-                if np.all(neuron_states >= 0.9):
-                    W[i, :] = W[i, :] * 0.9  # Now you can modify it directly
+                if np.all(neuron_states >= intrinsic_saturation):
+                    W[i, :] = W[i, :] * intrinsic_coef  # Now you can modify it directly
 
         if not record_history:
             states_history = []
@@ -152,7 +153,8 @@ def run_algorithm(W, Win, bias, leaky_rate, activation_function, input_data, tim
     return W, states_history, delta_z_history
 
 
-def hadsp_step(W_e, states, delta_z, weight_increment, W_inhibitory=np.array([]), max_partners=12, method="random", n_jobs=1):
+def hadsp_step(W_e, states, delta_z, weight_increment, W_inhibitory=np.array([]), max_partners=12, method="random",
+               n_jobs=1):
     states = np.array(states).T
     nb_neurons = W_e.shape[0]
     neurons = np.arange(nb_neurons)
@@ -168,7 +170,8 @@ def hadsp_step(W_e, states, delta_z, weight_increment, W_inhibitory=np.array([])
         total_prun += 1
     # We add inhibitory connexion to drive delta_z down
     if min(W_inhibitory.shape) > 0:
-        new_connexion_pairs = determine_connection_pairs(need_pruning, W_inhibitory, states, method, is_inter_matrix=True)
+        new_connexion_pairs = determine_connection_pairs(need_pruning, W_inhibitory, states, method,
+                                                         is_inter_matrix=True)
         for connexion in new_connexion_pairs:
             W_inhibitory = change_connexion(W_inhibitory, connexion[0], connexion[1], weight_increment)
             total_add += 1
@@ -188,3 +191,12 @@ def hadsp_step(W_e, states, delta_z, weight_increment, W_inhibitory=np.array([])
             total_prun += 1
 
     return W_e, W_inhibitory, total_add, total_prun
+
+
+
+def change_connexion(W, i, j, value):
+    # i for rows, j for columns
+    W[i, j] = W[i, j] + value
+    if W[i, j] < 0:
+        W[i, j] = 0
+    return W
