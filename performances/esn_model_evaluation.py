@@ -39,7 +39,7 @@ def train_model_for_classification(reservoir, readout, X_train, Y_train, n_jobs,
         states_to_train_on = Parallel(n_jobs=n_jobs)(
             delayed(compute_state)(x) for x in tqdm(X_train, desc="Processing", dynamic_ncols=True)
         )
-        readout.fit(np.array(states_to_train_on), Y_train)
+        readout.fit(np.array(states_to_train_on), Y_train, warmup=2)
 
     elif mode == "sequence-to-sequence":
         states_to_train_on = np.array([item for sublist in X_train for item in sublist])

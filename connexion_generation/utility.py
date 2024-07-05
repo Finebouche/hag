@@ -47,12 +47,16 @@ def determine_connection_pairs(neurons_needing_new_connection, connectivity_matr
             mi_for_neuron = mi_for_available_neurons[neuron, available_for_neuron]
             neuron_to_choose_from = np.array(available_for_neuron)[np.isclose(mi_for_neuron, np.nanmax(mi_for_neuron))]
         elif method == "pearson":
-            correlations = compute_pearson_corr(states, [neuron], available_for_neuron)
+            # Alternative : np.corrcoef(states[neuron, 1:], states[available_for_neuron, :-1])[0, 1:]
+            correlations = compute_pearson_corr(states[neuron, 1:], states[available_for_neuron, 1:])
             neuron_to_choose_from = np.array(available_for_neuron)[np.isclose(correlations, np.nanmax(correlations))]
         elif method == "random":
-            neuron_to_choose_from = available_for_neuron
+            neuron_to_choose_from = np.array(available_for_neuron)
         else:
             raise ValueError("Invalid method. Must be one of 'mi', 'pearson'.")
+
+        if neuron_to_choose_from.size == 0:
+            raise ValueError("No neuron_to_choose_from found for neuron in adding, this should not happen.")
 
         incoming_neuron = np.random.choice(neuron_to_choose_from)
         return neuron, incoming_neuron
@@ -84,22 +88,21 @@ def determine_pruning_pairs(neurons_for_pruning, connectivity_matrix, states=Non
         connections = connectivity_matrix[neuron].nonzero()[0]
         if len(connections) == 0:
             continue
-        if method == "mi":
-            mi = compute_mutual_information(states, [connections, [neuron]])[neuron, connections]
-            neuron_to_choose_from = np.array(connections)[np.isclose(mi, np.nanmin(mi))]
-        elif method == "pearson":
-            correlations = np.corrcoef(states[neuron, 1:], states[connections, :-1])[0, 1:]
-            corr_min = np.nanmin(correlations)
-            neuron_to_choose_from = np.array(connections)[np.isclose(correlations, corr_min)]
-        elif method == "random":
-            neuron_to_choose_from = connections
-        else:
-            raise ValueError("Invalid method. Must be one of 'mi', 'pearson', 'random'.")
+        # if method == "mi":
+        #     mi = compute_mutual_information(states, [connections, [neuron]])[neuron, connections]
+        #     neuron_to_choose_from = np.array(connections)[np.isclose(mi, np.nanmin(mi))]
+        # elif method == "pearson":
+        #     correlations = np.corrcoef(states[neuron, 1:], states[connections, :-1])[0, 1:]
+        #     neuron_to_choose_from = np.array(connections)[np.isclose(correlations, np.nanmin(correlations))]
+        # elif method == "random":
+        #     neuron_to_choose_from = connections
+        # else:
+        #     raise ValueError("Invalid method. Must be one of 'mi', 'pearson', 'random'.")
+        #
+        # if neuron_to_choose_from.size == 0:
+        #     raise ValueError("No neuron_to_choose_from found for neuron in pruning, this should not happen.")
 
-        chosen_connection = np.random.choice(neuron_to_choose_from)
-        if chosen_connection is None:
-            raise ValueError("No incoming connection found for neuron, this should not happen.")
-        else:
-            new_pruning_pairs.append((neuron, chosen_connection))
+        chosen_connection = np.random.choice(connections)
+        new_pruning_pairs.append((neuron, chosen_connection))
 
     return new_pruning_pairs

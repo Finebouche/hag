@@ -51,6 +51,6 @@ def init_matrices(n, input_connectivity, connectivity, K, spectral_radius=1, w_d
             W *= spectral_radius / sr
 
     # Bias matrix
-    bias = bias_distribution.rvs(size=n[0])
+    bias = np.abs(bias_distribution.rvs(size=n[0]))
 
     return Win, W.toarray(), bias.flatten()

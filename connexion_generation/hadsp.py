@@ -66,7 +66,7 @@ def run_algorithm(W, Win, bias, leaky_rate, activation_function, input_data, tim
         max_increment = time_increment
     else:
         logspace = np.logspace(np.log10(time_increment), np.log10(max_increment), num=10)
-        int_logspace = np.round(logspace).astype(int)
+        int_logspace = np.unique(np.round(logspace).astype(int))
 
     if is_instance and not use_full_instance:
         input_data = np.concatenate(input_data, axis=0)
@@ -88,7 +88,7 @@ def run_algorithm(W, Win, bias, leaky_rate, activation_function, input_data, tim
         states_history.append(neurons_state)
 
     pbar = tqdm(total=len(input_data), desc=algorithm_type + " " + method + " algorithm")
-    while (len(input_data) > max_increment and not is_instance) or (len(input_data) > 0 and is_instance):
+    while (len(input_data) > max_increment and not use_full_instance) or (len(input_data) > 0 and use_full_instance):
         if is_instance and use_full_instance:  # if is true, take the next instance of the instance array input_data
             input_array = input_data[0]
             input_data = input_data[1:]
@@ -191,7 +191,6 @@ def hadsp_step(W_e, states, delta_z, weight_increment, W_inhibitory=np.array([])
             total_prun += 1
 
     return W_e, W_inhibitory, total_add, total_prun
-
 
 
 def change_connexion(W, i, j, value):

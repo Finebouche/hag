@@ -2,9 +2,10 @@ import numpy as np
 import matplotlib.pyplot as plt
 from scipy import signal
 from matplotlib.colors import to_rgb, to_rgba
-from scipy.signal import butter, cheby2, sosfiltfilt
+from scipy.signal import butter, cheby2, sosfiltfilt, gaussian
 from joblib import Parallel, delayed
-from scipy.signal import ShortTimeFFT
+from librosa import stft
+from librosa.feature import mfcc
 from scipy.signal.windows import gaussian
 
 
@@ -21,13 +22,11 @@ def extract_peak_frequencies(input_data, sampling_rate, threshold, smooth=True, 
         # https://dsp.stackexchange.com/questions/81640/trying-to-understand-the-nperseg-effect-of-welch-method
         f, Pxx_den = signal.welch(input_data[:, i], sampling_rate, nperseg=nperseg)
 
-        # Smoothing the Power Spectral Density (Pxx_den) before peak detection can be a beneficial approach,
-        # especially when dealing with noisy data. Smoothing helps in reducing the effect of random fluctuations in
-        # the spectrum, which might otherwise result in the detection of spurious peaks. It also helps in emphasizing
+        # Smoothing the Power Spectral Density (Pxx_den) before peak detection helps in emphasizing
         # the more significant, broader peaks that are often of greater interest in signal processing tasks.
         if smooth:
             # Create a Gaussian window
-            gaus_window = signal.gaussian(window_length, std=7)
+            gaus_window = gaussian(window_length, std=7)
             gaus_window /= np.sum(gaus_window)
             # Apply the Gaussian filter
             Pxx_den = signal.convolve(Pxx_den, gaus_window, mode='same')
@@ -77,30 +76,34 @@ def band_filter(x, low_cut, high_cut, fs, order=6):
 
 
 def generate_multivariate_dataset(filtered_peak_freqs, X, sampling_rate, is_instances_classification,
-                                  use_spectrogram=False, hop=20, nb_jobs=1, verbosity=1):
-    extended_freqs = np.concatenate(([0], filtered_peak_freqs, [sampling_rate / 2]))
-    # Calculate bandwidth as half the inter-frequency distances
-    bandwidth = np.diff(extended_freqs) / 2
-    # Calculate low_cut and high_cut frequencies
-    low_cut = filtered_peak_freqs - bandwidth[:-1]
-    high_cut = filtered_peak_freqs + bandwidth[1:]
+                                  spectral_representation=None, hop=20, nb_jobs=1, verbosity=1):
 
-    def filter_instance_frequencies(x):
-        return np.array([
-            band_filter(x, low_cut[freq_index], high_cut[freq_index], fs=sampling_rate) for freq_index in
-            range(len(filtered_peak_freqs))
-        ]).T
+    if spectral_representation is not None and is_instances_classification:
+        def compute_instance_spectrogram(x):
+            g_std = 8  # standard deviation for Gaussian window in samples
+            win_length = 50
+            w = gaussian(win_length, std=g_std, sym=True)  # symmetric Gaussian window
+            if spectral_representation == "stft":
+                Sx = np.abs(stft(x.flatten(), hop_length=hop, win_length=win_length, n_fft=win_length, window=w))
+            elif spectral_representation == "mfcc":
+                Sx = np.abs(mfcc(x.flatten(), hop_length=hop, win_length=win_length, n_fft=win_length, window=w))
+            return Sx.T
 
-    def compute_instance_spectrogram(x):
-        g_std = 8  # standard deviation for Gaussian window in samples
-        w = gaussian(50, std=g_std, sym=True)  # symmetric Gaussian window
-        SFT = ShortTimeFFT(w, hop=hop, fs=sampling_rate)
-        Sx = SFT.stft(x.flatten())
-        return abs(Sx).T
-
-    if use_spectrogram and is_instances_classification:
         process_instance_func = compute_instance_spectrogram
-    else: # always use band filter for prediction
+    else:  # always use band filter for prediction
+        extended_freqs = np.concatenate(([0], filtered_peak_freqs, [sampling_rate / 2]))
+        # Calculate bandwidth as half the inter-frequency distances
+        bandwidth = np.diff(extended_freqs) / 2
+        # Calculate low_cut and high_cut frequencies
+        low_cut = filtered_peak_freqs - bandwidth[:-1]
+        high_cut = filtered_peak_freqs + bandwidth[1:]
+
+        def filter_instance_frequencies(x):
+            return np.array([
+                band_filter(x, low_cut[freq_index], high_cut[freq_index], fs=sampling_rate) for freq_index in
+                range(len(filtered_peak_freqs))
+            ]).T
+
         process_instance_func = filter_instance_frequencies
 
     if is_instances_classification:  # classification -> Multiple instances

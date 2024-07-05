@@ -46,7 +46,7 @@ def plot_data_distribution(y_train_encoded, y_test_encoded, val=False):
     # Get the number of classes (assuming all classes are represented in the training set)
     classes = np.arange(len(train_counts))
 
-    plt.figure(figsize=(12, 6))
+    plt.figure(figsize=(12, 4))
 
     # Plot histogram for Y_train
     plt.subplot(1, 2, 1)  # 1 row, 2 columns, first subplot
