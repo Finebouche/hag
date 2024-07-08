@@ -2,7 +2,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from scipy import signal
 from matplotlib.colors import to_rgb, to_rgba
-from scipy.signal import butter, cheby2, sosfiltfilt, gaussian
+from scipy.signal import butter, cheby2, sosfiltfilt
 from joblib import Parallel, delayed
 from librosa import stft
 from librosa.feature import mfcc
