@@ -39,18 +39,18 @@ def train_model_for_classification(reservoir, readout, X_train, Y_train, n_jobs,
         states_to_train_on = Parallel(n_jobs=n_jobs)(
             delayed(compute_state)(x) for x in tqdm(X_train, desc="Processing", dynamic_ncols=True)
         )
-        readout.fit(np.array(states_to_train_on), Y_train, warmup=2)
 
     elif mode == "sequence-to-sequence":
-        states_to_train_on = np.array([item for sublist in X_train for item in sublist])
+        states_to_train_on = [vector_step for instance in X_train for vector_step in instance]
         # make Y_train repeat_targets
         # for each sequence in X_train, the corresponding target is Ytrain repeated as many times as the sequence length
         Y_train = [[Y_train[i]] * len(x) for i, x in enumerate(X_train)]
         Y_train = np.array([item for sublist in Y_train for item in sublist])
 
-        readout.fit(states_to_train_on, Y_train, warmup=2)
     else:
         raise ValueError(f"Invalid mode: {mode}")
+
+    readout.fit(np.array(states_to_train_on), Y_train, warmup=2)
 
 
 def init_and_train_model_for_classification(W, Win, bias, leaking_rate, activation_function, X_train, Y_train,

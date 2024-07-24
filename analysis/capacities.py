@@ -17,7 +17,7 @@ def test_loading():
 # helper functions
 
 def polyval(x, c):
-    out = scipy.zeros(x.shape)
+    out = np.zeros(x.shape)
     for i in range(c.__len__()):
         if not (c[i] == 0.0):
             out += c[i] * x ** (i)
@@ -26,7 +26,7 @@ def polyval(x, c):
 
 def extract_mean(states):
     N = states.shape[1]
-    zmstates = scipy.zeros_like(states)
+    zmstates = np.zeros_like(states)
     for i in range(N):
         zmstates[:, i:i + 1] = states[:, i:i + 1] - scipy.mean(states[:, i:i + 1])
     return zmstates
@@ -40,7 +40,7 @@ def legendre_step(n, x, nm1, nm2):
     '''
 
     if n == 0:
-        l = scipy.ones_like(x)
+        l = np.ones_like(x)
     elif n == 1:
         l = x.copy()
     else:
@@ -54,12 +54,12 @@ def legendre_incremental(n, x):
         These are orthogonal for uniform random inputs in [-1,1]
     """
     if n == 0:
-        return scipy.ones_like(x)
+        return np.ones_like(x)
     elif n == 1:
         return x
     else:
         l = x.copy()
-        prev = scipy.ones_like(x)
+        prev = np.ones_like(x)
 
         for index in range(int(n) - 1):
             [l, prev] = legendre_step(index + 2, x, l, prev)
@@ -69,14 +69,14 @@ def legendre_incremental(n, x):
 
 def generate_task(taskfun=legendre_incremental, input=[], variables=1, positions=[0], delay=1, powerlist=[1]):
     # calculate the desired output for the current iterator position and given input
-    inp = scipy.atleast_2d(input.flatten()).T
-    output = scipy.ones((inp.shape[0], 1))
-    for i in scipy.arange(variables):
+    inp = np.atleast_2d(input.flatten()).T
+    output = np.ones((inp.shape[0], 1))
+    for i in np.arange(variables):
         pos = positions[i] + delay - 1
         if pos == 0:
             task = taskfun(powerlist[i], inp)
         else:
-            task = taskfun(powerlist[i], scipy.concatenate((scipy.zeros((pos, inp.shape[1])), inp[:-pos, :])))
+            task = taskfun(powerlist[i], np.concatenate((np.zeros((pos, inp.shape[1])), inp[:-pos, :])))
         output = output * task
     return output
 
@@ -86,7 +86,7 @@ def generate_task(taskfun=legendre_incremental, input=[], variables=1, positions
 def cov_capacity(states, target, return_all_scores=False, R_inv=None):  # ,zm_target=True,zm_states=True):
     """ Compute the non-linear memory capacity based on correlations
     """
-    score = scipy.zeros(target.shape[1])
+    score = np.zeros(target.shape[1])
 
     # if R_inv==None:  # gives an error in recent versions of Python
     if not (R_inv.any()):
@@ -109,7 +109,7 @@ def cov_capacity(states, target, return_all_scores=False, R_inv=None):  # ,zm_ta
 
 class capacity_iterator():
     # Iterator class to measure capacity profiles -- with lots of parameters.
-    # Usage: 
+    # Usage:
     #    nlmc=nlmc_iterator(options)
     #    totalscore,tags,numbases,dimensions = nlmc.collect(inputs,outputs)
     #
@@ -127,8 +127,8 @@ class capacity_iterator():
     #                also useful for systems with feedback delay and/or with periodic response
     #  * basis: basis functions to be used; default = legendre polynomials (for uniform [0,1] input data)
     #           this can also be a GrammSchmittbasis class member
-    #  
-    # Additional bounded search parameters for measuring task profiles or when automatic search becomes too extensive: 
+    #
+    # Additional bounded search parameters for measuring task profiles or when automatic search becomes too extensive:
     #
     # * for bounded delay search, set mindel and maxdel to desired values (additionally, set m_delay to False to
     # switch off thresholding)
@@ -178,7 +178,7 @@ class capacity_iterator():
         self.windowskip = windowskip
         self.taskfun = basis
         # set monotonicity variables:
-        # True means that if the total score for a given loop level is below threshold, 
+        # True means that if the total score for a given loop level is below threshold,
         # further iterations across this loop will be skipped
         self.monotonous_delay = m_delay
         self.monotonous_windowpos = m_windowpos
@@ -197,16 +197,16 @@ class capacity_iterator():
             self.degree = self.variables
 
         if self.window == 1:
-            self.positions = scipy.array([0])
-            self.powerlist = scipy.array([self.mindeg])
+            self.positions = np.array([0])
+            self.powerlist = np.array([self.mindeg])
         else:
             self.positions = range(self.variables - 1)
             self.positions.append(self.window - 1)
             if self.degree == self.variables:
-                self.powerlist = scipy.ones(self.variables)
+                self.powerlist = np.ones(self.variables)
             else:
-                self.powerlist = scipy.array([self.degree - self.variables + 1])
-                self.powerlist.append(scipy.ones(self.variables - 1))
+                self.powerlist = np.array([self.degree - self.variables + 1])
+                self.powerlist.append(np.ones(self.variables - 1))
 
                 # initialize cumulative scores
         self.delay_score = 0.0
@@ -243,16 +243,16 @@ class capacity_iterator():
             self.degree = self.variables
 
         if self.window == 1:
-            self.positions = scipy.array([0])
-            self.powerlist = scipy.array([self.mindeg])
+            self.positions = np.array([0])
+            self.powerlist = np.array([self.mindeg])
         else:
             self.positions = range(self.variables - 1)
             self.positions.append(self.window - 1)
             if self.degree == self.variables:
-                self.powerlist = scipy.ones(self.variables)
+                self.powerlist = np.ones(self.variables)
             else:
-                self.powerlist = scipy.array([self.degree - self.variables + 1])
-                self.powerlist.append(scipy.ones(self.variables - 1))
+                self.powerlist = np.array([self.degree - self.variables + 1])
+                self.powerlist.append(np.ones(self.variables - 1))
 
                 # initialize cumulative scores
         self.delay_score = 0.0
@@ -452,7 +452,7 @@ class capacity_iterator():
                 return True
         self.current_score = 0.0
         self.delay = self.mindel
-        self.subs = scipy.zeros(self.dimensions, )
+        self.subs = np.zeros(self.dimensions, )
 
         self.windowpos_score += self.delay_score
         # self.leaky_score=1.0
@@ -460,18 +460,18 @@ class capacity_iterator():
 
         if not (self.use_scores) or not (self.monotonous_windowpos) or (self.use_scores and self.monotonous_windowpos):
             if self.use_scores and self.monotonous_windowpos and (self.delay_score == 0.0) and (self.variables > 2):
-                maxpos = scipy.arange(self.window - self.variables + 1, self.window - 1, 1.0)
-                for index in scipy.arange(self.variables - 3, -1.0, -1.0):
+                maxpos = np.arange(self.window - self.variables + 1, self.window - 1, 1.0)
+                for index in np.arange(self.variables - 3, -1.0, -1.0):
                     # find last index that is not at its maximal value
                     if self.positions[index + 1] < maxpos[index]:
                         # determine number of indices before that
                         if index == 0:
                             index2 = index
                         else:
-                            for index2 in scipy.arange(index - 1, -1.0, -1.0):
+                            for index2 in np.arange(index - 1, -1.0, -1.0):
                                 if self.positions[index2 + 1] < self.positions[index2 + 2] - 1:
                                     break
-                        for ind in scipy.arange(index2, index + 1, 1):
+                        for ind in np.arange(index2, index + 1, 1):
                             self.positions[ind + 1] = maxpos[ind]
                         break
 
@@ -491,7 +491,7 @@ class capacity_iterator():
                     (self.window < self.maxdel - self.delay + 1) or not (self.monotonous_window)):
                 if self.variables > 1:
                     self.window += 1
-                    self.positions = scipy.arange(self.variables)
+                    self.positions = np.arange(self.variables)
                     self.positions[self.variables - 1] = self.window - 1
                     self.delay = self.mindel
                     self.windowpos_score = 0.0
@@ -506,7 +506,7 @@ class capacity_iterator():
             if len(newpowers) > 0:
                 self.powerlist = newpowers
                 self.window = self.variables
-                self.positions = scipy.arange(self.variables)
+                self.positions = np.arange(self.variables)
                 self.positions[self.variables - 1] = self.window - 1
                 self.delay = self.mindel
                 self.window_score = 0.0
@@ -521,10 +521,10 @@ class capacity_iterator():
             if self.variables < self.maxvars:
                 if self.variables < self.degree:
                     self.variables += 1
-                    self.powerlist = scipy.ones(self.variables)
+                    self.powerlist = np.ones(self.variables)
                     self.powerlist[0] = self.degree - (self.variables - 1)
                     self.window = self.variables
-                    self.positions = scipy.arange(self.variables)
+                    self.positions = np.arange(self.variables)
                     self.positions[self.variables - 1] = self.window - 1
                     self.delay = self.mindel
                     self.powerlist_score = 0.0
@@ -541,10 +541,10 @@ class capacity_iterator():
             if self.degree < self.maxdeg:
                 self.degree += 1
                 self.variables = self.minvars
-                self.powerlist = scipy.ones(self.variables)
+                self.powerlist = np.ones(self.variables)
                 self.powerlist[0] = self.degree - (self.variables - 1)
                 self.window = self.variables
-                self.positions = scipy.arange(self.variables)
+                self.positions = np.arange(self.variables)
                 self.positions[self.variables - 1] = self.window - 1
                 self.prev_var_score = self.variables_score
                 self.delay = self.mindel
@@ -557,12 +557,12 @@ class capacity_iterator():
 
     def __nextpos(self):
         nextpos = np.zeros(shape=(0, 0))
-        for i in scipy.arange(self.variables - 2, 0, -1):
+        for i in np.arange(self.variables - 2, 0, -1):
             if self.positions[i] < self.window - (self.variables - i):
                 nextpos = self.positions
                 nextpos[i] += 1
                 pos = nextpos[i] + 1
-                for j in scipy.arange(i + 1, self.variables - 1):
+                for j in np.arange(i + 1, self.variables - 1):
                     nextpos[j] = pos
                     pos += 1
                 break
@@ -575,20 +575,20 @@ class capacity_iterator():
         if self.degree == self.variables:
             return nextpowers
         freepowers = self.degree - self.variables
-        powers = scipy.zeros(freepowers)
+        powers = np.zeros(freepowers)
         index = 0
-        for i in scipy.arange(self.variables):
+        for i in np.arange(self.variables):
             if self.powerlist[i] > 1:
-                for j in scipy.arange(1, self.powerlist[i]):
+                for j in np.arange(1, self.powerlist[i]):
                     powers[index] = i
                     index += 1
-        for i in scipy.arange(freepowers - 1, -1, -1):
+        for i in np.arange(freepowers - 1, -1, -1):
             if powers[i] < self.variables - 1:
                 powers[i] += 1
-                for j in scipy.arange(i + 1, freepowers):
+                for j in np.arange(i + 1, freepowers):
                     powers[j] = powers[i]
-                nextpowers = scipy.ones(self.variables)
-                for j in scipy.arange(freepowers):
+                nextpowers = np.ones(self.variables)
+                for j in np.arange(freepowers):
                     nextpowers[int(powers[j])] += 1
                 break
         return nextpowers

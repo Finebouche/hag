@@ -52,6 +52,10 @@ def run_algorithm(W, Win, bias, leaky_rate, activation_function, input_data, tim
     neurons_state = np.random.uniform(0, 1, bias.size)
     states_history = []
     delta_z_history = []
+    W_history = []
+
+    if not is_instance:
+        use_full_instance = False
 
     if visualize:
         total_add = 0
@@ -124,10 +128,12 @@ def run_algorithm(W, Win, bias, leaky_rate, activation_function, input_data, tim
 
         if not record_history:
             states_history = []
-        elif use_full_instance:  # happened variance to variance_history for a number of inc
-            delta_z_history.extend([delta_z] * 10)
         else:
-            delta_z_history.extend([delta_z] * inc)
+            W_history.append((np.copy(W)))
+            if use_full_instance:  # happened variance to variance_history for a number of inc
+                delta_z_history.extend([delta_z] * 10)
+            else:
+                delta_z_history.extend([delta_z] * inc)
 
         if visualize:
             total_add += nb_new_add
@@ -150,7 +156,7 @@ def run_algorithm(W, Win, bias, leaky_rate, activation_function, input_data, tim
         plt.plot(steps, steps, linestyle=(0, (1, 10)))
         plt.legend()
         plt.grid()
-    return W, states_history, delta_z_history
+    return W, [states_history, delta_z_history, W_history]
 
 
 def hadsp_step(W_e, states, delta_z, weight_increment, W_inhibitory=np.array([]), max_partners=12, method="random",

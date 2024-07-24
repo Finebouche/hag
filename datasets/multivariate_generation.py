@@ -8,7 +8,6 @@ from librosa import stft
 from librosa.feature import mfcc
 from scipy.signal.windows import gaussian
 
-
 def extract_peak_frequencies(input_data, sampling_rate, threshold, smooth=True, window_length=10, nperseg=1024,
                              visualize=True):
     assert threshold < 1, "Threshold should be a fraction of the maximum power"
@@ -75,40 +74,67 @@ def band_filter(x, low_cut, high_cut, fs, order=6):
     return sosfiltfilt(sos, x).flatten()
 
 
-def generate_multivariate_dataset(filtered_peak_freqs, X, sampling_rate, is_instances_classification,
-                                  spectral_representation=None, hop=20, nb_jobs=1, verbosity=1):
+def generate_multivariate_dataset(X, sampling_rate, is_instances_classification, filtered_peak_freqs=None,
+                                  spectral_representation=None, hop=20, nb_jobs=-1, verbosity=1):
 
-    if spectral_representation is not None and is_instances_classification:
+    if spectral_representation is not None:
         def compute_instance_spectrogram(x):
             g_std = 8  # standard deviation for Gaussian window in samples
             win_length = 50
             w = gaussian(win_length, std=g_std, sym=True)  # symmetric Gaussian window
             if spectral_representation == "stft":
-                Sx = np.abs(stft(x.flatten(), hop_length=hop, win_length=win_length, n_fft=win_length, window=w))
+                Sx = np.abs(stft(x, hop_length=hop, win_length=win_length, n_fft=win_length, window=w))
             elif spectral_representation == "mfcc":
-                Sx = np.abs(mfcc(x.flatten(), hop_length=hop, win_length=win_length, n_fft=win_length, window=w))
-            return Sx.T
+                Sx = np.abs(mfcc(x, hop_length=hop, win_length=win_length, n_fft=win_length, window=w))
+            return np.hstack(Sx).T
 
         process_instance_func = compute_instance_spectrogram
     else:  # always use band filter for prediction
-        extended_freqs = np.concatenate(([0], filtered_peak_freqs, [sampling_rate / 2]))
-        # Calculate bandwidth as half the inter-frequency distances
-        bandwidth = np.diff(extended_freqs) / 2
-        # Calculate low_cut and high_cut frequencies
-        low_cut = filtered_peak_freqs - bandwidth[:-1]
-        high_cut = filtered_peak_freqs + bandwidth[1:]
+        if X.ndim == 1 or X.shape[1] == 1:
+            extended_freqs = np.concatenate(([0], filtered_peak_freqs, [sampling_rate / 2]))
 
-        def filter_instance_frequencies(x):
-            return np.array([
-                band_filter(x, low_cut[freq_index], high_cut[freq_index], fs=sampling_rate) for freq_index in
-                range(len(filtered_peak_freqs))
-            ]).T
+            # Calculate bandwidth as half the inter-frequency distances
+            bandwidth = np.diff(extended_freqs) / 2
+
+            # Calculate low_cut and high_cut frequencies
+            low_cut_list = filtered_peak_freqs - bandwidth[:-1]
+            high_cut_list = filtered_peak_freqs + bandwidth[1:]
+        else:
+            low_cut_list = []
+            high_cut_list = []
+            for dim, _ in enumerate(filtered_peak_freqs):
+                # Extend frequencies with 0 at the start and sampling_rate / 2 at the end
+                extended_freqs = np.concatenate(([0], filtered_peak_freqs[dim], [sampling_rate / 2]))
+
+                # Calculate bandwidth as half the inter-frequency distances
+                bandwidth = np.diff(extended_freqs) / 2
+
+                # Calculate low_cut and high_cut frequencies
+                low_cut = filtered_peak_freqs[dim] - bandwidth[:-1]
+                high_cut = filtered_peak_freqs[dim] + bandwidth[1:]
+                low_cut_list.append(low_cut)
+                high_cut_list.append(high_cut)
+
+        def filter_instance_frequencies(X):
+            if X.ndim == 1 or X.shape[0] == 1:
+                return np.array([
+                    band_filter(X, low_cut_list[freq_index], high_cut_list[freq_index], fs=sampling_rate)
+                    for freq_index, _ in enumerate(filtered_peak_freqs)
+                ]).T
+            else:
+                filtered_X = []
+                for dim, _ in enumerate(X):
+                    filtered_X.append(np.array([
+                        band_filter(X[dim], low_cut_list[dim][freq_index], high_cut_list[dim][freq_index], fs=sampling_rate)
+                        for freq_index, _ in enumerate(filtered_peak_freqs[dim])
+                    ]).T)
+                return np.hstack(filtered_X)
 
         process_instance_func = filter_instance_frequencies
 
     if is_instances_classification:  # classification -> Multiple instances
         x_band = Parallel(n_jobs=nb_jobs, verbose=verbosity)(delayed(process_instance_func)(x.T) for x in X)
-    else:
+    else :
         x_band = process_instance_func(X.T)
 
     return x_band
