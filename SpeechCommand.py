@@ -103,9 +103,6 @@ Y_train = []
 Y_val = []
 
 WINDOW_LENGTH = 10
-freq_train_data = X_train_raw
-flat_train_data = np.concatenate(freq_train_data, axis=0) if is_instances_classification else freq_train_data
-extract_peak_frequencies(flat_train_data, sampling_rate, smooth=True, window_length=WINDOW_LENGTH, threshold=1e-5, nperseg=1024, visualize=True)
 
 for i, (train_index, val_index) in enumerate(splits):
     x_train = flexible_indexing(X_train_raw, train_index)
@@ -129,17 +126,17 @@ for i, (train_index, val_index) in enumerate(splits):
 
     if not is_multivariate:
         x_train_band = generate_multivariate_dataset(
-            x_train, sampling_rate, is_instances_classification, filtered_peak_freqs, spectral_representation="stft", hop=100
+            x_train, sampling_rate, is_instances_classification, peak_freqs, spectral_representation="stft", hop=100
         )
         x_val_band = generate_multivariate_dataset(
-            x_val, sampling_rate, is_instances_classification, filtered_peak_freqs, spectral_representation="stft", hop=100
+            x_val, sampling_rate, is_instances_classification, peak_freqs, spectral_representation="stft", hop=100
         )
     elif is_multivariate and not use_spectral_representation:
         x_train_band = generate_multivariate_dataset(
-            x_train, sampling_rate, is_instances_classification, filtered_peak_freqs, spectral_representation=None, hop=100
+            x_train, sampling_rate, is_instances_classification, peak_freqs, spectral_representation=None, hop=100
         )
         x_val_band = generate_multivariate_dataset(
-            x_val, sampling_rate, is_instances_classification, filtered_peak_freqs, spectral_representation=None, hop=100
+            x_val, sampling_rate, is_instances_classification, peak_freqs, spectral_representation=None, hop=100
         )
     else:
         print("Data is already spectral, nothing to do")
