@@ -85,7 +85,7 @@ def generate_multivariate_dataset(X, sampling_rate, is_instances_classification,
             if spectral_representation == "stft":
                 Sx = np.abs(stft(x, hop_length=hop, win_length=win_length, n_fft=win_length, window=w))
             elif spectral_representation == "mfcc":
-                Sx = np.abs(mfcc(x, hop_length=hop, win_length=win_length, n_fft=win_length, window=w))
+                Sx = np.abs(mfcc(y = x, hop_length=hop, win_length=win_length, n_fft=win_length, window=w))
             return np.hstack(Sx).T
 
         process_instance_func = compute_instance_spectrogram

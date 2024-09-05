@@ -7,23 +7,21 @@ def spectral_radius(W):
     return max(abs(eigen))
 
 
-def pearson(state_history, number_of_steps=None):
+def pearson(state_history, num_windows=None):
     state_history = np.array(state_history)
 
-    if number_of_steps is None:
-        number_of_steps = state_history.shape[0]
+    number_of_steps = state_history.shape[0]
     n_time_points, n_neurons = state_history[:number_of_steps, :].shape
-    mean_correlations = []
-    std_correlations = []  # List to store the standard deviations
-
     # Define the window size for the correlation calculation
     size_window = 1000
     # Define step size for moving the window; this is optional, set to 1 for a classic rolling window
     step_size = int(size_window / 10)
-
     # Calculate the number of possible windows based on the step size
-    num_windows = (n_time_points - size_window) // step_size + 1
+    if num_windows is None:
+        num_windows = (n_time_points - size_window) // step_size + 1
 
+    mean_correlations = []
+    std_correlations = []
     # Sliding window approach
     for i in range(num_windows):
         # Calculate the start index for each window
@@ -48,8 +46,8 @@ def pearson(state_history, number_of_steps=None):
     plt.plot(time_windows, mean_correlations, marker='.', linestyle='-', color='b')
     plt.fill_between(time_windows, np.array(mean_correlations) - np.array(std_correlations),
                      np.array(mean_correlations) + np.array(std_correlations), color='blue', alpha=0.2)
-    plt.title('Rolling Average Pearson Correlation Between Neurons')
-    plt.xlabel('Rolling Window Steps')
+    plt.ylim(0, 1)
+    plt.xlabel('Steps')
     plt.ylabel('Average Correlation')
     plt.grid(True)
 

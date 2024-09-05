@@ -8,6 +8,7 @@ import os
 from sklearn.preprocessing import LabelEncoder, OneHotEncoder
 from sklearn.model_selection import GroupShuffleSplit
 
+from reservoirpy.datasets import to_forecasting
 
 def process_audio(file_path):
     filename = tf.strings.split(file_path, '/')[-1]
@@ -239,20 +240,51 @@ def load_lorenz_dataset(step_ahead=5, visualize=True):
     return sampling_rate, X_train, X_test, Y_train, Y_test
 
 
+
+def load_sunspot_dataset(step_ahead=5, visualize=True):
+
+    sunspots = pd.read_csv('datasets/Sunspot/SN_ms_tot_V2.0.csv', sep=';', header=None)
+    # Define the time step of your Mackey-Glass system
+
+    sunspots = sunspots.values[:, 4]
+
+    dt = 1
+    # Compute the equivalent sampling rate
+    sampling_rate = 1 / dt
+
+    test_size = sunspots.shape[0] // 10
+
+    X_train, X_test, Y_train,Y_test = to_forecasting(sunspots, forecast=1, axis=0, test_size=test_size)
+
+    if visualize:
+        fig, ax = plt.subplots(figsize=(16, 5))
+        ax.plot(range(test_size), X_test[:test_size])
+        plt.plot(range(test_size), Y_test[:test_size], c="orange")
+        ax.spines['top'].set_visible(False)
+        ax.spines['right'].set_visible(False)
+        ax.tick_params(axis='both', labelsize=20)
+        plt.show()
+
+    return sampling_rate, X_train, X_test, Y_train, Y_test
+
+
+
 def load_dataset_classification(name, seed=None):
     if name == "FSDD":
         sampling_rate, X_train, X_test, Y_train, Y_test, groups = load_FSDD_dataset(
             data_dir='datasets/fsdd/free-spoken-digit-dataset-master/recordings', seed=seed, visualize=True)
 
         is_multivariate = False
-        return is_multivariate, sampling_rate, X_train, X_test, Y_train, Y_test, groups
+        use_spectral_representation = False
+        return use_spectral_representation, is_multivariate, sampling_rate, X_train, X_test, Y_train, Y_test, groups
 
     if name == "HAART":
         sampling_rate, X_train_band, Y_train, X_test_band, Y_test = load_haart_dataset(
             train_path="datasets/HAART/training.csv", test_path="datasets/HAART/testWITHLABELS.csv")
         is_multivariate = True
         groups = None
-        return is_multivariate, sampling_rate, X_train_band, X_test_band, Y_train, Y_test, groups
+        use_spectral_representation = False
+        return use_spectral_representation, is_multivariate, sampling_rate, X_train_band, X_test_band, Y_train, Y_test, groups
 
     if name == "JapaneseVowels":
         from reservoirpy.datasets import japanese_vowels
@@ -265,18 +297,8 @@ def load_dataset_classification(name, seed=None):
         # pretrain is the same as train
         Y_train = np.squeeze(np.array(Y_train), axis=1)
         Y_test = np.squeeze(np.array(Y_test), axis=1)
-        return is_multivariate, sampling_rate, X_train_band, X_test_band, Y_train, Y_test, groups
-
-    if name == "InsectWingbeat":
-        NotImplemented("Dataset {} is not implemented yet".format(name))
-        from scipy.io import arff
-
-        with open('datasets/InsectWingbeat/InsectWingbeat_TRAIN.arff', 'r') as f:
-            data, meta = arff.loadarff(f)
-
-    if name == "MELD":
-        # https://github.com/declare-lab/MELD
-        NotImplemented("Dataset {} is nto implemented yet".format(name))
+        use_spectral_representation = True
+        return use_spectral_representation, is_multivariate, sampling_rate, X_train_band, X_test_band, Y_train, Y_test, groups
 
     else:
         ValueError("The dataset with name {} is not loadable".format(name))
@@ -290,6 +312,10 @@ def load_dataset_prediction(name, step_ahead=5, visualize=True):
     if name == "Lorenz":
         sampling_rate, X_train, X_test, Y_train, Y_test = load_lorenz_dataset()
         is_multivariate = True
+        return is_multivariate, sampling_rate, X_train, X_test, Y_train, Y_test
+    if name == "Sunspot":
+        sampling_rate, X_train, X_test, Y_train, Y_test = load_sunspot_dataset()
+        is_multivariate = False
         return is_multivariate, sampling_rate, X_train, X_test, Y_train, Y_test
 
     else:
