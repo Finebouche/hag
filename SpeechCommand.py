@@ -213,7 +213,7 @@ end_step = 500
 SLICE_RANGE = slice(start_step, end_step)
 RESERVOIR_SIZE = 500
 
-nb_jobs_per_trial = 12
+nb_jobs_per_trial = 8
 function_name = "random_ei"  # "desp" ou "hadsp", "random" or "random_ei"
 variate_type = "multi"  # "multi" ou "uni"
 if variate_type == "uni" and is_multivariate:
