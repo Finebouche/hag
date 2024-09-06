@@ -246,15 +246,15 @@ def load_sunspot_dataset(step_ahead=5, visualize=True):
     sunspots = pd.read_csv('datasets/Sunspot/SN_ms_tot_V2.0.csv', sep=';', header=None)
     # Define the time step of your Mackey-Glass system
 
-    sunspots = sunspots.values[:, 4]
+    sunspots = sunspots.values[:, 3].reshape(-1, 1)
 
-    dt = 1
+    dt = 10000
     # Compute the equivalent sampling rate
     sampling_rate = 1 / dt
 
     test_size = sunspots.shape[0] // 10
 
-    X_train, X_test, Y_train,Y_test = to_forecasting(sunspots, forecast=1, axis=0, test_size=test_size)
+    X_train, X_test, Y_train, Y_test = to_forecasting(sunspots, forecast=1, axis=0, test_size=test_size)
 
     if visualize:
         fig, ax = plt.subplots(figsize=(16, 5))
@@ -306,17 +306,16 @@ def load_dataset_classification(name, seed=None):
 
 def load_dataset_prediction(name, step_ahead=5, visualize=True):
     if name == "MackeyGlass":
-        sampling_rate, X_train, X_test, Y_train, Y_test = load_mackey_glass_dataset()
+        sampling_rate, X_train, X_test, Y_train, Y_test = load_mackey_glass_dataset(step_ahead, visualize)
         is_multivariate = False
         return is_multivariate, sampling_rate, X_train, X_test, Y_train, Y_test
-    if name == "Lorenz":
-        sampling_rate, X_train, X_test, Y_train, Y_test = load_lorenz_dataset()
+    elif name == "Lorenz":
+        sampling_rate, X_train, X_test, Y_train, Y_test = load_lorenz_dataset(step_ahead, visualize)
         is_multivariate = True
         return is_multivariate, sampling_rate, X_train, X_test, Y_train, Y_test
-    if name == "Sunspot":
-        sampling_rate, X_train, X_test, Y_train, Y_test = load_sunspot_dataset()
+    elif name == "Sunspot":
+        sampling_rate, X_train, X_test, Y_train, Y_test = load_sunspot_dataset(step_ahead, visualize)
         is_multivariate = False
         return is_multivariate, sampling_rate, X_train, X_test, Y_train, Y_test
-
     else:
         ValueError("The dataset with name {} is not loadable".format(name))

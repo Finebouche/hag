@@ -28,7 +28,7 @@ def init_model(W, Win, bias, leaking_rate, activation_function, ridge_coef=None,
     return reservoir, readout
 
 
-def train_model_for_classification(reservoir, readout, X_train, Y_train, n_jobs, mode):
+def train_model_for_classification(reservoir, readout, X_train, Y_train, n_jobs, mode, hide_progress=False):
     if mode == "sequence-to-vector":
         def compute_state(x):
             import reservoirpy
@@ -37,7 +37,7 @@ def train_model_for_classification(reservoir, readout, X_train, Y_train, n_jobs,
             return reservoir.run(x, reset=True)[-1, np.newaxis].flatten()
 
         states_to_train_on = Parallel(n_jobs=n_jobs)(
-            delayed(compute_state)(x) for x in tqdm(X_train, desc="Processing", dynamic_ncols=True)
+            delayed(compute_state)(x) for x in tqdm(X_train, desc="Processing", dynamic_ncols=True, disable=hide_progress)
         )
 
     elif mode == "sequence-to-sequence":
@@ -54,10 +54,11 @@ def train_model_for_classification(reservoir, readout, X_train, Y_train, n_jobs,
 
 
 def init_and_train_model_for_classification(W, Win, bias, leaking_rate, activation_function, X_train, Y_train,
-                                            n_jobs, ridge_coef=None, mode="sequence-to-vector", rls=False, lms=False):
+                                            n_jobs, ridge_coef=None, mode="sequence-to-vector", hide_progress=False,
+                                            rls=False, lms=False):
     reservoir, readout = init_model(W, Win, bias, leaking_rate, activation_function, ridge_coef, rls, lms)
 
-    train_model_for_classification(reservoir, readout, X_train, Y_train, n_jobs, mode)
+    train_model_for_classification(reservoir, readout, X_train, Y_train, n_jobs, mode, hide_progress=hide_progress)
 
     return reservoir, readout
 
@@ -75,7 +76,7 @@ def init_and_train_model_for_prediction(W, Win, bias, leaking_rate, activation_f
     return esn
 
 
-def predict_model_for_classification(reservoir, readout, X_test, n_jobs, mode="sequence-to-vector"):
+def predict_model_for_classification(reservoir, readout, X_test, n_jobs, mode="sequence-to-vector", hide_progress=False):
     if mode == "sequence-to-vector":
         def predict(x):
             import reservoirpy
@@ -85,7 +86,7 @@ def predict_model_for_classification(reservoir, readout, X_test, n_jobs, mode="s
             y = readout.run(states[-1, np.newaxis])  # read from the last state of the reservoir
             return y
 
-        Y_pred = Parallel(n_jobs=n_jobs)(delayed(predict)(x) for x in tqdm(X_test, desc="Evaluating"))
+        Y_pred = Parallel(n_jobs=n_jobs)(delayed(predict)(x) for x in tqdm(X_test, desc="Evaluating", disable=hide_progress))
     else:  # mode == "sequence-to-sequence"
         Y_pred = readout.run(X_test, stateful=False)
 
