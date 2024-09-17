@@ -196,7 +196,7 @@ for i, (train_index, val_index) in enumerate(splits):
 
 #Pretraining
 from reservoir.reservoir import init_matrices
-from connexion_generation.hadsp import run_algorithm
+from connexion_generation.hag import run_algorithm
 from scipy import sparse
 
 # Evaluating

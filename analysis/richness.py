@@ -1,6 +1,7 @@
 from scipy import sparse
 import numpy as np
-from matplotlib import pyplot as plt
+from sklearn.decomposition import PCA
+from tqdm import tqdm
 
 def spectral_radius(W):
     eigen = sparse.linalg.eigs(W, k=1, which="LM", maxiter=W.shape[0] * 20, tol=0.1, return_eigenvectors=False)
@@ -23,14 +24,11 @@ def pearson(state_history, num_windows=None):
     mean_correlations = []
     std_correlations = []
     # Sliding window approach
-    for i in range(num_windows):
-        # Calculate the start index for each window
+    for i in tqdm(range(num_windows), desc="Pearson calculation"):
+        # Calculate the start index of the window and extract the window
         start_index = i * step_size
-        # Extract the window of data
-        window = state_history[start_index:start_index + size_window, :]
-
         # Compute the Pearson correlation matrix for the current window
-        correlation_matrix = np.corrcoef(window, rowvar=False)
+        correlation_matrix = np.corrcoef(state_history[start_index:start_index + size_window, :], rowvar=False)
 
         # Compute the mean and standard deviation of correlations, excluding the diagonal
         off_diagonal_correlations = correlation_matrix[np.triu_indices(n_neurons, k=1)]
@@ -40,52 +38,41 @@ def pearson(state_history, num_windows=None):
         mean_correlations.append(mean_corr)
         std_correlations.append(std_corr)
 
-    # Plotting the mean correlations with the standard deviation area
-    plt.figure(figsize=(10, 5))
-    time_windows = range(num_windows)
-    plt.plot(time_windows, mean_correlations, marker='.', linestyle='-', color='b')
-    plt.fill_between(time_windows, np.array(mean_correlations) - np.array(std_correlations),
-                     np.array(mean_correlations) + np.array(std_correlations), color='blue', alpha=0.2)
-    plt.ylim(0, 1)
-    plt.xlabel('Steps')
-    plt.ylabel('Average Correlation')
-    plt.grid(True)
+    return mean_correlations, std_correlations
 
 
 # Paper uses temp = 5000
-def uncoupled_dynamics(STATE_H, temp=5000, A=0.9):
+def uncoupled_dynamics(state_history, num_windows=None, A=0.9):
     # A : in (0, 1] and expresses the desired amount of explained variability
-    # temps : int, the number of steps we want to evaluate the dynamics on
-    STATE_H = np.array(STATE_H)[:temp, ]
+    # state_history : {array-like, sparse matrix} of shape (n_samples, n_features)
+    state_history = np.array(state_history)
 
-    # compute the (sorted) singular values and the poucentage wise singular values
-    _, singular_values, _ = np.linalg.svd(STATE_H)
-    rel_sv = []
-    for s in singular_values:
-        rel_sv.append(s / np.sum(singular_values))
+    num_time_points, num_variables = state_history.shape
 
-    # compute the number of singular values that explains A variability
-    UD = 0
-    frac = 0
-    while frac < A:
-        frac = frac + rel_sv[UD]
-        UD += 1
-    return UD, frac
+    # List to store the number of principal components for each window
+    num_components_list = []
+
+    # Sliding window PCA
+    for i in tqdm(range(0, num_time_points - num_windows + 1), desc="UD calculation"):
+        # Extract the current window of data
+        window_data = state_history[i:i + num_windows, :]
+
+        # Standardize the data (important for PCA)
+        window_data_std = (window_data - np.mean(window_data, axis=0)) / np.std(window_data, axis=0)
+
+        # Perform PCA
+        pca = PCA()
+        pca.fit(window_data_std)
+
+        # Get the cumulative explained variance
+        cumulative_variance = np.cumsum(pca.explained_variance_ratio_)
+
+        # Find the number of components that explain at least A variance
+        num_components = np.argmax(cumulative_variance >= A) + 1
+
+        # Append the result for this window
+        num_components_list.append(num_components)
+
+    return num_components_list
 
 
-# calculate estimator of Renyi’s quadratic entropy by the Parzen Window method using aGaussian kernel
-def renyi_entropy(states, K=0.3):
-    # K = 0.3 in the paper
-    n = states.shape[1]
-    states = states - np.mean(states, axis=0)
-    states = states / np.std(states, axis=0)
-    entropy = 0
-
-    # the gaussian kernel use for approximation with the kernel size K
-    def gaussian(x):
-        return np.exp(-x ** 2 / (2 * K ** 2))
-
-    for i in range(n):
-        for j in range(n):
-            entropy += gaussian(states[:, i] - states[:, j])
-    return np.log(entropy / (n ** 2))

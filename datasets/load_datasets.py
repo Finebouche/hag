@@ -223,7 +223,7 @@ def load_lorenz_dataset(step_ahead=5, visualize=True):
     Y_test = lorenz_inputs[15000 + step_ahead:timesteps + step_ahead]
 
     if visualize:
-        fig, ax = plt.subplots(figsize=(16, 5))
+        fig, ax = plt.subplots(figsize=(16, 8))
         colors_x = ['lightblue', 'blue', 'darkblue']  # Different nuances of blue
         colors_y = ['peachpuff', 'orange', 'pink']  # Different nuances of orange
         for i in range(3):

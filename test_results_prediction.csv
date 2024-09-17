@@ -1,0 +1,13 @@
+Dataset,Function,Average Score,Standard Deviation,Date
+Sunspot,desp,0.05199,± 0.01087,2024-09-09
+Sunspot,hadsp,0.03327,± 0.00632,2024-09-09
+Sunspot,random,0.05912,± 0.01871,2024-09-09
+Sunspot,random_ei,0.03618,± 0.01572,2024-09-09
+Lorenz,desp,0.15974,± 0.02469,2024-09-08
+Lorenz,hadsp,0.17338,± 0.00406,2024-09-08
+Lorenz,random,0.17715,± 0.00497,2024-09-08
+Lorenz,random_ei,0.19044,± 0.00482,2024-09-08
+MackeyGlass,desp,0.0662,± 0.01135,2024-09-08
+MackeyGlass,hadsp,0.0629,± 0.0044,2024-09-08
+MackeyGlass,random,0.0515,± 0.00416,2024-09-08
+MackeyGlass,random_ei,0.0481,± 0.00619,2024-09-08
