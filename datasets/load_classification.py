@@ -4,6 +4,8 @@ from tqdm import tqdm
 import matplotlib.pyplot as plt
 import pandas as pd
 import os
+import urllib.request
+import zipfile
 
 from aeon.datasets import load_classification
 from sklearn.preprocessing import LabelEncoder, OneHotEncoder
@@ -12,6 +14,23 @@ from sklearn.model_selection import GroupShuffleSplit
 # load dataset using torchaudio
 from torchaudio.datasets import SPEECHCOMMANDS
 from torch.utils.data import ConcatDataset
+
+
+def process_audio(file_path):
+    filename = tf.strings.split(file_path, '/')[-1]
+
+    #    Extract the label from the filename
+    label = tf.strings.split(filename, '_')[0]
+    speaker = tf.strings.split(filename, '_')[1]
+    audio = tf.io.read_file(file_path)
+    audio, sampling_rate = tf.audio.decode_wav(audio, desired_channels=1)
+
+    return {
+        'label': label,
+        'audio': audio,
+        'audio/filename': filename,
+        'speaker': speaker,
+    }, sampling_rate
 
 
 def load_SPEECHCOMMANDS():
@@ -40,23 +59,6 @@ def load_SPEECHCOMMANDS():
     groups = None
 
     return X_train_raw, Y_train_raw, X_test_raw, Y_test, sampling_rate, groups
-
-
-def process_audio(file_path):
-    filename = tf.strings.split(file_path, '/')[-1]
-
-    # Extract the label from the filename
-    label = tf.strings.split(filename, '_')[0]
-    speaker = tf.strings.split(filename, '_')[1]
-    audio = tf.io.read_file(file_path)
-    audio, sampling_rate = tf.audio.decode_wav(audio, desired_channels=1)
-
-    return {
-        'label': label,
-        'audio': audio,
-        'audio/filename': filename,
-        'speaker': speaker,
-    }, sampling_rate
 
 
 def visualize_speaker_distribution(train_speakers, test_speakers):
@@ -153,13 +155,11 @@ def load_haart_dataset(train_path, test_path):
     # Charge HAART dataset from https://www.cs.ubc.ca/labs/spin/data/HAART%20DataSet.zip if it's not already done
     # download and unzip the dataset
     # https://www.cs.ubc.ca/labs/spin/data/
-    import urllib.request
-    import zipfile
+    os.makedirs('datasets/HAART', exist_ok=True)
 
     if not os.path.exists('datasets/HAART'):
         urllib.request.urlretrieve('https://www.cs.ubc.ca/labs/spin/data/HAART%20DataSet.zip',
                                    'datasets/HAART.zip')
-        # unzip the dataset in "datasets/HAART" folder
         with zipfile.ZipFile('datasets/HAART.zip', 'r') as zip_ref:
             zip_ref.extractall('datasets/HAART')
 
@@ -294,4 +294,4 @@ def load_dataset_classification(name, seed=None):
         return use_spectral_representation, is_multivariate, sampling_rate, X_train_band, X_test_band, Y_train, Y_test, groups
 
     else:
-        ValueError("The dataset with name {} is not loadable".format(name))
+        raise ValueError(f"The dataset with name '{name}' is not loadable")
