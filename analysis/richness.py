@@ -8,15 +8,16 @@ def spectral_radius(W):
     return max(abs(eigen))
 
 
-def pearson(state_history, num_windows=None):
+def pearson(state_history, size_window=500, step_size=None, num_windows=None):
     state_history = np.array(state_history)
 
     number_of_steps = state_history.shape[0]
     n_time_points, n_neurons = state_history[:number_of_steps, :].shape
-    # Define the window size for the correlation calculation
-    size_window = 1000
+
     # Define step size for moving the window; this is optional, set to 1 for a classic rolling window
-    step_size = int(size_window / 10)
+    if step_size is None:
+        step_size = int(size_window / 10)
+
     # Calculate the number of possible windows based on the step size
     if num_windows is None:
         num_windows = (n_time_points - size_window) // step_size + 1
@@ -41,21 +42,32 @@ def pearson(state_history, num_windows=None):
     return mean_correlations, std_correlations
 
 
-# Paper uses temp = 5000
-def uncoupled_dynamics(state_history, num_windows=None, A=0.9):
+def uncoupled_dynamics(state_history, size_window=500, step_size=None, num_windows=None, A=0.9):
     # A : in (0, 1] and expresses the desired amount of explained variability
     # state_history : {array-like, sparse matrix} of shape (n_samples, n_features)
     state_history = np.array(state_history)
 
-    num_time_points, num_variables = state_history.shape
+    number_of_steps = state_history.shape[0]
+    n_time_points, n_neurons = state_history[:number_of_steps, :].shape
+
+    # Define step size for moving the window; this is optional, set to 1 for a classic rolling window
+    if step_size is None:
+        step_size = int(size_window / 10)
+
+    # Calculate the number of possible windows based on the step size
+    if num_windows is None:
+        num_windows = (n_time_points - size_window) // step_size + 1
+
 
     # List to store the number of principal components for each window
     num_components_list = []
 
     # Sliding window PCA
-    for i in tqdm(range(0, num_time_points - num_windows + 1), desc="UD calculation"):
+    for i in tqdm(range(num_windows), desc="UD calculation"):
+        # Calculate the start index of the window and extract the window
+        start_index = i * step_size
         # Extract the current window of data
-        window_data = state_history[i:i + num_windows, :]
+        window_data = state_history[:, start_index:start_index + size_window]
 
         # Standardize the data (important for PCA)
         window_data_std = (window_data - np.mean(window_data, axis=0)) / np.std(window_data, axis=0)
@@ -74,5 +86,47 @@ def uncoupled_dynamics(state_history, num_windows=None, A=0.9):
         num_components_list.append(num_components)
 
     return num_components_list
+
+def eigen_value_spread(state_history, size_window=1000, step_size=None, num_windows=None, theta=0.9):
+    state_history = np.array(state_history)
+
+    number_of_steps = state_history.shape[0]
+    n_time_points, n_neurons = state_history[:number_of_steps, :].shape
+
+    # Define step size for moving the window; this is optional, set to 1 for a classic rolling window
+    if step_size is None:
+        step_size = int(size_window / 10)
+
+    # Calculate the number of possible windows based on the step size
+    if num_windows is None:
+        num_windows = (n_time_points - size_window) // step_size + 1
+
+    # List to store the number of components for each window
+    evolution_num_components = []
+
+    # Sliding window approach
+    for i in tqdm(range(num_windows), desc="Eigenvalue spread calculation"):
+        # Calculate the start index of the window and extract the window
+        start_index = i * step_size
+        # Extract the current window of data
+        window_data = state_history[start_index:start_index + size_window, :]
+        window_data_std = (window_data - np.mean(window_data, axis=0)) / np.std(window_data, axis=0)
+
+        # Compute the Singular Value Decomposition
+        U, S, Vt = np.linalg.svd(window_data_std)
+
+        # Calculate the normalized relevance R_j
+        R = S**2 / np.sum(S**2)
+
+        # Cumulative sum of R_j
+        cumulative_R = np.cumsum(R)
+
+        # Find the minimum d such that the cumulative sum >= theta
+        num_components = np.searchsorted(cumulative_R, theta) + 1
+
+        evolution_num_components.append(num_components)
+
+    return evolution_num_components
+
 
 

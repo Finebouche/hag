@@ -1,7 +1,6 @@
 name: hadsp_env
 channels:
   - pytorch
-  - defaults
   - conda-forge
 dependencies:
   - python>=3.11
