@@ -5,10 +5,42 @@ import matplotlib.pyplot as plt
 import pandas as pd
 import os
 
+from aeon.datasets import load_classification
 from sklearn.preprocessing import LabelEncoder, OneHotEncoder
 from sklearn.model_selection import GroupShuffleSplit
 
-from reservoirpy.datasets import to_forecasting
+# load dataset using torchaudio
+from torchaudio.datasets import SPEECHCOMMANDS
+from torch.utils.data import ConcatDataset
+
+
+def load_SPEECHCOMMANDS():
+    dataset_train = SPEECHCOMMANDS(root="datasets/", download=True, subset="training")
+    dataset_val = SPEECHCOMMANDS(root="datasets/", download=True, subset="validation")
+    dataset_test = SPEECHCOMMANDS(root="datasets/", download=True, subset="testing")
+
+    sampling_rate = dataset_train[0][1]
+
+    dataset = ConcatDataset([dataset_train, dataset_val])
+
+    X_train_raw = [sample[0][0].numpy().reshape(-1, 1) for sample in dataset]
+    Y_train_raw = [sample[2] for sample in dataset]
+    X_test_raw = [sample[0][0].numpy().reshape(-1, 1) for sample in dataset_test]
+    Y_test = [sample[2] for sample in dataset_test]
+
+    le = LabelEncoder()
+    Y_train_raw = le.fit_transform(Y_train_raw).reshape(-1, 1)
+    Y_test = le.transform(Y_test).reshape(-1, 1)
+
+    # One-hot encode the labels
+    ohe = OneHotEncoder(sparse_output=False)
+    Y_train_raw = ohe.fit_transform(Y_train_raw.reshape(-1, 1))
+    Y_test = ohe.transform(Y_test.reshape(-1, 1))
+
+    groups = None
+
+    return X_train_raw, Y_train_raw, X_test_raw, Y_test, sampling_rate, groups
+
 
 def process_audio(file_path):
     filename = tf.strings.split(file_path, '/')[-1]
@@ -110,7 +142,6 @@ def load_FSDD_dataset(data_dir, test_split=1 / 3, validation_split=0.25, seed=No
     Y_train, Y_test = Y_one_hot[train_val_idx], Y_one_hot[test_idx]
     train_speakers, test_speakers = groups[train_val_idx], groups[test_idx]
 
-
     # Call the visualization function
     if visualize:
         visualize_speaker_distribution(train_speakers, test_speakers)
@@ -178,98 +209,60 @@ def load_haart_dataset(train_path, test_path):
     return sampling_rate, X_train, Y_train, X_test, Y_test
 
 
-def load_mackey_glass_dataset(step_ahead=5, visualize=True):
-    from reservoirpy.datasets import mackey_glass
-    train_steps = 15000
-    test_steps = 5000
-    timesteps = train_steps + test_steps
-    mg_inputs = mackey_glass(timesteps + step_ahead, tau=17, a=0.2, b=0.1, n=10, x0=1.2, h=1, seed=None)
+def load_aoen_dataset(dataset_name, seed=None):
+    X_train_unprocessed, Y_train_raw, meta_data = load_classification(dataset_name, return_metadata=True,
+                                                                      load_equal_length=False, split="train")
+    X_test_unprocessed, Y_test_raw, meta_data = load_classification(dataset_name, return_metadata=True,
+                                                                    load_equal_length=False, split="test")
+    groups = None
 
-    # Define the time step of your Mackey-Glass system
-    dt = 0.00001
-    # Compute the equivalent sampling rate
-    sampling_rate = 1 / dt
+    X_train_raw = []
+    for x in X_train_unprocessed:
+        X_train_raw.append(x.T)
 
-    X_train = mg_inputs[:train_steps]
-    X_test = mg_inputs[train_steps:timesteps]
-    Y_train = mg_inputs[step_ahead:train_steps + step_ahead]
-    Y_test = mg_inputs[train_steps + step_ahead:timesteps + step_ahead]
+    X_test_raw = []
+    for x in X_test_unprocessed:
+        X_test_raw.append(x.T)
 
-    if visualize:
-        fig, ax = plt.subplots(figsize=(16, 5))
-        ax.plot(range(500), X_test[:500])
-        plt.plot(range(500), Y_test[:500], c="orange")
-        ax.spines['top'].set_visible(False)
-        ax.spines['right'].set_visible(False)
-        ax.tick_params(axis='both', labelsize=20)
-        plt.show()
+    le = LabelEncoder()
+    Y_train_raw = le.fit_transform(Y_train_raw).reshape(-1, 1)
+    Y_test = le.transform(Y_test_raw).reshape(-1, 1)
 
-    return sampling_rate, X_train, X_test, Y_train, Y_test
+    # One-hot encode the labels
+    ohe = OneHotEncoder(sparse_output=False)
+    Y_train_raw = ohe.fit_transform(Y_train_raw.reshape(-1, 1))
+    Y_test = ohe.transform(Y_test.reshape(-1, 1))
 
-
-def load_lorenz_dataset(step_ahead=5, visualize=True):
-    from reservoirpy.datasets import lorenz
-    train_steps = 15000
-    test_steps = 5000
-    timesteps = train_steps + test_steps
-    dt = 0.03
-    lorenz_inputs = lorenz(timesteps + step_ahead, rho=28.0, sigma=10.0, beta=2.6666666666666665, x0=[1.0, 1.0, 1.0],
-                           h=dt, seed=None)
-    # Compute the equivalent sampling rate
-    sampling_rate = 1 / dt
-    X_train = lorenz_inputs[:15000]
-    X_test = lorenz_inputs[15000:20000]
-    Y_train = lorenz_inputs[step_ahead:15000 + step_ahead]
-    Y_test = lorenz_inputs[15000 + step_ahead:timesteps + step_ahead]
-
-    if visualize:
-        fig, ax = plt.subplots(figsize=(16, 8))
-        colors_x = ['lightblue', 'blue', 'darkblue']  # Different nuances of blue
-        colors_y = ['peachpuff', 'orange', 'pink']  # Different nuances of orange
-        for i in range(3):
-            ax.plot(range(500), X_test[:500, i], color=colors_x[i])
-        for i in range(3):
-            ax.plot(range(500), Y_test[:500, i], color=colors_y[i])
-        # Customize the plot
-        ax.spines['top'].set_visible(False)
-        ax.spines['right'].set_visible(False)
-        ax.tick_params(axis='both', labelsize=20)
-        plt.legend()
-        plt.show()
-
-    return sampling_rate, X_train, X_test, Y_train, Y_test
-
-
-
-def load_sunspot_dataset(step_ahead=5, visualize=True):
-
-    sunspots = pd.read_csv('datasets/Sunspot/SN_ms_tot_V2.0.csv', sep=';', header=None)
-    # Define the time step of your Mackey-Glass system
-
-    sunspots = sunspots.values[:, 3].reshape(-1, 1)
-
-    dt = 10000
-    # Compute the equivalent sampling rate
-    sampling_rate = 1 / dt
-
-    test_size = sunspots.shape[0] // 10
-
-    X_train, X_test, Y_train, Y_test = to_forecasting(sunspots, forecast=1, axis=0, test_size=test_size)
-
-    if visualize:
-        fig, ax = plt.subplots(figsize=(16, 5))
-        ax.plot(range(test_size), X_test[:test_size])
-        plt.plot(range(test_size), Y_test[:test_size], c="orange")
-        ax.spines['top'].set_visible(False)
-        ax.spines['right'].set_visible(False)
-        ax.tick_params(axis='both', labelsize=20)
-        plt.show()
-
-    return sampling_rate, X_train, X_test, Y_train, Y_test
-
+    return X_train_raw, Y_train_raw, X_test_raw, Y_test, groups, meta_data
 
 
 def load_dataset_classification(name, seed=None):
+    if name == "SpokenArabicDigits" or name == "CatsDogs" or name == "LSST":
+        X_train, Y_train, X_test, Y_test, groups, meta_data = load_aoen_dataset(name, seed)
+        sampling_rate = 10000
+
+        if X_train[0].shape[1] == 1:
+            is_multivariate = False
+            use_spectral_representation = False
+        else:
+            is_multivariate = True
+            use_spectral_representation = True
+
+        print(" Number of instances = ", len(X_train))
+        print(" Shape of X = ", X_train[0].shape)
+        print(" Shape of y = ", Y_train.shape)
+
+        print(" Meta data = ", meta_data)
+        print("Multivariate = ", is_multivariate)
+
+        return use_spectral_representation, is_multivariate, sampling_rate, X_train, X_test, Y_train, Y_test, groups
+
+    if name == "SPEECHCOMMANDS":
+        is_multivariate = False
+        use_spectral_representation = False
+        X_train, Y_train, X_test, Y_test, groups, sampling_rate = load_SPEECHCOMMANDS()
+        return use_spectral_representation, is_multivariate, sampling_rate, X_train, X_test, Y_train, Y_test, groups
+
     if name == "FSDD":
         sampling_rate, X_train, X_test, Y_train, Y_test, groups = load_FSDD_dataset(
             data_dir='datasets/fsdd/free-spoken-digit-dataset-master/recordings', seed=seed, visualize=True)
@@ -300,22 +293,5 @@ def load_dataset_classification(name, seed=None):
         use_spectral_representation = True
         return use_spectral_representation, is_multivariate, sampling_rate, X_train_band, X_test_band, Y_train, Y_test, groups
 
-    else:
-        ValueError("The dataset with name {} is not loadable".format(name))
-
-
-def load_dataset_prediction(name, step_ahead=5, visualize=True):
-    if name == "MackeyGlass":
-        sampling_rate, X_train, X_test, Y_train, Y_test = load_mackey_glass_dataset(step_ahead, visualize)
-        is_multivariate = False
-        return is_multivariate, sampling_rate, X_train, X_test, Y_train, Y_test
-    elif name == "Lorenz":
-        sampling_rate, X_train, X_test, Y_train, Y_test = load_lorenz_dataset(step_ahead, visualize)
-        is_multivariate = True
-        return is_multivariate, sampling_rate, X_train, X_test, Y_train, Y_test
-    elif name == "Sunspot":
-        sampling_rate, X_train, X_test, Y_train, Y_test = load_sunspot_dataset(step_ahead, visualize)
-        is_multivariate = False
-        return is_multivariate, sampling_rate, X_train, X_test, Y_train, Y_test
     else:
         ValueError("The dataset with name {} is not loadable".format(name))

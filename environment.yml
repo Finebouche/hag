@@ -11,8 +11,6 @@ dependencies:
   - pandas
   - scikit-learn
   - librosa
-  - pytorch  # 'torch' is named 'pytorch' in conda
-  - torchaudio
   - aeon>=0.10
   - ffmpeg
   - tensorflow
@@ -22,5 +20,7 @@ dependencies:
   - pip
   - pip:
     - reservoirpy
+    - torch
+    - torchaudio
     - jupyterlab-execute-time
     - jupyterlab-optuna
