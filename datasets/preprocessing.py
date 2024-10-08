@@ -39,7 +39,7 @@ def duplicate_data(data_list, K):
     return [np.repeat(instance, K, axis=1) for instance in data_list]
 
 
-def plot_data_distribution(y_train_encoded, y_test_encoded, val=False):
+def plot_classes_distribution(y_train_encoded, y_test_encoded, val=False):
     # Sum across rows to get the count of each class (each column represents a class)
     train_counts = np.sum(y_train_encoded, axis=0)
     test_counts = np.sum(y_test_encoded, axis=0)

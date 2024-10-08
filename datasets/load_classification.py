@@ -1,6 +1,5 @@
 import tensorflow as tf
 import numpy as np
-from tqdm import tqdm
 import matplotlib.pyplot as plt
 import pandas as pd
 import os
@@ -61,31 +60,17 @@ def load_SPEECHCOMMANDS():
     return X_train_raw, Y_train_raw, X_test_raw, Y_test, sampling_rate, groups
 
 
-def visualize_speaker_distribution(train_speakers, test_speakers):
-    # Create unique lists of speakers in train and test
-    unique_train_speakers = np.unique(train_speakers)
-    unique_test_speakers = np.unique(test_speakers)
+def visualize_groups_distribution(groups):
+    # Create unique lists of speakers
+    unique_speakers = np.unique(groups)
 
-    # Count number of samples for each speaker in train and test
-    train_counts = [np.sum(train_speakers == speaker) for speaker in unique_train_speakers]
-    test_counts = [np.sum(test_speakers == speaker) for speaker in unique_test_speakers]
+    # Count number of samples for each speaker
+    count = [np.sum(groups == speaker) for speaker in unique_speakers]
 
-    # Create subplots
-    fig, axs = plt.subplots(2)
-
-    # Plot train speakers
-    axs[0].bar(unique_train_speakers, train_counts)
-    axs[0].set_title('Train Speakers Distribution')
-    axs[0].set_xlabel('Speaker')
-    axs[0].set_ylabel('Count')
-
-    # Plot test speakers
-    axs[1].bar(unique_test_speakers, test_counts)
-    axs[1].set_title('Test Speakers Distribution')
-    axs[1].set_xlabel('Speaker')
-    axs[1].set_ylabel('Count')
-
-    # Show the plots
+    fig, ax = plt.subplots(1, figsize=(6, 2))
+    ax.bar(unique_speakers, count)
+    ax.set_xlabel('Group')
+    ax.set_ylabel('Count')
     plt.tight_layout()
     plt.show()
 
@@ -105,7 +90,7 @@ def load_FSDD_dataset(data_dir, test_split=1 / 3, validation_split=0.25, seed=No
     feature_dict = []
     sampling_rates = []
 
-    for data, sampling_rate in tqdm(audio_files_dataset):
+    for data, sampling_rate in audio_files_dataset:
         feature_dict.append(data)
         sampling_rates.append(sampling_rate.numpy())
 
@@ -146,9 +131,10 @@ def load_FSDD_dataset(data_dir, test_split=1 / 3, validation_split=0.25, seed=No
 
     # Call the visualization function
     if visualize:
-        visualize_speaker_distribution(train_speakers, test_speakers)
+        visualize_groups_distribution(train_speakers)
+        visualize_groups_distribution(test_speakers)
 
-    return sampling_rate, X_train, X_test, Y_train, Y_test, train_speakers
+    return sampling_rate, X_train, X_test, Y_train, Y_test, groups[train_val_idx]
 
 
 def load_haart_dataset(train_path, test_path):
