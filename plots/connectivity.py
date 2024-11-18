@@ -34,12 +34,12 @@ def show_ei_matrix(Wee, Wei, Wi, palette = "vlag"):
     n_i = Wei.shape[0]
     
     ax0 = plt.subplot2grid((n_e+n_i, n_e+n_i), (0, 0), colspan=n_e, rowspan=n_e)
-    ax0.imshow(Wee.A, cmap=color_palette(palette, as_cmap=True))
+    ax0.imshow(Wee, cmap=color_palette(palette, as_cmap=True))
     ax0.axis('off')
 
     if n_i > 0:
         ax1 = plt.subplot2grid((n_e+n_i, n_e+n_i), (0, n_e), colspan=n_i, rowspan=n_e)
-        ax1.imshow(Wie.A, cmap=color_palette(palette, as_cmap=True))
+        ax1.imshow(Wie, cmap=color_palette(palette, as_cmap=True))
         ax1.axis('off')
 
         ax2 = plt.subplot2grid((n_e+n_i, n_e+n_i), (n_e, 0), colspan=n_e, rowspan=n_i)

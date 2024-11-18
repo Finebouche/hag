@@ -1,7 +1,6 @@
 from functools import wraps
 import numpy as np
 
-
 def _elementwise(func):
     """Vectorize a function to apply it on arrays. """
     vect = np.vectorize(func)

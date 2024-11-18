@@ -1,4 +1,7 @@
 Dataset,Function,Average Score,Standard Deviation,Date
+MackeyGlass,ip,0.0734,± 0.00844,2024-11-18
+Lorenz,ip,0.17479,± 0.00543,2024-11-18
+Sunspot,ip,0.05099,± 0.0111,2024-11-18
 Sunspot,desp,0.05199,± 0.01087,2024-09-09
 Sunspot,hadsp,0.03327,± 0.00632,2024-09-09
 Sunspot,random,0.05912,± 0.01871,2024-09-09

@@ -4,6 +4,7 @@ from numpy.random import Generator, PCG64
 
 
 def update_reservoir(W, Win, u, r, leaky_rate, bias, activation_function):
+    u = u.astype(np.float64)
     pre_s = (1 - leaky_rate) * r.flatten() + leaky_rate * (W @ r.flatten()) + (Win @ u.flatten()) + bias
     return activation_function(pre_s)
 

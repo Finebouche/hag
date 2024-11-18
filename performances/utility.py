@@ -8,7 +8,7 @@ def camel_to_snake(name):
 
 
 def retrieve_best_model(function_name, dataset_name, is_multivariate, variate_type="multi", data_type="normal"):
-    if function_name not in ["desp", "hadsp", "random"]:
+    if function_name not in ["desp", "hadsp", "random", "ip", "nvar", "random_ei"]:
         raise ValueError(f"Invalid function name: {function_name}")
     if variate_type not in ["multi", "uni"]:
         raise ValueError(f"Invalid variate type: {variate_type}")
@@ -20,7 +20,6 @@ def retrieve_best_model(function_name, dataset_name, is_multivariate, variate_ty
 
     study_name = function_name + "_" + dataset_name + "_" + data_type + "_" + variate_type
     url = "sqlite:///optuna_" + camel_to_snake(dataset_name) + "_db.sqlite3"
-
     study = optuna.load_study(study_name=study_name, storage=url)  # To load an existing study
 
     return study

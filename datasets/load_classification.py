@@ -246,7 +246,7 @@ def load_dataset_classification(name, seed=None):
     if name == "SPEECHCOMMANDS":
         is_multivariate = False
         use_spectral_representation = False
-        X_train, Y_train, X_test, Y_test, groups, sampling_rate = load_SPEECHCOMMANDS()
+        X_train, Y_train, X_test, Y_test, sampling_rate, groups = load_SPEECHCOMMANDS()
         return use_spectral_representation, is_multivariate, sampling_rate, X_train, X_test, Y_train, Y_test, groups
 
     if name == "FSDD":
