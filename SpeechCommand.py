@@ -276,85 +276,89 @@ def objective(trial):
         time_increment_span = trial.suggest_int('time_increment_span', 0, max_increment_span)
         MAX_TIME_INCREMENT = TIME_INCREMENT + time_increment_span  # int(max_window_size) or None or TIME_INCREMENT
 
-    # CROSS-VALIDATION METHODS
-    total_score = 0
-    for i in range(nb_splits):
-        common_index = 1
-        if is_instances_classification:
-            common_size = X_train_band[i][0].shape[common_index]
-        else:
-            common_size = X_train_band[i].shape[common_index]
+    try:
 
-        # We want the size of the reservoir to be at least network_size
-        K = math.ceil(network_size / common_size)
-        n = common_size * K
+        # CROSS-VALIDATION METHODS
+        total_score = 0
+        for i in range(nb_splits):
+            common_index = 1
+            if is_instances_classification:
+                common_size = X_train_band[i][0].shape[common_index]
+            else:
+                common_size = X_train_band[i].shape[common_index]
 
-        pretrain_data = X_pretrain_band[i]
-        train_data = X_train_band[i]  # X_train_band_noisy_duplicated or X_train_band_duplicated
-        val_data = X_val_band_noisy[i] if data_type == "noisy" else X_val_band[i]
+            # We want the size of the reservoir to be at least network_size
+            K = math.ceil(network_size / common_size)
+            n = common_size * K
 
-        # UNSUPERVISED PRETRAINING
-        if function_name == "random_ei":
-            Win, W, bias = init_matrices(n, input_connectivity, connectivity, K, w_distribution=stats.uniform(-1, 1),
-                                         seed=random.randint(0, 1000))
-            bias *= bias_scaling
-            Win *= input_scaling
-        elif function_name == "nvar":
-            pass
-        else:
-            Win, W, bias = init_matrices(n, input_connectivity, connectivity, K, seed=random.randint(0, 1000))
-            bias *= bias_scaling
-            Win *= input_scaling
+            pretrain_data = X_pretrain_band[i]
+            train_data = X_train_band[i]  # X_train_band_noisy_duplicated or X_train_band_duplicated
+            val_data = X_val_band_noisy[i] if data_type == "noisy" else X_val_band[i]
 
-        if function_name == "hadsp":
-            W, (_, _, _) = run_algorithm(W, Win, bias, leaky_rate, activation_function, pretrain_data, TIME_INCREMENT,
-                                         weight_increment,
-                                         target_rate, rate_spread, function_name,
-                                         is_instance=is_instances_classification, use_full_instance=use_full_instance,
-                                         max_increment=MAX_TIME_INCREMENT, max_partners=max_partners, method=method,
-                                         n_jobs=nb_jobs_per_trial)
-        elif function_name == "desp":
-            W, (_, _, _) = run_algorithm(W, Win, bias, leaky_rate, activation_function, pretrain_data, TIME_INCREMENT,
-                                         weight_increment,
-                                         variance_target, variance_spread, function_name,
-                                         is_instance=is_instances_classification, use_full_instance=use_full_instance,
-                                         max_increment=MAX_TIME_INCREMENT, max_partners=max_partners, method=method,
-                                         intrinsic_saturation=intrinsic_saturation, intrinsic_coef=intrinsic_coef,
-                                         n_jobs=nb_jobs_per_trial)
-        elif function_name in ["random", "random_ei", "ip"]:
-            eigen = sparse.linalg.eigs(W, k=1, which="LM", maxiter=W.shape[0] * 20, tol=0.1, return_eigenvectors=False)
-            W *= sr / max(abs(eigen))
-        elif function_name == "nvar":
-            pass
-        else:
-            raise ValueError(f"Invalid function: {function_name}")
+            # UNSUPERVISED PRETRAINING
+            if function_name == "random_ei":
+                Win, W, bias = init_matrices(n, input_connectivity, connectivity, K, w_distribution=stats.uniform(-1, 1),
+                                             seed=random.randint(0, 1000))
+                bias *= bias_scaling
+                Win *= input_scaling
+            elif function_name == "nvar":
+                pass
+            else:
+                Win, W, bias = init_matrices(n, input_connectivity, connectivity, K, seed=random.randint(0, 1000))
+                bias *= bias_scaling
+                Win *= input_scaling
 
-        # TRAINING and EVALUATION
-        if function_name == "nvar":
-            reservoir, readout = init_nvar_model(delay, order, strides, ridge_coef=RIDGE_COEF)
-        elif function_name == "ip":
-            reservoir, readout = init_ip_reservoir_model(W, Win, bias, mu, sigma, leaky_rate, activation_function,
-                                                         ridge_coef=RIDGE_COEF)
-        else:
-            reservoir, readout = init_reservoir_model(W, Win, bias, leaky_rate, activation_function,
-                                                      ridge_coef=RIDGE_COEF)
+            if function_name == "hadsp":
+                W, (_, _, _) = run_algorithm(W, Win, bias, leaky_rate, activation_function, pretrain_data, TIME_INCREMENT,
+                                             weight_increment,
+                                             target_rate, rate_spread, function_name,
+                                             is_instance=is_instances_classification, use_full_instance=use_full_instance,
+                                             max_increment=MAX_TIME_INCREMENT, max_partners=max_partners, method=method,
+                                             n_jobs=nb_jobs_per_trial)
+            elif function_name == "desp":
+                W, (_, _, _) = run_algorithm(W, Win, bias, leaky_rate, activation_function, pretrain_data, TIME_INCREMENT,
+                                             weight_increment,
+                                             variance_target, variance_spread, function_name,
+                                             is_instance=is_instances_classification, use_full_instance=use_full_instance,
+                                             max_increment=MAX_TIME_INCREMENT, max_partners=max_partners, method=method,
+                                             intrinsic_saturation=intrinsic_saturation, intrinsic_coef=intrinsic_coef,
+                                             n_jobs=nb_jobs_per_trial)
+            elif function_name in ["random", "random_ei", "ip"]:
+                eigen = sparse.linalg.eigs(W, k=1, which="LM", maxiter=W.shape[0] * 20, tol=0.1, return_eigenvectors=False)
+                W *= sr / max(abs(eigen))
+            elif function_name == "nvar":
+                pass
+            else:
+                raise ValueError(f"Invalid function: {function_name}")
 
-        if is_instances_classification:
-            mode = "sequence-to-vector"
-            train_model_for_classification(reservoir, readout, X_train_band[1], Y_train[1], n_jobs=nb_jobs_per_trial,
-                                           mode=mode)
+            # TRAINING and EVALUATION
+            if function_name == "nvar":
+                reservoir, readout = init_nvar_model(delay, order, strides, ridge_coef=RIDGE_COEF)
+            elif function_name == "ip":
+                reservoir, readout = init_ip_reservoir_model(W, Win, bias, mu, sigma, leaky_rate, activation_function,
+                                                             ridge_coef=RIDGE_COEF)
+            else:
+                reservoir, readout = init_reservoir_model(W, Win, bias, leaky_rate, activation_function,
+                                                          ridge_coef=RIDGE_COEF)
 
-            Y_pred = predict_model_for_classification(reservoir, readout, val_data, n_jobs=nb_jobs_per_trial, mode=mode)
-            score = compute_score(Y_pred, Y_val[i], is_instances_classification)
-        else:
-            esn = train_model_for_prediction(reservoir, readout, train_data, Y_train[i])
+            if is_instances_classification:
+                mode = "sequence-to-vector"
+                train_model_for_classification(reservoir, readout, X_train_band[1], Y_train[1], n_jobs=nb_jobs_per_trial,
+                                               mode=mode)
 
-            Y_pred = esn.run(val_data, reset=False)
-            score = compute_score(Y_pred, Y_val[i], is_instances_classification)
+                Y_pred = predict_model_for_classification(reservoir, readout, val_data, n_jobs=nb_jobs_per_trial, mode=mode)
+                score = compute_score(Y_pred, Y_val[i], is_instances_classification)
+            else:
+                esn = train_model_for_prediction(reservoir, readout, train_data, Y_train[i])
 
-        total_score += score
+                Y_pred = esn.run(val_data, reset=False)
+                score = compute_score(Y_pred, Y_val[i], is_instances_classification)
 
-    average_score = total_score / nb_splits  # Average the score
+            total_score += score
+
+        average_score = total_score / nb_splits  # Average the score
+    except np.linalg.LinAlgError:
+        raise optuna.exceptions.TrialPruned()
 
     return average_score
 

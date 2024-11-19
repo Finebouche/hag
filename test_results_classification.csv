@@ -1,4 +1,9 @@
 Dataset,Function,Average Score,Standard Deviation,Date
+SPEECHCOMMANDS,ip,6.21876 %,± 0.19934 %,2024-11-18
+CatsDogs,ip,55.41159 %,± 1.34415 %,2024-11-18
+SpokenArabicDigits,ip,57.84447 %,± 0.37154 %,2024-11-18
+JapaneseVowels,ip,97.02703 %,± 0.50563 %,2024-11-18
+FSDD,ip,18.75 %,± 1.20312 %,2024-11-18
 SPEECHCOMMANDS,ip,6.41072 %,± 0.136 %,2024-11-18
 SpokenArabicDigits,desp,95.35016 %,± 0.54748 %,2024-09-08
 SpokenArabicDigits,hadsp,95.17963 %,± 0.18887 %,2024-09-08
