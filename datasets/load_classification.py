@@ -222,7 +222,7 @@ def load_aoen_dataset(dataset_name, seed=None):
     return X_train_raw, Y_train_raw, X_test_raw, Y_test, groups, meta_data
 
 
-def load_dataset_classification(name, seed=None):
+def load_dataset_classification(name, visualize=True, seed=None):
     if name == "SpokenArabicDigits" or name == "CatsDogs" or name == "LSST":
         X_train, Y_train, X_test, Y_test, groups, meta_data = load_aoen_dataset(name, seed)
         sampling_rate = 10000
@@ -251,7 +251,7 @@ def load_dataset_classification(name, seed=None):
 
     if name == "FSDD":
         sampling_rate, X_train, X_test, Y_train, Y_test, groups = load_FSDD_dataset(
-            data_dir='datasets/fsdd/free-spoken-digit-dataset-master/recordings', seed=seed, visualize=True)
+            data_dir='datasets/fsdd/free-spoken-digit-dataset-master/recordings', seed=seed, visualize=visualize)
 
         is_multivariate = False
         use_spectral_representation = False
