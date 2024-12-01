@@ -1,7 +1,0 @@
-*.pyc
-.DS_store
-.idea
-venv
-
-mnist_audio/*
-spectrograms/*
