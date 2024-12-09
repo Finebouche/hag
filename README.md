@@ -9,6 +9,7 @@
 	<img src="https://img.shields.io/github/license/Finebouche/HAG?style=default&logo=opensourceinitiative&logoColor=white&color=0080ff" alt="license">
 	<img src="https://img.shields.io/github/languages/top/Finebouche/HAG?style=default&color=0080ff" alt="repo-top-language">
 	<img src="https://zenodo.org/badge/doi/10.1109/ijcnn54540.2023.10191230.svg" alt="repo-language-count">
+	<img src="https://zenodo.org/badge/doi/10.1109/rivf60135.2023.10471845.svg" alt="repo-language-count">
 </p>
 <p align="center"><!-- default option, no dependency badges. -->
 </p>
@@ -20,13 +21,13 @@
 ## 🔗 Table of Contents
 
 - [📍 Overview](#-overview)
+- [📚 Publications](#-publications)
 - [👾 Features](#-features)
 - [🚀 Setup](#-getting-started)
   - [☑️ Prerequisites](#-prerequisites)
   - [⚙️ Installation](#-installation)
 
 - [🎗 License](#-license)
-- [🙌 Acknowledgments](#-acknowledgments)
 
 ---
 
@@ -35,7 +36,21 @@
 HAG introduces an innovative, biologically-inspired approach to improve Reservoir Computing networks. Grounded in Hebbian plasticity principles, HAG dynamically constructs and optimizes reservoir architectures to enhance the adaptability and efficiency of time-series prediction and classification tasks. By autonomously forming and pruning connections between neurons based on Pearson correlation, HAG tailors reservoirs to the specific demands of each task, aligning with biological neural network principles and Cover’s theorem.
 
 ---
+## 📚 Publications
 
+### **2023**
+
+- **[A Bio-Inspired Model for Audio Processing](https://doi.org/10.1109/ijcnn54540.2023.10191230)**  
+  *Tanguy Cazalets, Joni Dambre*  
+  *Presented at C1 Conference 2023*  
+  This paper introduces a biologically-inspired approach to audio processing, emphasizing homeostatic mechanisms and plasticity for efficient neural network performance.
+
+- **[A Homeostatic Activity-Dependent Structural Plasticity Algorithm for Richer Input Combination](https://doi.org/10.1109/rivf60135.2023.10471845)**  
+  *Tanguy Cazalets, Joni Dambre*  
+  *Presented at P1 Conference 2023*  
+  This work explores an innovative algorithm for structural plasticity, enhancing neural network adaptability to diverse input combinations.
+
+---
 ## 👾 Features
 
 |     | Feature         | Summary                                                                                                                                                                                        |
@@ -92,6 +107,6 @@ This project is protected under the [MIT License ](https://choosealicense.com/li
 
 ## 🙌 Acknowledgments
 
-- List any resources, contributors, inspiration, etc. here.
+- This project has received funding from the European Union’s Horizon 2020 research and innovation programme under the Marie Skłodowska-Curie grant agreement No 860949
 
 ---
