@@ -91,7 +91,7 @@ def load_sunspot_dataset(step_ahead=5, visualize=True):
     return sampling_rate, X_train, X_test, Y_train, Y_test
 
 
-def load_dataset_prediction(name, step_ahead=5, visualize=True):
+def load_dataset_forecasting(name, step_ahead=5, visualize=True):
     if name == "MackeyGlass":
         sampling_rate, X_train, X_test, Y_train, Y_test = load_mackey_glass_dataset(step_ahead, visualize)
         is_multivariate = False
