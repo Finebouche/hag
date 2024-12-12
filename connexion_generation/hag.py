@@ -91,7 +91,7 @@ def run_algorithm(W, Win, bias, leaky_rate, activation_function, input_data, tim
         neurons_state = update_reservoir(W, Win, input_value, neurons_state, leaky_rate, bias, activation_function)
         states_history.append(neurons_state)
 
-    pbar = tqdm(total=len(input_data), desc=algorithm_type + " " + method + " algorithm")
+    pbar = tqdm(total=len(input_data), desc="HAG algorithm")
     while (len(input_data) > max_increment and not use_full_instance) or (len(input_data) > 0 and use_full_instance):
         if is_instance and use_full_instance:  # if is true, take the next instance of the instance array input_data
             input_array = input_data[0]
@@ -116,8 +116,8 @@ def run_algorithm(W, Win, bias, leaky_rate, activation_function, input_data, tim
         else:
             raise ValueError("type must be one of 'hadsp', 'desp'")
 
-        W, _, nb_new_add, nb_new_prun = hadsp_step(W, states_history[-state_inc:], delta_z, weight_increment,
-                                                   max_partners=max_partners, method=method, n_jobs=n_jobs)
+        W, _, nb_new_add, nb_new_prun = hag_step(W, states_history[-state_inc:], delta_z, weight_increment,
+                                                 max_partners=max_partners, method=method, n_jobs=n_jobs)
 
         if algorithm_type == "desp":
             # implement intrinsic homeostatic plasticity based on saturation of states
@@ -159,8 +159,8 @@ def run_algorithm(W, Win, bias, leaky_rate, activation_function, input_data, tim
     return W, [states_history, delta_z_history, W_history]
 
 
-def hadsp_step(W_e, states, delta_z, weight_increment, W_inhibitory=np.array([]), max_partners=12, method="random",
-               n_jobs=1):
+def hag_step(W_e, states, delta_z, weight_increment, W_inhibitory=np.array([]), max_partners=12, method="random",
+             n_jobs=1):
     states = np.array(states).T
     nb_neurons = W_e.shape[0]
     neurons = np.arange(nb_neurons)
