@@ -6,6 +6,7 @@ from sklearn.metrics import accuracy_score
 from tqdm import tqdm
 from performances.losses import nrmse_multivariate
 from reservoirpy.nodes import Reservoir, IPReservoir, Ridge, RLS, LMS, NVAR
+from reservoir.localRuleReservoir import LocalRuleReservoir
 import reservoirpy
 
 reservoirpy.verbosity(level=0)
@@ -40,6 +41,24 @@ def init_ip_reservoir_model(W, Win, bias, mu, sigma, leaking_rate, activation_fu
         readout = Ridge(ridge=ridge_coef)
     return ip_reservoir, readout
 
+def init_local_rule_reservoir_model(W, Win, bias, mu, sigma, leaking_rate, activation_function, ridge_coef=None, rls=False, lms=False):
+    local_rule_reservoir = LocalRuleReservoir(
+        units=bias.size,
+        mu=mu,
+        sigma=sigma,
+        W=csr_matrix(W),
+        Win=Win,
+        lr=leaking_rate,
+        bias=csr_matrix(bias).T,
+        activation=activation_function,
+    )
+    if rls:
+        readout = RLS()
+    elif lms:
+        readout = LMS()
+    else:
+        readout = Ridge(ridge=ridge_coef)
+    return local_rule_reservoir, readout
 
 def init_reservoir_model(W, Win, bias, leaking_rate, activation_function, ridge_coef=None, rls=False, lms=False):
     reservoir = Reservoir(units=bias.size,
