@@ -209,7 +209,7 @@ SLICE_RANGE = slice(start_step, end_step)
 RESERVOIR_SIZE = 500
 
 nb_jobs_per_trial = 8
-function_name = "ip" # "desp" ou "hadsp", "random", "random_ei", "ip", or "nvar"
+function_name = "ip_correct" # "desp" ou "hadsp", "random", "random_ei", "ip", or "nvar"
 variate_type = "multi"  # "multi" ou "uni"
 if variate_type == "uni" and is_multivariate:
     raise ValueError(f"Invalid variable type: {variate_type}")
