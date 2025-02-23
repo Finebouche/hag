@@ -7,60 +7,74 @@ from tqdm import tqdm
 from performances.losses import nrmse_multivariate
 from reservoirpy.nodes import Reservoir, IPReservoir, Ridge, RLS, LMS, NVAR
 from reservoir.localRuleReservoir import LocalRuleReservoir
+from reservoir.ip_localRuleReservoir import IPLocalRuleReservoir
 import reservoirpy
 
 reservoirpy.verbosity(level=0)
 
-def init_nvar_model(delay, order, strides=1, ridge_coef=None, rls=False, lms=False):
-    nvar_reservoir = NVAR(delay=delay, order=order, strides=strides)
+def init_readout(ridge_coef=None, rls=False, lms=False):
+    """Select the proper readout according to flags."""
     if rls:
-        readout = RLS()
+        return RLS()
     elif lms:
-        readout = LMS()
+        return LMS()
     else:
-        readout = Ridge(ridge=ridge_coef)
-    return nvar_reservoir, readout
+        return Ridge(ridge=ridge_coef)
 
 
-def init_ip_reservoir_model(W, Win, bias, mu, sigma, leaking_rate, activation_function, ridge_coef=None, rls=False, lms=False):
+def init_nvar_model(delay, order, strides=1):
+    nvar_reservoir = NVAR(delay=delay, order=order, strides=strides)
+    return nvar_reservoir
+
+
+def init_ip_reservoir(W, Win, bias, mu, sigma, learning_rate, leaking_rate, activation_function):
     ip_reservoir = IPReservoir(
         units=bias.size,
         mu=mu,
         sigma=sigma,
+        learning_rate=learning_rate,
         W=csr_matrix(W),
         Win=Win,
         lr=leaking_rate,
         bias=csr_matrix(bias).T,
         activation="tanh",
     )
-    if rls:
-        readout = RLS()
-    elif lms:
-        readout = LMS()
-    else:
-        readout = Ridge(ridge=ridge_coef)
-    return ip_reservoir, readout
+    return ip_reservoir
 
-def init_local_rule_reservoir_model(W, Win, bias, mu, sigma, leaking_rate, activation_function, ridge_coef=None, rls=False, lms=False):
+def init_local_rule_reservoir(W, Win, bias, local_rule, eta, synapse_normalization, bcm_theta, leaking_rate, activation_function):
     local_rule_reservoir = LocalRuleReservoir(
         units=bias.size,
-        mu=mu,
-        sigma=sigma,
+        local_rule=local_rule,
+        eta=eta,
+        synapse_normalization=synapse_normalization,
+        bcm_theta=bcm_theta,
         W=csr_matrix(W),
         Win=Win,
         lr=leaking_rate,
         bias=csr_matrix(bias).T,
         activation=activation_function,
     )
-    if rls:
-        readout = RLS()
-    elif lms:
-        readout = LMS()
-    else:
-        readout = Ridge(ridge=ridge_coef)
-    return local_rule_reservoir, readout
+    return local_rule_reservoir
 
-def init_reservoir_model(W, Win, bias, leaking_rate, activation_function, ridge_coef=None, rls=False, lms=False):
+def init_ip_local_rule_reservoir(W, Win, bias, mu, sigma, learning_rate, local_rule, eta, synapse_normalization, bcm_theta, leaking_rate, activation_function):
+    ip_local_rule_reservoir = IPLocalRuleReservoir(
+        units=bias.size,
+        local_rule=local_rule,
+        eta=eta,
+        synapse_normalization=synapse_normalization,
+        bcm_theta=bcm_theta,
+        mu=mu,
+        sigma=sigma,
+        learning_rate = learning_rate,  # IP learning rate
+        W=csr_matrix(W),
+        Win=Win,
+        lr=leaking_rate,
+        bias=csr_matrix(bias).T,
+        activation="tanh",
+    )
+    return ip_local_rule_reservoir
+
+def init_reservoir(W, Win, bias, leaking_rate, activation_function):
     reservoir = Reservoir(units=bias.size,
                           W=csr_matrix(W),
                           Win=Win,
@@ -68,14 +82,7 @@ def init_reservoir_model(W, Win, bias, leaking_rate, activation_function, ridge_
                           bias=csr_matrix(bias).T,
                           activation=activation_function,
                           equation='external')
-
-    if rls:
-        readout = RLS()
-    elif lms:
-        readout = LMS()
-    else:
-        readout = Ridge(ridge=ridge_coef)
-    return reservoir, readout
+    return reservoir
 
 def train_model_for_prediction(reservoir, readout, X_train, Y_train, warmup=2, rls=False, lms=False):
     esn = reservoir >> readout

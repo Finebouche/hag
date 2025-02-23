@@ -9,7 +9,7 @@ SEED = 923984
 
 # load dataset using torchaudio
 from torchaudio.datasets import VoxCeleb1Identification, SPEECHCOMMANDS
-from torch.utils.data import ConcatDataset, random_split, DataLoader
+from torch.utils.data import ConcatDataset
 from sklearn.preprocessing import LabelEncoder, OneHotEncoder
 
 print("Loading Speechcommands")
@@ -199,7 +199,8 @@ from scipy import sparse
 
 # Evaluating
 from performances.esn_model_evaluation import train_model_for_classification, predict_model_for_classification, compute_score
-from performances.esn_model_evaluation import train_model_for_prediction, init_nvar_model, init_reservoir_model, init_ip_reservoir_model
+from performances.esn_model_evaluation import (train_model_for_prediction, init_reservoir, init_ip_reservoir,
+                                               init_local_rule_reservoir, init_ip_local_rule_reservoir, init_readout)
 
 
 # score for prediction
@@ -242,20 +243,21 @@ def objective(trial):
         intrinsic_saturation = trial.suggest_float('intrinsic_saturation', 0.8, 0.98, step=0.02)
         intrinsic_coef = trial.suggest_float('intrinsic_coef', 0.8, 0.98, step=0.02)
         method = trial.suggest_categorical("method", ["pearson"])
-    elif function_name in ["random", "random_ei", "ip_correct", "oja"]:
+    elif function_name in ["random", "random_ei", "ip_correct", "anti-oja", "ip-anti-oja"]:
         connectivity = trial.suggest_float('connectivity', 0, 1)
         sr = trial.suggest_float('spectral_radius', 0.4, 1.6, step=0.01)
     else:
         raise ValueError(f"Invalid function name: {function_name}")
 
-    if function_name == "ip_correct":
+    if function_name in ["ip_correct", "ip-anti-oja"]:
         mu = trial.suggest_float('mu', 0, 1)
         sigma = trial.suggest_float('sigma', 0, 1)
-    elif function_name == "oja":
+        learning_rate = trial.suggest_float('learning_rate', 1e-6, 1e-1, log=True)
+    if function_name in ["anti-oja", "ip-anti-oja"]:
         # We often use a log-uniform distribution for learning rates:
-        oja_lr = trial.suggest_float('oja_lr', 1e-5, 1e-1, log=True)
+        oja_eta = trial.suggest_float('oja_eta', 1e-5, 1e-1, log=True)
 
-    if function_name == "hadsp" or function_name == "desp":
+    if function_name in ["hadsp", "desp"]:
         connectivity = trial.suggest_float('connectivity', 0, 0)
         weight_increment = trial.suggest_float('weight_increment', 0.001, 0.1, step=0.001)
         max_partners = trial.suggest_int('max_partners', 10, 20)
@@ -310,7 +312,7 @@ def objective(trial):
                                          max_increment=MAX_TIME_INCREMENT, max_partners=max_partners, method=method,
                                          intrinsic_saturation=intrinsic_saturation, intrinsic_coef=intrinsic_coef,
                                          n_jobs=nb_jobs_per_trial)
-        elif function_name in ["random", "random_ei", "ip_correct", "oja"]:
+        elif function_name in ["random", "random_ei", "ip_correct", "anti-oja", "ip-anti-oja"]:
             eigen = sparse.linalg.eigs(W, k=1, which="LM", maxiter=W.shape[0] * 20, tol=0.1, return_eigenvectors=False)
             W *= sr / max(abs(eigen))
         else:
@@ -322,12 +324,26 @@ def objective(trial):
         else:
             unsupervised_pretrain = pretrain_data.astype(float)
         if function_name == "ip_correct":
-            reservoir, readout = init_ip_reservoir_model(W, Win, bias, mu, sigma, leaky_rate, activation_function,
-                                                         ridge_coef=RIDGE_COEF)
+            reservoir = init_ip_reservoir(W, Win, bias, mu=mu, sigma=sigma, learning_rate=learning_rate,
+                                          leaking_rate=leaky_rate, activation_function=activation_function
+                                          )
+            _ = reservoir.fit(unsupervised_pretrain, warmup=100)
+        elif function_name == "anti_oja":
+            reservoir = init_local_rule_reservoir(W, Win, bias, local_rule="anti-oja", eta=oja_eta,
+                                                  synapse_normalization=True, bcm_theta=None,
+                                                  leaking_rate=leaky_rate, activation_function=activation_function,
+                                                  )
+            _ = reservoir.fit(unsupervised_pretrain, warmup=100)
+        elif function_name == "ip-anti-oja":
+            reservoir = init_ip_local_rule_reservoir(W, Win, bias, local_rule="anti-oja", eta=oja_eta,
+                                                     synapse_normalization=True, bcm_theta=None,
+                                                     mu=mu, sigma=sigma, learning_rate=learning_rate,
+                                                     leaking_rate=leaky_rate, activation_function=activation_function,
+                                                     )
             _ = reservoir.fit(unsupervised_pretrain, warmup=100)
         else:
-            reservoir, readout = init_reservoir_model(W, Win, bias, leaky_rate, activation_function,
-                                                      ridge_coef=RIDGE_COEF)
+            reservoir = init_reservoir(W, Win, bias, leaky_rate, activation_function)
+        readout = init_readout(ridge_coef=RIDGE_COEF)
 
         # TRAINING and EVALUATION
         if is_instances_classification:

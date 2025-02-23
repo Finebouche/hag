@@ -8,7 +8,7 @@ def camel_to_snake(name):
 
 
 def retrieve_best_model(function_name, dataset_name, is_multivariate, variate_type="multi", data_type="normal"):
-    if function_name not in ["desp", "hadsp", "random", "ip", "nvar", "random_ei"]:
+    if function_name not in ["desp", "hadsp", "random", "ip_correct", "anti-oja", "random_ei"]:
         raise ValueError(f"Invalid function name: {function_name}")
     if variate_type not in ["multi", "uni"]:
         raise ValueError(f"Invalid variate type: {variate_type}")

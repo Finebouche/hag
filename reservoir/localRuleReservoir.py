@@ -1,4 +1,6 @@
 import numpy as np
+import scipy.sparse as sp
+from scipy.sparse import coo_matrix
 
 from functools import partial
 from typing import Callable, Dict, Optional, Sequence, Union
@@ -9,8 +11,8 @@ from reservoirpy.mat_gen import bernoulli, uniform, zeros
 from reservoirpy.node import Unsupervised, _init_with_sequences
 from reservoirpy.nodes.reservoirs.base import (
     initialize_feedback,
-    reservoir_kernel,
     forward_external,
+    initialize as initialize_base,
 )
 from reservoirpy.type import Weights
 from reservoirpy.utils.random import noise, rand_generator
@@ -20,50 +22,67 @@ from reservoirpy.utils.validation import is_array
 #  Local learning rules #
 #########################
 
-def local_update(reservoir, pre_state, post_state):
+
+def local_plasticity_rule(reservoir, pre_state, post_state):
     """
     Apply the local learning rule (Oja, Anti-Oja, Hebbian, Anti-Hebbian, BCM)
     to update the recurrent weight matrix W.
+
+    If `synapse_normalization=True`, then each row of W is L2-normalized
+    immediately after the local rule update.
+
+    This version supports both dense and sparse matrices. For sparse matrices,
+    the weight matrix is converted to LIL format for efficient row modifications.
     """
     W = reservoir.W
-    eta = reservoir.learning_rate
-    rule = reservoir.learning_rule.lower()
+    eta = reservoir.eta
+    rule = reservoir.local_rule.lower()
+    bcm_theta = reservoir.bcm_theta
+    do_norm = reservoir.synapse_normalization
 
-    x = pre_state[0]  # shape (units,)
-    y = post_state[0] # shape (units,)
+    # pre_state, post_state shape: (1, units) => extract the vectors
+    x = pre_state[0]  # shape (units,) - 'presynaptic'
+    y = post_state[0]  # shape (units,) - 'postsynaptic'
 
-    bcm_theta = reservoir.bcm_theta  # default 0.0 if not used
+    # Convert W to COO format for vectorized operations.
+    if not sp.isspmatrix_coo(W):
+        W = W.tocoo()
 
-    for i in range(reservoir.output_dim):
+    # Get row and column indices and the nonzero data array.
+    rows = W.row
+    cols = W.col
+    data = W.data.copy()  # work on a copy to avoid modifying in place
 
-        if rule == "oja":
-            # Oja's rule
-            W[i, :] += eta * y[i] * (x - y[i] * W[i, :])
+    # For each nonzero element W[i, j], update according to the selected rule:
+    if rule == "oja":
+        # new_data = old + eta * y[i] * ( x[j] - y[i] * old )
+        data = data + eta * y[rows] * (x[cols] - y[rows] * data)
+    elif rule == "anti-oja":
+        data = data - eta * y[rows] * (x[cols] - y[rows] * data)
+    elif rule == "hebbian":
+        data = data + eta * y[rows] * x[cols]
+    elif rule == "anti-hebbian":
+        data = data - eta * y[rows] * x[cols]
+    elif rule == "bcm":
+        data = data + eta * y[rows] * (y[rows] - bcm_theta) * x[cols]
+    else:
+        raise ValueError(
+            f"Unknown learning rule '{rule}'. Choose from: "
+            "['oja', 'anti-oja', 'hebbian', 'anti-hebbian', 'bcm']."
+        )
 
-        elif rule == "anti-oja":
-            # sign-flipped Oja
-            W[i, :] -= eta * y[i] * (x - y[i] * W[i, :])
+    # If row normalization is enabled, compute the L2 norm for each row in a vectorized way.
+    if do_norm:
+        # Compute sum of squares per row using bincount.
+        row_sums = np.bincount(rows, weights=data**2, minlength=reservoir.output_dim)
+        row_norms = np.sqrt(row_sums)
+        # To avoid division by zero, replace zeros with one.
+        safe_norms = np.where(row_norms > 0, row_norms, 1)
+        data = data / safe_norms[rows]
 
-        elif rule == "hebbian":
-            # Hebbian
-            W[i, :] += eta * y[i] * x
-
-        elif rule == "anti-hebbian":
-            # sign-flipped Hebbian
-            W[i, :] -= eta * y[i] * x
-
-        elif rule == "bcm":
-            # BCM
-            # W[i,:] += eta * y_i ( y_i - theta ) x
-            W[i, :] += eta * y[i] * (y[i] - bcm_theta) * x
-
-        else:
-            raise ValueError(f"Unknown learning rule '{rule}'. "
-                             "Choose from: ['oja', 'anti-oja', 'hebbian', "
-                             "'anti-hebbian', 'bcm'].")
-
-    return W
-
+    # Construct the updated sparse matrix in COO format, then convert to CSR.
+    W_new = coo_matrix((data, (rows, cols)), shape=W.shape).tocsr()
+    return W_new
 
 def local_backward(reservoir, X=None, *args, **kwargs):
     """
@@ -76,137 +95,9 @@ def local_backward(reservoir, X=None, *args, **kwargs):
                 post_state = reservoir.call(u.reshape(1, -1))  # shape (1, units)
 
                 # Update W with the chosen local rule
-                W_new = local_update(reservoir, pre_state, post_state)
+                W_new = local_plasticity_rule(reservoir, pre_state, post_state)
                 reservoir.set_param("W", W_new)
 
-
-########################
-#  Initialization base #
-########################
-
-def initialize_base(
-    reservoir,
-    x=None,
-    y=None,
-    sr=None,
-    input_scaling=None,
-    bias_scaling=None,
-    input_connectivity=None,
-    rc_connectivity=None,
-    W_init=None,
-    Win_init=None,
-    bias_init=None,
-    input_bias=None,
-    seed=None,
-):
-    # Same code as in your original snippet.
-    if x is not None:
-        reservoir.set_input_dim(x.shape[1])
-
-        dtype = reservoir.dtype
-        dtype_msg = (
-            "Data type {} not understood in {}. {} should be an array or a "
-            "callable returning an array."
-        )
-
-        # Initialize W
-        if is_array(W_init):
-            W = W_init
-            if W.shape[0] != W.shape[1]:
-                raise ValueError(
-                    "Dimension mismatch inside W: "
-                    f"W is {W.shape} but should be a square matrix."
-                )
-            if W.shape[0] != reservoir.output_dim:
-                reservoir._output_dim = W.shape[0]
-                reservoir.hypers["units"] = W.shape[0]
-        elif callable(W_init):
-            W = W_init(
-                reservoir.output_dim,
-                reservoir.output_dim,
-                sr=sr,
-                connectivity=rc_connectivity,
-                dtype=dtype,
-                seed=seed,
-            )
-        else:
-            raise ValueError(dtype_msg.format(str(type(W_init)), reservoir.name, "W"))
-        reservoir.set_param("units", W.shape[0])
-        reservoir.set_param("W", W.astype(dtype))
-
-        out_dim = reservoir.output_dim
-
-        # Initialize Win
-        Win_has_bias = False
-        if is_array(Win_init):
-            Win = Win_init
-            msg = (
-                f"Dimension mismatch in {reservoir.name}: Win input dimension is "
-                f"{Win.shape[1]} but input dimension is {x.shape[1]}."
-            )
-            if Win.shape[1] == x.shape[1] + 1:
-                if input_bias:
-                    Win_has_bias = True
-                else:
-                    bias_msg = (
-                        " It seems Win has a bias column, but 'input_bias' is False."
-                    )
-                    raise ValueError(msg + bias_msg)
-            elif Win.shape[1] != x.shape[1]:
-                raise ValueError(msg)
-            if Win.shape[0] != out_dim:
-                raise ValueError(
-                    f"Dimension mismatch in {reservoir.name}: Win internal dimension "
-                    f"is {Win.shape[0]} but reservoir dimension is {out_dim}"
-                )
-        elif callable(Win_init):
-            Win = Win_init(
-                reservoir.output_dim,
-                x.shape[1],
-                input_scaling=input_scaling,
-                connectivity=input_connectivity,
-                dtype=dtype,
-                seed=seed,
-            )
-        else:
-            raise ValueError(
-                dtype_msg.format(str(type(Win_init)), reservoir.name, "Win")
-            )
-
-        # Initialize bias
-        if input_bias:
-            if not Win_has_bias:
-                if callable(bias_init):
-                    bias = bias_init(
-                        reservoir.output_dim,
-                        1,
-                        input_scaling=bias_scaling,
-                        connectivity=input_connectivity,
-                        dtype=dtype,
-                        seed=seed,
-                    )
-                elif is_array(bias_init):
-                    bias = bias_init
-                    if bias.shape[0] != reservoir.output_dim or (
-                        bias.ndim > 1 and bias.shape[1] != 1
-                    ):
-                        raise ValueError(
-                            f"Dimension mismatch in {reservoir.name}: bias shape is "
-                            f"{bias.shape} but should be {(reservoir.output_dim, 1)}"
-                        )
-                else:
-                    raise ValueError(
-                        dtype_msg.format(str(type(bias_init)), reservoir.name, "bias")
-                    )
-            else:
-                bias = Win[:, :1]
-                Win = Win[:, 1:]
-        else:
-            bias = zeros(reservoir.output_dim, 1, dtype=dtype)
-
-        reservoir.set_param("Win", Win.astype(dtype))
-        reservoir.set_param("bias", bias.astype(dtype))
-        reservoir.set_param("internal_state", reservoir.zero_state())
 
 
 def initialize_local_rule(reservoir, *args, **kwargs):
@@ -237,6 +128,9 @@ class LocalRuleReservoir(Unsupervised):
 
     For "bcm", you can set a threshold 'bcm_theta' (default 0.0).
 
+    If `synapse_normalization=True`, then after each local-rule update
+    on a row i of W, the row is rescaled to unit L2 norm.
+
     Reservoir states are updated with a standard Echo-State style:
       r[t+1] = (1 - lr)*r[t] + lr*(W r[t] + Win u[t+1] + Wfb fb[t] + bias)
       x[t+1] = activation(r[t+1])
@@ -245,14 +139,18 @@ class LocalRuleReservoir(Unsupervised):
 
     Parameters
     ----------
-    learning_rule : str, optional
+    local_rule : str, optional
         One of ["oja", "anti-oja", "hebbian", "anti-hebbian", "bcm"].
         Default = "oja".
     bcm_theta : float, optional
         The threshold used in the "bcm" rule. Default = 0.0.
+    eta : float, optional
+        Local learning rate for the weight update. Default = 1e-3.
+    synapse_normalization : bool, optional
+        If True, L2-normalize each row of W after its update. Default = False.
 
-    Other parameters:
-      - units, sr, lr, learning_rate, epochs, ...
+    Other standard reservoir parameters:
+      - units, sr, lr, epochs, ...
       - input_bias, noise_in, noise_rc, ...
       - input_scaling, rc_connectivity, ...
       - W, Win, Wfb initializers, etc.
@@ -260,8 +158,8 @@ class LocalRuleReservoir(Unsupervised):
     Example
     -------
     >>> reservoir = LocalRuleReservoir(
-    ...     units=100, sr=0.9, learning_rule="hebbiAN",
-    ...     learning_rate=1e-3, epochs=5
+    ...     units=100, sr=0.9, local_rule="hebbian",
+    ...     eta=1e-3, epochs=5, synapse_normalization=True
     ... )
     >>> # Fit on data timeseries
     >>> reservoir.fit(X_data, warmup=10)
@@ -272,13 +170,14 @@ class LocalRuleReservoir(Unsupervised):
     def __init__(
         self,
         # local rule choice
-        learning_rule: str = "oja",
+        local_rule: str = "oja",
+        eta: float = 1e-3,
+        synapse_normalization: bool = False,
         bcm_theta: float = 0.0,
         # standard reservoir params
         units: int = None,
         sr: Optional[float] = None,
         lr: float = 1.0,
-        learning_rate: float = 1e-3,
         epochs: int = 1,
         input_bias: bool = True,
         noise_rc: float = 0.0,
@@ -301,7 +200,6 @@ class LocalRuleReservoir(Unsupervised):
         activation: Union[str, Callable] = tanh,
         name=None,
         seed=None,
-        dtype=np.float64,
         **kwargs,
     ):
         if units is None and not is_array(W):
@@ -312,11 +210,11 @@ class LocalRuleReservoir(Unsupervised):
         rng = rand_generator(seed=seed)
         noise_kwargs = dict() if noise_kwargs is None else noise_kwargs
 
-        # Make sure the chosen rule is recognized:
+        # Validate local rule name
         valid_rules = ["oja", "anti-oja", "hebbian", "anti-hebbian", "bcm"]
-        if learning_rule.lower() not in valid_rules:
+        if local_rule.lower() not in valid_rules:
             raise ValueError(
-                f"learning_rule must be one of {valid_rules}, got {learning_rule}."
+                f"learning_rule must be one of {valid_rules}, got {local_rule}."
             )
 
         super(LocalRuleReservoir, self).__init__(
@@ -335,11 +233,12 @@ class LocalRuleReservoir(Unsupervised):
                 "internal_state": None,
             },
             hypers={
-                "learning_rule": learning_rule.lower(),  # store normalized
+                "learning_rule": local_rule.lower(),
                 "bcm_theta": bcm_theta,
+                "eta": eta,
+                "synapse_normalization": synapse_normalization,
                 "sr": sr,
                 "lr": lr,
-                "learning_rate": learning_rate,
                 "epochs": epochs,
                 "input_bias": input_bias,
                 "input_scaling": input_scaling,
@@ -374,7 +273,6 @@ class LocalRuleReservoir(Unsupervised):
             output_dim=units,
             feedback_dim=feedback_dim,
             name=name,
-            dtype=dtype,
             **kwargs,
         )
 
@@ -383,12 +281,20 @@ class LocalRuleReservoir(Unsupervised):
     ##############
 
     @property
-    def learning_rule(self) -> str:
-        return self.hypers["learning_rule"]
+    def local_rule(self) -> str:
+        return self.hypers["local_rule"]
 
     @property
     def bcm_theta(self) -> float:
         return self.hypers["bcm_theta"]
+
+    @property
+    def eta(self) -> float:
+        return self.hypers["eta"]
+
+    @property
+    def synapse_normalization(self) -> bool:
+        return self.hypers["synapse_normalization"]
 
     @property
     def fitted(self) -> bool:
@@ -420,14 +326,7 @@ class LocalRuleReservoir(Unsupervised):
             if warmup > 0:
                 self.run(X_seq[:warmup])
 
-            # Apply local learning rule on the rest
-            for e in range(self.epochs):
-                for u in X_seq[warmup:]:
-                    pre_state = self.internal_state
-                    post_state = self.call(u.reshape(1, -1))
+            self._partial_backward(self, X_seq[warmup:])
 
-                    # Update W
-                    W_new = local_update(self, pre_state, post_state)
-                    self.set_param("W", W_new)
 
         return self

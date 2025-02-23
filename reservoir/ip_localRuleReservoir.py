@@ -1,3 +1,10 @@
+import sys
+from tqdm import tqdm
+if sys.version_info < (3, 8):
+    from typing_extensions import Literal
+else:
+    from typing import Literal
+
 import numpy as np
 from functools import partial
 from typing import Callable, Dict, Optional, Sequence, Union
@@ -10,57 +17,66 @@ from reservoirpy.type import Weights
 from reservoirpy.utils.random import noise, rand_generator
 from reservoirpy.utils.validation import is_array
 
+
 # ReservoirPy or your custom code
 from reservoirpy.nodes.reservoirs.base import (
     initialize_feedback,
-    forward_external
+    forward_external,
+    initialize as initialize_base,
 )
 # IP update function:
-from reservoirpy.nodes.reservoirs.intrinsic_plasticity import ip
+from reservoirpy.nodes.reservoirs.intrinsic_plasticity import (
+    ip,
+    ip_activation
+)
 
-from localRuleReservoir import local_update
+# Local update function:
+from reservoir.localRuleReservoir import local_plasticity_rule
 
 
+##########################################
+#  1) IP + Local Rule "backward" method  #
+##########################################
 
-###############################
-#  IP + Local Rule Backward   #
-###############################
-
-def ip_local_backward(reservoir: "IP_LocalRuleReservoir", X=None, *args, **kwargs):
+def ip_local_backward(reservoir: "IPLocalRuleReservoir", X=None, *args, **kwargs):
     """
-    Offline learning method combining IP (intrinsic plasticity for a,b)
-    and a local synaptic rule for W.
-
-    Steps for each sample in X:
-      1. Forward pass: post_state = reservoir.call(u)
-      2. IP update for reservoir.a, reservoir.b
-      3. local update (oja, anti-oja, hebbian, anti-hebbian, bcm) for reservoir.W
+    Offline learning method for a reservoir combining intrinsic plasticity (IP)
+    and a local synaptic rule (Oja, Hebb, etc.). The logic is:
+      - For each epoch and each sequence:
+        - For each time step:
+          1) Update reservoir state by calling `reservoir.call(input)`.
+          2) Perform IP update on parameters 'a', 'b'.
+          3) Perform local rule update on recurrent weights 'W'.
     """
-    for e in range(reservoir.epochs):
+    for _ in range(reservoir.epochs):
         for seq in X:
             for u in seq:
+                # 1) Forward pass: store old state, then compute new post_state
                 post_state = reservoir.call(u.reshape(1, -1))
                 pre_state = reservoir.internal_state
 
-                # 1) Intrinsic Plasticity update
+                # 2) Intrinsic Plasticity update
                 a_new, b_new = ip(reservoir, pre_state, post_state)
                 reservoir.set_param("a", a_new)
                 reservoir.set_param("b", b_new)
 
-                # 2) Local rule update
-                W_new = local_update(reservoir, pre_state, post_state)
+                # 3) Local rule update
+                W_new = local_plasticity_rule(reservoir, pre_state, post_state)
                 reservoir.set_param("W", W_new)
 
 
-def initialize_ip_local(reservoir, *args, **kwargs):
+###################################################
+#  2) Initialization for the IP + Local Rule ESN  #
+###################################################
+
+def initialize_ip_local_reservoir(reservoir, *args, **kwargs):
     """
-    Initialization for an IP + local-rule reservoir:
-    - usual reservoir init for W, Win, bias, etc.
-    - init IP parameters a, b
+    Custom initializer for an IP + local-rule reservoir.
+    1) Calls the usual ESN-like initialization (W, Win, bias, etc.).
+    2) Initializes IP parameters (a, b).
     """
-    # If you have a base init function (like IPReservoir) use it,
-    # or define your own. For simplicity, let's just do:
-    reservoir.initialize_base(reservoir, *args, **kwargs)
+    # Use your base ESN-like init:
+    initialize_base(reservoir, *args, **kwargs)
 
     # Initialize IP params
     a = np.ones((reservoir.output_dim, 1), dtype=reservoir.dtype)
@@ -69,47 +85,66 @@ def initialize_ip_local(reservoir, *args, **kwargs):
     reservoir.set_param("b", b)
 
 
-#####################################
-#  The IP + LocalRule Reservoir     #
-#####################################
+########################################
+#  3) IP + LocalRule Reservoir  Class  #
+########################################
 
-class IP_LocalRuleReservoir(Unsupervised):
+class IPLocalRuleReservoir(Unsupervised):
     """
-    Reservoir implementing BOTH Intrinsic Plasticity (per-neuron a,b updates)
-    AND a local rule update for W (e.g. Oja, anti-Oja, Hebbian, anti-Hebbian, BCM).
+    A reservoir implementing:
+      - Intrinsic Plasticity (neuron-wise parameters 'a' and 'b'), and
+      - A local synaptic learning rule (e.g., Oja, Hebbian, BCM, etc.) for the
+        recurrent weight matrix 'W'.
 
-    Steps at each time step:
+    At each timestep:
       1) r[t+1] = (1-lr)*r[t] + lr*(W*r[t] + Win*u[t] + Wfb*fb[t] + bias)
-      2) x[t+1] = f(a*r[t+1] + b)
-      3) IP update: a,b <- ip(...).
-      4) local rule update: W <- local_update(...).
+      2) x[t+1] = activation( a * r[t+1] + b )   # i.e., IP-adjusted activation
+      3) IP update: a, b <- ip(...)
+      4) Local rule update: W <- local_update(...)
 
     Parameters
     ----------
-    learning_rule : str
-        Which local rule to apply for W.
-        One of ["oja", "anti-oja", "hebbian", "anti-hebbian", "bcm"].
+    local_rule : str
+        Local synaptic rule to apply. One of ["oja", "anti-oja", "hebbian",
+        "anti-hebbian", "bcm"].
+    eta : float
+        Local learning rate for W update.
+    synapse_normalization : bool
+        If True, each row of W is L2-normalized after the local rule update.
     bcm_theta : float
-        Threshold used if learning_rule="bcm".
+        Threshold used for the "bcm" rule only.
     activation_type : {"tanh", "sigmoid"}
-        Used by IP to choose the target distribution.
-    mu, sigma : floats
-        Used by IP if activation_type="tanh".
-    ... etc. (like in IP or localRule).
+        Which IP distribution to aim for: 'tanh' => normal, 'sigmoid' => exponential.
+    mu, sigma : float
+        IP distribution parameters if activation_type="tanh" (i.e. mean, std).
+        For "sigmoid", mu is 1/lambda, sigma is not used.
+    learning_rate : float
+        Intrinsic Plasticity learning rate for a,b updates.
+    epochs : int
+        How many passes of IP+Local learning to perform.
+    (… plus typical reservoir hyperparameters: units, sr, lr, etc.)
+
+    Notes
+    -----
+    - The code will initialize random W, Win, Wfb, bias, plus IP parameters a,b.
+    - The IP update is done using the `ip(...)` function from reservoirpy.
+    - The local rule update is done by the `local_update(...)` function from your code.
     """
 
     def __init__(
         self,
-        # local rule
-        learning_rule: str = "oja",
+        # local rule choice
+        local_rule: str = "oja",
+        eta: float = 1e-3,
+        synapse_normalization: bool = False,
         bcm_theta: float = 0.0,
-        # standard IP params
+        # IP params
         units: int = None,
         sr: Optional[float] = None,
-        lr: float = 1.0,
+        lr: float = 1.0,   # leaking rate
         mu: float = 0.0,
         sigma: float = 1.0,
-        learning_rate: float = 1e-3,
+        learning_rate: float = 1e-3,  # IP learning rate
         epochs: int = 1,
         activation_type: str = "tanh",
         input_bias: bool = True,
@@ -131,44 +166,35 @@ class IP_LocalRuleReservoir(Unsupervised):
         feedback_dim: int = None,
         fb_activation: Union[str, Callable] = identity,
         # IP requires "tanh" or "sigmoid" for distribution:
-        activation: Union[str, Callable] = "tanh",
+        activation: Literal["tanh", "sigmoid"] = "tanh",
         name=None,
         seed=None,
-        dtype=np.float64,
         **kwargs,
     ):
+        # Check for mandatory reservoir size or custom W
         if units is None and not is_array(W):
             raise ValueError(
-                "'units' parameter must not be None if 'W' parameter is not a matrix."
+                "'units' must be provided if 'W' is not an explicit matrix."
             )
+
+        # Check IP activation
         if activation_type not in ["tanh", "sigmoid"]:
             raise ValueError(
-                f"activation_type must be 'tanh' or 'sigmoid' for IP. Got {activation_type}."
+                f"activation_type must be 'tanh' or 'sigmoid'. Got {activation_type}."
             )
 
-        # Check the local rule
+        # Check local rule
         valid_rules = ["oja", "anti-oja", "hebbian", "anti-hebbian", "bcm"]
-        if learning_rule.lower() not in valid_rules:
+        if local_rule.lower() not in valid_rules:
             raise ValueError(
-                f"learning_rule must be one of {valid_rules}, got {learning_rule}."
+                f"learning_rule must be one of {valid_rules}, got '{local_rule}'."
             )
 
+        # Prepare random generator, noise
         rng = rand_generator(seed=seed)
-        noise_kwargs = dict() if noise_kwargs is None else noise_kwargs
+        noise_kwargs = {} if noise_kwargs is None else noise_kwargs
 
-        # We'll define a custom activation that includes IP's a,b:
-        def _ip_activation(state, *, reservoir, base_f):
-            a, b = reservoir.a, reservoir.b
-            return base_f(a * state + b)
-
-        if isinstance(activation, str):
-            base_f = get_function(activation)
-        else:
-            base_f = activation
-
-        final_activation = partial(_ip_activation, reservoir=self, base_f=base_f)
-
-        super(IP_LocalRuleReservoir, self).__init__(
+        super().__init__(
             fb_initializer=partial(
                 initialize_feedback,
                 Wfb_init=Wfb,
@@ -183,13 +209,15 @@ class IP_LocalRuleReservoir(Unsupervised):
                 "bias": None,
                 "internal_state": None,
                 "a": None,
-                "b": None,
+                "b": None,  # for IP
             },
             hypers={
-                # local rule
-                "learning_rule": learning_rule.lower(),
+                # Local rule hyperparams
+                "local_rule": local_rule.lower(),
                 "bcm_theta": bcm_theta,
-                # IP
+                "eta": eta,
+                "synapse_normalization": synapse_normalization,
+                # IP hyperparams
                 "sr": sr,
                 "lr": lr,
                 "mu": mu,
@@ -198,9 +226,11 @@ class IP_LocalRuleReservoir(Unsupervised):
                 "epochs": epochs,
                 "activation_type": activation_type,
                 # final activation
-                "activation": final_activation,
-                "fb_activation": get_function(fb_activation) if isinstance(fb_activation, str) else fb_activation,
-                # noise, scaling, connectivity
+                "activation": partial(
+                    ip_activation, reservoir=self, f=get_function(activation)
+                ),
+                "fb_activation": fb_activation,
+                # standard reservoir stuff
                 "noise_in": noise_in,
                 "noise_rc": noise_rc,
                 "noise_out": noise_fb,
@@ -217,7 +247,7 @@ class IP_LocalRuleReservoir(Unsupervised):
             },
             forward=forward_external,
             initializer=partial(
-                initialize_ip_local,
+                initialize_ip_local_reservoir,
                 sr=sr,
                 input_bias=input_bias,
                 bias_scaling=bias_scaling,
@@ -229,25 +259,30 @@ class IP_LocalRuleReservoir(Unsupervised):
                 bias_init=bias,
                 seed=seed,
             ),
-            backward=ip_local_backward,  # combine IP + local rule
+            backward=ip_local_backward,
             output_dim=units,
             feedback_dim=feedback_dim,
             name=name,
-            dtype=dtype,
             **kwargs,
         )
 
-    # IP shortcuts
+    #############
+    #  IP props #
+    #############
+
     @property
     def a(self):
+        """Gain parameter (vector) for Intrinsic Plasticity."""
         return self.params["a"]
 
     @property
     def b(self):
+        """Bias parameter (vector) for Intrinsic Plasticity."""
         return self.params["b"]
 
     @property
     def activation_type(self) -> str:
+        """'tanh' or 'sigmoid'."""
         return self.hypers["activation_type"]
 
     @property
@@ -258,22 +293,61 @@ class IP_LocalRuleReservoir(Unsupervised):
     def sigma(self) -> float:
         return self.hypers["sigma"]
 
-    # Local rule shortcuts
+    #######################
+    #  Local rule props   #
+    #######################
+
     @property
-    def learning_rule(self) -> str:
-        return self.hypers["learning_rule"]
+    def local_rule(self) -> str:
+        return self.hypers["local_rule"]
 
     @property
     def bcm_theta(self) -> float:
         return self.hypers["bcm_theta"]
 
-    # Fitted status
+    @property
+    def eta(self) -> float:
+        return self.hypers["eta"]
+
+    @property
+    def synapse_normalization(self) -> bool:
+        return self.hypers["synapse_normalization"]
+
+    #######################
+    #  Fitted status etc. #
+    #######################
+
     @property
     def fitted(self) -> bool:
+        """
+        For unsupervised nodes that can always be updated,
+        we typically mark them as 'fitted' after initialization.
+        """
         return True
 
-    # partial_fit => same logic as in `ip_local_backward`
-    def partial_fit(self, X_batch, Y_batch=None, warmup=0, **kwargs) -> "IP_LocalRuleReservoir":
+    ################################
+    #  partial_fit => same logic   #
+    ################################
+
+    def partial_fit(self, X_batch, Y_batch=None, warmup=0, **kwargs) -> "IPLocalRuleReservoir":
+        """
+        Partial offline fitting method:
+          - Warmup the reservoir for `warmup` steps (no learning).
+          - Then, for each sequence, run IP + local rule updates.
+
+        Parameters
+        ----------
+        X_batch : array-like of shape (n_sequences, timesteps, n_features)
+            A batch of sequences. Can be a single sequence.
+        Y_batch : ignored (for unsupervised).
+        warmup : int
+            Number of timesteps at the start of each sequence to skip training.
+
+        Returns
+        -------
+        IPLocalRuleReservoir
+            The reservoir itself (fitted).
+        """
         X, _ = check_xy(self, X_batch, allow_n_inputs=False)
         X, _ = _init_with_sequences(self, X)
 
@@ -283,24 +357,13 @@ class IP_LocalRuleReservoir(Unsupervised):
             X_seq = X[i]
             if X_seq.shape[0] <= warmup:
                 raise ValueError(
-                    f"Warmup set to {warmup}, but one timeseries has length {X_seq.shape[0]}."
+                    f"Warmup={warmup}, but sequence length={X_seq.shape[0]}."
                 )
+
+            # Warmup phase
             if warmup > 0:
                 self.run(X_seq[:warmup])
 
-            seq_to_train = X_seq[warmup:]
-            for e in range(self.epochs):
-                for u in seq_to_train:
-                    post_state = self.call(u.reshape(1, -1))
-                    pre_state = self.internal_state
-
-                    # 1) IP update
-                    a_new, b_new = ip(self, pre_state, post_state)
-                    self.set_param("a", a_new)
-                    self.set_param("b", b_new)
-
-                    # 2) Local rule update
-                    W_new = local_update(self, pre_state, post_state)
-                    self.set_param("W", W_new)
+            self._partial_backward(self, X_seq[warmup:])
 
         return self
