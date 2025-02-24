@@ -1,20 +1,17 @@
 Dataset,Function,Average Score,Standard Deviation,Date
 Sunspot,anti-oja,0.02614,± 0.00698,2025-02-21
-Sunspot,ip_correct,0.04845,± 0.02049,2025-02-21
 Sunspot,ip,0.05099,± 0.0111,2024-11-18
 Sunspot,desp,0.05199,± 0.01087,2024-09-09
 Sunspot,hadsp,0.03327,± 0.00632,2024-09-09
 Sunspot,random,0.05912,± 0.01871,2024-09-09
 Sunspot,random_ei,0.03618,± 0.01572,2024-09-09
 Lorenz,anti-oja,0.18493,± 0.02641,2025-02-21
-Lorenz,ip_correct,0.19423,± 0.03456,2025-02-21
 Lorenz,ip,0.17479,± 0.00543,2024-11-18
 Lorenz,desp,0.15974,± 0.02469,2024-09-08
 Lorenz,hadsp,0.17338,± 0.00406,2024-09-08
 Lorenz,random,0.17715,± 0.00497,2024-09-08
 Lorenz,random_ei,0.19044,± 0.00482,2024-09-08
 MackeyGlass,anti-oja,0.05087,± 0.00641,2025-02-21
-MackeyGlass,ip_correct,0.05038,± 0.00405,2025-02-21
 MackeyGlass,ip,0.0734,± 0.00844,2024-11-18
 MackeyGlass,desp,0.0662,± 0.01135,2024-09-08
 MackeyGlass,hadsp,0.0629,± 0.0044,2024-09-08

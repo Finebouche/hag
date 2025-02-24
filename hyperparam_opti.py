@@ -10,7 +10,7 @@ from datasets.load_data import load_data
 from reservoir.activation_functions import tanh, heaviside, sigmoid
 
 step_ahead=5
-dataset_name = "CatsDogs" # can be "CatsDogs", "FSDD", "JapaneseVowels", "SPEECHCOMMANDS", "SpokenArabicDigits", "Lorenz", "MackeyGlass", "Sunspot"
+dataset_name = "MackeyGlass" # can be "CatsDogs", "FSDD", "JapaneseVowels", "SPEECHCOMMANDS", "SpokenArabicDigits", "Lorenz", "MackeyGlass", "Sunspot"
 
 print(f"Loading {dataset_name}")
 
@@ -213,8 +213,8 @@ end_step = 500
 SLICE_RANGE = slice(start_step, end_step)
 RESERVOIR_SIZE = 500
 
-nb_jobs_per_trial = 8
-function_name = "anti-oja"  # "desp" ou "hadsp", "random", "random_ei", "ip_correct", "anti-oja", "ip-anti-oja"
+nb_jobs_per_trial = 1
+function_name = "ip-anti-oja"  # "desp" ou "hadsp", "random", "random_ei", "ip_correct", "anti-oja", "ip-anti-oja"
 variate_type = "multi"  # "multi" ou "uni"
 if variate_type == "uni" and is_multivariate:
     raise ValueError(f"Invalid variable type: {variate_type}")
@@ -223,7 +223,7 @@ if variate_type == "uni" and is_multivariate:
 def objective(trial):
     # Suggest values for the parameters you want to optimize
     # COMMON
-    ridge = trial.suggest_int('ridge', -13, 1)
+    ridge = trial.suggest_int('ridge', -12, 1)
     RIDGE_COEF = 10 ** ridge
 
     network_size = trial.suggest_int('network_size', RESERVOIR_SIZE, RESERVOIR_SIZE)
@@ -392,13 +392,13 @@ def optimize_study(n_trials):
     study.optimize(objective, n_trials=n_trials)
 
 N_TRIALS = 400
-n_parallel_studies = 1
+n_parallel_studies = 8
 trials_per_process = N_TRIALS // n_parallel_studies
 
 # Use joblib to parallelize the optimization
-# Parallel(n_jobs=n_parallel_studies)(
-#     delayed(optimize_study)(trials_per_process) for _ in range(n_parallel_studies)
-# )
+Parallel(n_jobs=n_parallel_studies)(
+    delayed(optimize_study)(trials_per_process) for _ in range(n_parallel_studies)
+)
 
-study = optuna.create_study(storage=storage, sampler=sampler, study_name=study_name, direction=direction, load_if_exists=True)
-study.optimize(objective, n_trials=N_TRIALS)
+# study = optuna.create_study(storage=storage, sampler=sampler, study_name=study_name, direction=direction, load_if_exists=True)
+# study.optimize(objective, n_trials=N_TRIALS)

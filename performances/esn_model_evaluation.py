@@ -6,8 +6,8 @@ from sklearn.metrics import accuracy_score
 from tqdm import tqdm
 from performances.losses import nrmse_multivariate
 from reservoirpy.nodes import Reservoir, IPReservoir, Ridge, RLS, LMS, NVAR
-from reservoir.localRuleReservoir import LocalRuleReservoir
-from reservoir.ip_localRuleReservoir import IPLocalRuleReservoir
+from reservoir.synapticPlasticityReservoir import SynapticPlasticityReservoir
+from reservoir.ip_localRuleReservoir import IPSPReservoir
 import reservoirpy
 
 reservoirpy.verbosity(level=0)
@@ -42,7 +42,7 @@ def init_ip_reservoir(W, Win, bias, mu, sigma, learning_rate, leaking_rate, acti
     return ip_reservoir
 
 def init_local_rule_reservoir(W, Win, bias, local_rule, eta, synapse_normalization, bcm_theta, leaking_rate, activation_function):
-    local_rule_reservoir = LocalRuleReservoir(
+    local_rule_reservoir = SynapticPlasticityReservoir(
         units=bias.size,
         local_rule=local_rule,
         eta=eta,
@@ -57,7 +57,7 @@ def init_local_rule_reservoir(W, Win, bias, local_rule, eta, synapse_normalizati
     return local_rule_reservoir
 
 def init_ip_local_rule_reservoir(W, Win, bias, mu, sigma, learning_rate, local_rule, eta, synapse_normalization, bcm_theta, leaking_rate, activation_function):
-    ip_local_rule_reservoir = IPLocalRuleReservoir(
+    ip_local_rule_reservoir = IPSPReservoir(
         units=bias.size,
         local_rule=local_rule,
         eta=eta,

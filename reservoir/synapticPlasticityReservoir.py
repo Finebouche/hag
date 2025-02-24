@@ -22,8 +22,7 @@ from reservoirpy.utils.validation import is_array
 #  Local learning rules #
 #########################
 
-
-def local_plasticity_rule(reservoir, pre_state, post_state):
+def synaptic_plasticity(reservoir, pre_state, post_state):
     """
     Apply the local learning rule (Oja, Anti-Oja, Hebbian, Anti-Hebbian, BCM)
     to update the recurrent weight matrix W.
@@ -34,57 +33,55 @@ def local_plasticity_rule(reservoir, pre_state, post_state):
     This version supports both dense and sparse matrices. For sparse matrices,
     the weight matrix is converted to LIL format for efficient row modifications.
     """
-    W = reservoir.W
+
+    W = reservoir.W  # Expecting W to be in CSR format.
     eta = reservoir.eta
     rule = reservoir.local_rule.lower()
     bcm_theta = reservoir.bcm_theta
     do_norm = reservoir.synapse_normalization
 
-    # pre_state, post_state shape: (1, units) => extract the vectors
-    x = pre_state[0]  # shape (units,) - 'presynaptic'
-    y = post_state[0]  # shape (units,) - 'postsynaptic'
+    # Extract presynaptic and postsynaptic vectors.
+    x = pre_state[0]  # shape: (units,)
+    y = post_state[0]  # shape: (units,)
 
-    # Convert W to COO format for vectorized operations.
-    if not sp.isspmatrix_coo(W):
-        W = W.tocoo()
+    # Ensure W is in CSR format.
+    if not sp.isspmatrix_csr(W):
+        W = W.tocsr()
 
-    # Get row and column indices and the nonzero data array.
-    rows = W.row
-    cols = W.col
-    data = W.data.copy()  # work on a copy to avoid modifying in place
+    # Compute the row index for each nonzero element using np.repeat.
+    # np.diff(W.indptr) gives the count of nonzeros in each row.
+    rows = np.repeat(np.arange(W.shape[0]), np.diff(W.indptr))
+    cols = W.indices
+    data = W.data  # Update in place.
 
-    # For each nonzero element W[i, j], update according to the selected rule:
+    # Vectorized update of nonzero elements based on the chosen rule.
     if rule == "oja":
-        # new_data = old + eta * y[i] * ( x[j] - y[i] * old )
-        data = data + eta * y[rows] * (x[cols] - y[rows] * data)
+        data += eta * y[rows] * (x[cols] - y[rows] * data)
     elif rule == "anti-oja":
-        data = data - eta * y[rows] * (x[cols] - y[rows] * data)
+        data -= eta * y[rows] * (x[cols] - y[rows] * data)
     elif rule == "hebbian":
-        data = data + eta * y[rows] * x[cols]
+        data += eta * y[rows] * x[cols]
     elif rule == "anti-hebbian":
-        data = data - eta * y[rows] * x[cols]
+        data -= eta * y[rows] * x[cols]
     elif rule == "bcm":
-        data = data + eta * y[rows] * (y[rows] - bcm_theta) * x[cols]
+        data += eta * y[rows] * (y[rows] - bcm_theta) * x[cols]
     else:
         raise ValueError(
             f"Unknown learning rule '{rule}'. Choose from: "
             "['oja', 'anti-oja', 'hebbian', 'anti-hebbian', 'bcm']."
         )
 
-    # If row normalization is enabled, compute the L2 norm for each row in a vectorized way.
+    # Optionally normalize each row.
     if do_norm:
-        # Compute sum of squares per row using bincount.
-        row_sums = np.bincount(rows, weights=data**2, minlength=reservoir.output_dim)
+        # Compute the L2 norm per row for the updated data.
+        row_sums = np.bincount(rows, weights=data ** 2, minlength=W.shape[0])
         row_norms = np.sqrt(row_sums)
-        # To avoid division by zero, replace zeros with one.
         safe_norms = np.where(row_norms > 0, row_norms, 1)
-        data = data / safe_norms[rows]
+        data /= safe_norms[rows]
 
-    # Construct the updated sparse matrix in COO format, then convert to CSR.
-    W_new = coo_matrix((data, (rows, cols)), shape=W.shape).tocsr()
-    return W_new
+    return W
 
-def local_backward(reservoir, X=None, *args, **kwargs):
+def sp_backward(reservoir, X=None, *args, **kwargs):
     """
     Offline learning method for the local-rule-based reservoir.
     """
@@ -95,12 +92,12 @@ def local_backward(reservoir, X=None, *args, **kwargs):
                 post_state = reservoir.call(u.reshape(1, -1))  # shape (1, units)
 
                 # Update W with the chosen local rule
-                W_new = local_plasticity_rule(reservoir, pre_state, post_state)
+                W_new = synaptic_plasticity(reservoir, pre_state, post_state)
                 reservoir.set_param("W", W_new)
 
 
 
-def initialize_local_rule(reservoir, *args, **kwargs):
+def initialize_synaptic_plasticity(reservoir, *args, **kwargs):
     """
     Custom initializer for the LocalRuleReservoir.
     Reuses the ESN-like initialization and sets the reservoir internal state to zeros.
@@ -112,7 +109,7 @@ def initialize_local_rule(reservoir, *args, **kwargs):
 #  LocalRuleReservoir  Class   #
 ################################
 
-class LocalRuleReservoir(Unsupervised):
+class SynapticPlasticityReservoir(Unsupervised):
     """
     A reservoir that learns its recurrent weights W through a local
     learning rule selected by the 'learning_rule' hyperparameter.
@@ -157,7 +154,7 @@ class LocalRuleReservoir(Unsupervised):
 
     Example
     -------
-    >>> reservoir = LocalRuleReservoir(
+    >>> reservoir = SynapticPlasticityReservoir(
     ...     units=100, sr=0.9, local_rule="hebbian",
     ...     eta=1e-3, epochs=5, synapse_normalization=True
     ... )
@@ -217,7 +214,7 @@ class LocalRuleReservoir(Unsupervised):
                 f"learning_rule must be one of {valid_rules}, got {local_rule}."
             )
 
-        super(LocalRuleReservoir, self).__init__(
+        super(SynapticPlasticityReservoir, self).__init__(
             fb_initializer=partial(
                 initialize_feedback,
                 Wfb_init=Wfb,
@@ -257,7 +254,7 @@ class LocalRuleReservoir(Unsupervised):
             },
             forward=forward_external,
             initializer=partial(
-                initialize_local_rule,
+                initialize_synaptic_plasticity,
                 input_bias=input_bias,
                 bias_scaling=bias_scaling,
                 sr=sr,
@@ -269,7 +266,7 @@ class LocalRuleReservoir(Unsupervised):
                 bias_init=bias,
                 seed=seed,
             ),
-            backward=local_backward,
+            backward=sp_backward,
             output_dim=units,
             feedback_dim=feedback_dim,
             name=name,
@@ -306,7 +303,7 @@ class LocalRuleReservoir(Unsupervised):
     # partial_fit => local rule
     ############################
 
-    def partial_fit(self, X_batch, Y_batch=None, warmup=0, **kwargs) -> "LocalRuleReservoir":
+    def partial_fit(self, X_batch, Y_batch=None, warmup=0, **kwargs) -> "SynapticPlasticityReservoir":
         """Partial offline fitting method (for batch training)."""
         X, _ = check_xy(self, X_batch, allow_n_inputs=False)
         X, _ = _init_with_sequences(self, X)

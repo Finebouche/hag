@@ -31,14 +31,14 @@ from reservoirpy.nodes.reservoirs.intrinsic_plasticity import (
 )
 
 # Local update function:
-from reservoir.localRuleReservoir import local_plasticity_rule
+from reservoir.synapticPlasticityReservoir import synaptic_plasticity
 
 
 ##########################################
 #  1) IP + Local Rule "backward" method  #
 ##########################################
 
-def ip_local_backward(reservoir: "IPLocalRuleReservoir", X=None, *args, **kwargs):
+def ip_sp_backward(reservoir: "IPSPReservoir", X=None, *args, **kwargs):
     """
     Offline learning method for a reservoir combining intrinsic plasticity (IP)
     and a local synaptic rule (Oja, Hebb, etc.). The logic is:
@@ -60,18 +60,18 @@ def ip_local_backward(reservoir: "IPLocalRuleReservoir", X=None, *args, **kwargs
                 reservoir.set_param("a", a_new)
                 reservoir.set_param("b", b_new)
 
-                # 3) Local rule update
-                W_new = local_plasticity_rule(reservoir, pre_state, post_state)
+                # 3) Synaptic Plasticity update
+                W_new = synaptic_plasticity(reservoir, pre_state, post_state)
                 reservoir.set_param("W", W_new)
 
 
 ###################################################
-#  2) Initialization for the IP + Local Rule ESN  #
+#  2) Initialization for the IP + Synaptic Plasticity ESN  #
 ###################################################
 
-def initialize_ip_local_reservoir(reservoir, *args, **kwargs):
+def initialize_ip_sp_reservoir(reservoir, *args, **kwargs):
     """
-    Custom initializer for an IP + local-rule reservoir.
+    Custom initializer for an IP + Synaptic Plasticity reservoir.
     1) Calls the usual ESN-like initialization (W, Win, bias, etc.).
     2) Initializes IP parameters (a, b).
     """
@@ -89,7 +89,7 @@ def initialize_ip_local_reservoir(reservoir, *args, **kwargs):
 #  3) IP + LocalRule Reservoir  Class  #
 ########################################
 
-class IPLocalRuleReservoir(Unsupervised):
+class IPSPReservoir(Unsupervised):
     """
     A reservoir implementing:
       - Intrinsic Plasticity (neuron-wise parameters 'a' and 'b'), and
@@ -247,7 +247,7 @@ class IPLocalRuleReservoir(Unsupervised):
             },
             forward=forward_external,
             initializer=partial(
-                initialize_ip_local_reservoir,
+                initialize_ip_sp_reservoir,
                 sr=sr,
                 input_bias=input_bias,
                 bias_scaling=bias_scaling,
@@ -259,7 +259,7 @@ class IPLocalRuleReservoir(Unsupervised):
                 bias_init=bias,
                 seed=seed,
             ),
-            backward=ip_local_backward,
+            backward=ip_sp_backward,
             output_dim=units,
             feedback_dim=feedback_dim,
             name=name,
@@ -329,7 +329,7 @@ class IPLocalRuleReservoir(Unsupervised):
     #  partial_fit => same logic   #
     ################################
 
-    def partial_fit(self, X_batch, Y_batch=None, warmup=0, **kwargs) -> "IPLocalRuleReservoir":
+    def partial_fit(self, X_batch, Y_batch=None, warmup=0, **kwargs) -> "IPSPReservoir":
         """
         Partial offline fitting method:
           - Warmup the reservoir for `warmup` steps (no learning).
@@ -345,7 +345,7 @@ class IPLocalRuleReservoir(Unsupervised):
 
         Returns
         -------
-        IPLocalRuleReservoir
+        IPSPReservoir
             The reservoir itself (fitted).
         """
         X, _ = check_xy(self, X_batch, allow_n_inputs=False)
