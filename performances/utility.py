@@ -19,7 +19,7 @@ def retrieve_best_model(function_name, dataset_name, is_multivariate, variate_ty
         raise ValueError(f"Invalid variable type: {variate_type}")
 
     study_name = function_name + "_" + dataset_name + "_" + data_type + "_" + variate_type
-    url = "sqlite:///optuna_" + camel_to_snake(dataset_name) + "_db.sqlite3"
+    url = "sqlite:///tpe_" + camel_to_snake(dataset_name) + "_db.sqlite3"
     study = optuna.load_study(study_name=study_name, storage=url)  # To load an existing study
 
     return study
