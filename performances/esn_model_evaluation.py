@@ -7,7 +7,7 @@ from tqdm import tqdm
 from performances.losses import nrmse_multivariate
 from reservoirpy.nodes import Reservoir, IPReservoir, Ridge, RLS, LMS, NVAR
 from reservoir.synapticPlasticityReservoir import SynapticPlasticityReservoir
-from reservoir.ip_localRuleReservoir import IPSPReservoir
+from reservoir.intrinsicSynapticPlasticityReservoir import IPSPReservoir
 import reservoirpy
 
 reservoirpy.verbosity(level=0)
