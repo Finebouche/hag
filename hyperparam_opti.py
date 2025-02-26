@@ -10,7 +10,16 @@ from datasets.load_data import load_data
 from reservoir.activation_functions import tanh, heaviside, sigmoid
 
 step_ahead=5
-dataset_name = "MackeyGlass" # can be "CatsDogs", "FSDD", "JapaneseVowels", "SPEECHCOMMANDS", "SpokenArabicDigits", "Lorenz", "MackeyGlass", "Sunspot"
+dataset_name = "SPEECHCOMMANDS" # can be "CatsDogs", "FSDD", "JapaneseVowels", "SPEECHCOMMANDS", "SpokenArabicDigits", "MackeyGlass", "Sunspot", "Lorenz", "Henon", "NARMA"
+
+# score for prediction
+if dataset_name == "Sunspot":
+    start_step = 30
+    end_step = 500
+else:
+    start_step = 500
+    end_step = 1500
+SLICE_RANGE = slice(start_step, end_step)
 
 print(f"Loading {dataset_name}")
 
@@ -207,198 +216,195 @@ from performances.esn_model_evaluation import train_model_for_classification, pr
 from performances.esn_model_evaluation import train_model_for_prediction, init_reservoir, init_ip_reservoir, \
     init_local_rule_reservoir, init_ip_local_rule_reservoir, init_readout
 
-# score for prediction
-start_step = 30
-end_step = 500
-SLICE_RANGE = slice(start_step, end_step)
 RESERVOIR_SIZE = 500
 
-nb_jobs_per_trial = 1
-function_name = "ip-anti-oja"  # "desp" ou "hadsp", "random", "random_ei", "ip_correct", "anti-oja", "ip-anti-oja"
+nb_jobs_per_trial = 10
 variate_type = "multi"  # "multi" ou "uni"
 if variate_type == "uni" and is_multivariate:
     raise ValueError(f"Invalid variable type: {variate_type}")
 
+#function_name = "ip-anti-oja"  # "random", "random_ei", "desp", "hadsp", "ip_correct", "anti-oja", "ip-anti-oja"
+for function_name in ["ip-anti-oja"]:
 
-def objective(trial):
-    # Suggest values for the parameters you want to optimize
-    # COMMON
-    ridge = trial.suggest_int('ridge', -12, 1)
-    RIDGE_COEF = 10 ** ridge
+    def objective(trial):
+        # Suggest values for the parameters you want to optimize
+        # COMMON
+        ridge = trial.suggest_int('ridge', -12, 1)
+        RIDGE_COEF = 10 ** ridge
 
-    network_size = trial.suggest_int('network_size', RESERVOIR_SIZE, RESERVOIR_SIZE)
-    input_scaling = trial.suggest_float('input_scaling', 0.01, 0.2, step=0.005)
-    bias_scaling = trial.suggest_float('bias_scaling', 0, 0.2, step=0.005)
-    leaky_rate = trial.suggest_float('leaky_rate', 1, 1)
-    input_connectivity = trial.suggest_float('input_connectivity', 1, 1)
+        network_size = trial.suggest_int('network_size', RESERVOIR_SIZE, RESERVOIR_SIZE)
+        input_scaling = trial.suggest_float('input_scaling', 0.01, 0.2, step=0.005)
+        bias_scaling = trial.suggest_float('bias_scaling', 0, 0.2, step=0.005)
+        leaky_rate = trial.suggest_float('leaky_rate', 1, 1)
+        input_connectivity = trial.suggest_float('input_connectivity', 1, 1)
 
-    min_window_size = sampling_rate / np.max(np.hstack(peak_freqs))
-    max_window_size = sampling_rate / np.min(np.hstack(peak_freqs))
+        min_window_size = sampling_rate / np.max(np.hstack(peak_freqs))
+        max_window_size = sampling_rate / np.min(np.hstack(peak_freqs))
 
-    # HADSP
-    if function_name == "hadsp":
-        target_rate = trial.suggest_float('target_rate', 0.5, 1, step=0.01)
-        rate_spread = trial.suggest_float('rate_spread', 0.01, 0.4, step=0.005)
-        method = trial.suggest_categorical("method", ["random", "pearson"])
-    # DESP
-    elif function_name == "desp":
-        variance_target = trial.suggest_float('variance_target', 0.001, 0.02, step=0.001)
-        variance_spread = trial.suggest_float('variance_spread', 0.001, 0.05, step=0.002)
-        intrinsic_saturation = trial.suggest_float('intrinsic_saturation', 0.8, 0.98, step=0.02)
-        intrinsic_coef = trial.suggest_float('intrinsic_coef', 0.8, 0.98, step=0.02)
-        method = trial.suggest_categorical("method", ["pearson"])
-    elif function_name in ["random", "random_ei", "ip_correct", "anti-oja", "ip-anti-oja"]:
-        connectivity = trial.suggest_float('connectivity', 0, 1)
-        sr = trial.suggest_float('spectral_radius', 0.4, 1.6, step=0.01)
-    else:
-        raise ValueError(f"Invalid function name: {function_name}")
-
-    if function_name in ["ip_correct", "ip-anti-oja"] :
-        mu = trial.suggest_float('mu', 0, 1)
-        sigma = trial.suggest_float('sigma', 0, 1)
-        learning_rate = trial.suggest_float('learning_rate', 1e-6, 1e-1, log=True)
-    if function_name in ["anti-oja", "ip-anti-oja"]:
-        # We often use a log-uniform distribution for learning rates:
-        oja_eta = trial.suggest_float('oja_eta', 1e-5, 1e-1, log=True)
-
-
-    if function_name in ["hadsp", "desp"]:
-        connectivity = trial.suggest_float('connectivity', 0, 0)
-        weight_increment = trial.suggest_float('weight_increment', 0.001, 0.1, step=0.001)
-        max_partners = trial.suggest_int('max_partners', 10, 20)
-        if is_instances_classification:
-            use_full_instance = trial.suggest_categorical('use_full_instance', [True, False])
-        else:
-            use_full_instance = False
-        TIME_INCREMENT = trial.suggest_int('time_increment', int(min_window_size + 1),
-                                           100)  # int(min_window_size+1) or int(max_window_size)
-        max_increment_span = int(max_window_size) if int(max_window_size) - 100 < 0 else int(max_window_size) - 100
-        time_increment_span = trial.suggest_int('time_increment_span', 0, max_increment_span)
-        MAX_TIME_INCREMENT = TIME_INCREMENT + time_increment_span  # int(max_window_size) or None or TIME_INCREMENT
-
-    # CROSS-VALIDATION METHODS
-    total_score = 0
-    for i in range(nb_splits):
-        common_index = 1
-        if is_instances_classification:
-            common_size = X_train_band[i][0].shape[common_index]
-        else:
-            common_size = X_train_band[i].shape[common_index]
-
-        # We want the size of the reservoir to be at least network_size
-        K = math.ceil(network_size / common_size)
-        n = common_size * K
-
-        pretrain_data = X_pretrain_band[i]
-        train_data = X_train_band[i]  # X_train_band_noisy_duplicated or X_train_band_duplicated
-        val_data = X_val_band_noisy[i] if data_type == "noisy" else X_val_band[i]
-
-        # INITIALISATION AND UNSUPERVISED PRETRAINING
-        if function_name == "random_ei":
-            Win, W, bias = init_matrices(n, input_connectivity, connectivity, K, w_distribution=stats.uniform(-1, 1),
-                                         seed=random.randint(0, 1000))
-        else:
-            Win, W, bias = init_matrices(n, input_connectivity, connectivity, K, seed=random.randint(0, 1000))
-        bias *= bias_scaling
-        Win *= input_scaling
-
+        # HADSP
         if function_name == "hadsp":
-            W, (_, _, _) = run_algorithm(W, Win, bias, leaky_rate, activation_function, pretrain_data, TIME_INCREMENT,
-                                         weight_increment,
-                                         target_rate, rate_spread, function_name,
-                                         is_instance=is_instances_classification, use_full_instance=use_full_instance,
-                                         max_increment=MAX_TIME_INCREMENT, max_partners=max_partners, method=method,
-                                         n_jobs=nb_jobs_per_trial)
+            target_rate = trial.suggest_float('target_rate', 0.5, 1, step=0.01)
+            rate_spread = trial.suggest_float('rate_spread', 0.01, 0.4, step=0.005)
+            method = trial.suggest_categorical("method", ["random", "pearson"])
+        # DESP
         elif function_name == "desp":
-            W, (_, _, _) = run_algorithm(W, Win, bias, leaky_rate, activation_function, pretrain_data, TIME_INCREMENT,
-                                         weight_increment,
-                                         variance_target, variance_spread, function_name,
-                                         is_instance=is_instances_classification, use_full_instance=use_full_instance,
-                                         max_increment=MAX_TIME_INCREMENT, max_partners=max_partners, method=method,
-                                         intrinsic_saturation=intrinsic_saturation, intrinsic_coef=intrinsic_coef,
-                                         n_jobs=nb_jobs_per_trial)
+            variance_target = trial.suggest_float('variance_target', 0.001, 0.02, step=0.001)
+            variance_spread = trial.suggest_float('variance_spread', 0.001, 0.05, step=0.002)
+            intrinsic_saturation = trial.suggest_float('intrinsic_saturation', 0.8, 0.98, step=0.02)
+            intrinsic_coef = trial.suggest_float('intrinsic_coef', 0.8, 0.98, step=0.02)
+            method = trial.suggest_categorical("method", ["pearson"])
         elif function_name in ["random", "random_ei", "ip_correct", "anti-oja", "ip-anti-oja"]:
-            eigen = sparse.linalg.eigs(W, k=1, which="LM", maxiter=W.shape[0] * 20, tol=0.1, return_eigenvectors=False)
-            W *= sr / max(abs(eigen))
+            connectivity = trial.suggest_float('connectivity', 0, 1)
+            sr = trial.suggest_float('spectral_radius', 0.4, 1.6, step=0.01)
         else:
-            raise ValueError(f"Invalid function: {function_name}")
+            raise ValueError(f"Invalid function name: {function_name}")
 
-        # unsupervised local rules
-        if is_instances_classification:
-            unsupervised_pretrain = np.concatenate(pretrain_data).astype(float)
-        else:
-            unsupervised_pretrain = pretrain_data.astype(float)
-        if function_name == "ip_correct":
-            reservoir = init_ip_reservoir(W, Win, bias, mu=mu, sigma=sigma, learning_rate=learning_rate,
-                                          leaking_rate=leaky_rate, activation_function=activation_function
-                                          )
-            _ = reservoir.fit(unsupervised_pretrain, warmup=100)
-        elif function_name == "anti_oja":
-            reservoir = init_local_rule_reservoir(W, Win, bias, local_rule="anti-oja", eta=oja_eta,
-                                                   synapse_normalization=True, bcm_theta=None,
-                                                   leaking_rate=leaky_rate, activation_function=activation_function,
-                                                   )
-            _ = reservoir.fit(unsupervised_pretrain, warmup=100)
-        elif function_name == "ip-anti-oja":
-            reservoir = init_ip_local_rule_reservoir(W, Win, bias, local_rule="anti-oja", eta=oja_eta,
-                                                      synapse_normalization=True, bcm_theta=None,
-                                                      mu=mu, sigma=sigma, learning_rate=learning_rate,
-                                                      leaking_rate=leaky_rate, activation_function=activation_function,
-                                                      )
-            _ = reservoir.fit(unsupervised_pretrain, warmup=100)
-        else:
-            reservoir = init_reservoir(W, Win, bias, leaky_rate, activation_function)
-        readout = init_readout(ridge_coef=RIDGE_COEF)
+        if function_name in ["ip_correct", "ip-anti-oja"] :
+            mu = trial.suggest_float('mu', 0, 1)
+            sigma = trial.suggest_float('sigma', 0, 1)
+            learning_rate = trial.suggest_float('learning_rate', 1e-6, 1e-1, log=True)
+        if function_name in ["anti-oja", "ip-anti-oja"]:
+            # We often use a log-uniform distribution for learning rates:
+            oja_eta = trial.suggest_float('oja_eta', 1e-5, 1e-1, log=True)
 
-        # TRAINING and EVALUATION
-        if is_instances_classification:
-            mode = "sequence-to-vector"
-            train_model_for_classification(reservoir, readout, train_data, Y_train[i], n_jobs=nb_jobs_per_trial, mode=mode)
 
-            Y_pred = predict_model_for_classification(reservoir, readout, val_data, n_jobs=nb_jobs_per_trial, mode=mode)
-            score = compute_score(Y_pred, Y_val[i], is_instances_classification)
-        else:
-            esn = train_model_for_prediction(reservoir, readout, train_data, Y_train[i])
+        if function_name in ["hadsp", "desp"]:
+            connectivity = trial.suggest_float('connectivity', 0, 0)
+            weight_increment = trial.suggest_float('weight_increment', 0.001, 0.1, step=0.001)
+            max_partners = trial.suggest_int('max_partners', 10, 20)
+            if is_instances_classification:
+                use_full_instance = trial.suggest_categorical('use_full_instance', [True, False])
+            else:
+                use_full_instance = False
+            TIME_INCREMENT = trial.suggest_int('time_increment', int(min_window_size + 1),
+                                               100)  # int(min_window_size+1) or int(max_window_size)
+            max_increment_span = int(max_window_size) if int(max_window_size) - 100 < 0 else int(max_window_size) - 100
+            time_increment_span = trial.suggest_int('time_increment_span', 0, max_increment_span)
+            MAX_TIME_INCREMENT = TIME_INCREMENT + time_increment_span  # int(max_window_size) or None or TIME_INCREMENT
 
-            Y_pred = esn.run(val_data, reset=False)
-            score = compute_score(Y_pred, Y_val[i], is_instances_classification)
+        # CROSS-VALIDATION METHODS
+        total_score = 0
+        for i in range(nb_splits):
+            common_index = 1
+            if is_instances_classification:
+                common_size = X_train_band[i][0].shape[common_index]
+            else:
+                common_size = X_train_band[i].shape[common_index]
 
-        total_score += score
+            # We want the size of the reservoir to be at least network_size
+            K = math.ceil(network_size / common_size)
+            n = common_size * K
 
-    average_score = total_score / nb_splits  # Average the score
+            pretrain_data = X_pretrain_band[i]
+            train_data = X_train_band[i]  # X_train_band_noisy_duplicated or X_train_band_duplicated
+            val_data = X_val_band_noisy[i] if data_type == "noisy" else X_val_band[i]
 
-    return average_score
+            # INITIALISATION AND UNSUPERVISED PRETRAINING
+            if function_name == "random_ei":
+                Win, W, bias = init_matrices(n, input_connectivity, connectivity, K, w_distribution=stats.uniform(-1, 1),
+                                             seed=random.randint(0, 1000))
+            else:
+                Win, W, bias = init_matrices(n, input_connectivity, connectivity, K, seed=random.randint(0, 1000))
+            bias *= bias_scaling
+            Win *= input_scaling
 
-import optuna
-from optuna.samplers import TPESampler
-from performances.utility import camel_to_snake
+            if function_name == "hadsp":
+                W, (_, _, _) = run_algorithm(W, Win, bias, leaky_rate, activation_function, pretrain_data, TIME_INCREMENT,
+                                             weight_increment,
+                                             target_rate, rate_spread, function_name,
+                                             is_instance=is_instances_classification, use_full_instance=use_full_instance,
+                                             max_increment=MAX_TIME_INCREMENT, max_partners=max_partners, method=method,
+                                             n_jobs=nb_jobs_per_trial)
+            elif function_name == "desp":
+                W, (_, _, _) = run_algorithm(W, Win, bias, leaky_rate, activation_function, pretrain_data, TIME_INCREMENT,
+                                             weight_increment,
+                                             variance_target, variance_spread, function_name,
+                                             is_instance=is_instances_classification, use_full_instance=use_full_instance,
+                                             max_increment=MAX_TIME_INCREMENT, max_partners=max_partners, method=method,
+                                             intrinsic_saturation=intrinsic_saturation, intrinsic_coef=intrinsic_coef,
+                                             n_jobs=nb_jobs_per_trial)
+            elif function_name in ["random", "random_ei", "ip_correct", "anti-oja", "ip-anti-oja"]:
+                eigen = sparse.linalg.eigs(W, k=1, which="LM", maxiter=W.shape[0] * 20, tol=0.1, return_eigenvectors=False)
+                W *= sr / max(abs(eigen))
+            else:
+                raise ValueError(f"Invalid function: {function_name}")
 
-url= "sqlite:///optuna_" + camel_to_snake(dataset_name) + "_db.sqlite3"
-print(url)
+            # unsupervised local rules
+            if is_instances_classification:
+                unsupervised_pretrain = np.concatenate(pretrain_data).astype(float)
+            else:
+                unsupervised_pretrain = pretrain_data.astype(float)
+            if function_name == "ip_correct":
+                reservoir = init_ip_reservoir(W, Win, bias, mu=mu, sigma=sigma, learning_rate=learning_rate,
+                                              leaking_rate=leaky_rate, activation_function=activation_function
+                                              )
+                _ = reservoir.fit(unsupervised_pretrain, warmup=100)
+            elif function_name == "anti_oja":
+                reservoir = init_local_rule_reservoir(W, Win, bias, local_rule="anti-oja", eta=oja_eta,
+                                                       synapse_normalization=True, bcm_theta=None,
+                                                       leaking_rate=leaky_rate, activation_function=activation_function,
+                                                       )
+                _ = reservoir.fit(unsupervised_pretrain, warmup=100)
+            elif function_name == "ip-anti-oja":
+                reservoir = init_ip_local_rule_reservoir(W, Win, bias, local_rule="anti-oja", eta=oja_eta,
+                                                          synapse_normalization=True, bcm_theta=None,
+                                                          mu=mu, sigma=sigma, learning_rate=learning_rate,
+                                                          leaking_rate=leaky_rate, activation_function=activation_function,
+                                                          )
+                _ = reservoir.fit(unsupervised_pretrain, warmup=100)
+            else:
+                reservoir = init_reservoir(W, Win, bias, leaky_rate, activation_function)
+            readout = init_readout(ridge_coef=RIDGE_COEF)
 
-study_name = function_name + "_" + dataset_name + "_" + data_type + "_" + variate_type
-print(study_name)
+            # TRAINING and EVALUATION
+            if is_instances_classification:
+                mode = "sequence-to-vector"
+                train_model_for_classification(reservoir, readout, train_data, Y_train[i], n_jobs=nb_jobs_per_trial, mode=mode)
 
-direction = "maximize" if is_instances_classification else "minimize"
+                Y_pred = predict_model_for_classification(reservoir, readout, val_data, n_jobs=nb_jobs_per_trial, mode=mode)
+                score = compute_score(Y_pred, Y_val[i], is_instances_classification)
+            else:
+                esn = train_model_for_prediction(reservoir, readout, train_data, Y_train[i], warmup=start_step)
 
-storage = optuna.storages.RDBStorage(
-    url=url,
-    engine_kwargs={"pool_size": 20, "connect_args": {"timeout": 10}},
-)
-sampler = TPESampler()
+                Y_pred = esn.run(val_data, reset=False)
+                score = compute_score(Y_pred[SLICE_RANGE], Y_val[i][SLICE_RANGE], is_instances_classification)
 
-def optimize_study(n_trials):
+            total_score += score
+
+        average_score = total_score / nb_splits  # Average the score
+
+        return average_score
+
+    import optuna
+    from optuna.samplers import TPESampler
+    from performances.utility import camel_to_snake
+
+    url= "sqlite:///tpe_" + camel_to_snake(dataset_name) + "_db.sqlite3"
+    print(url)
+
+    study_name = function_name + "_" + dataset_name + "_" + data_type + "_" + variate_type
+    print(study_name)
+
+    direction = "maximize" if is_instances_classification else "minimize"
+
+    storage = optuna.storages.RDBStorage(
+        url=url,
+        engine_kwargs={"pool_size": 20, "connect_args": {"timeout": 10}},
+    )
+    sampler = TPESampler()
+
+    def optimize_study(n_trials):
+        study = optuna.create_study(storage=storage, sampler=sampler, study_name=study_name, direction=direction, load_if_exists=True)
+        study.optimize(objective, n_trials=n_trials)
+
+    N_TRIALS = 300
+    n_parallel_studies = 1
+    trials_per_process = N_TRIALS // n_parallel_studies
+
+    # Use joblib to parallelize the optimization
+    # Parallel(n_jobs=n_parallel_studies)(
+    #     delayed(optimize_study)(trials_per_process) for _ in range(n_parallel_studies)
+    # )
+    #
     study = optuna.create_study(storage=storage, sampler=sampler, study_name=study_name, direction=direction, load_if_exists=True)
-    study.optimize(objective, n_trials=n_trials)
-
-N_TRIALS = 400
-n_parallel_studies = 8
-trials_per_process = N_TRIALS // n_parallel_studies
-
-# Use joblib to parallelize the optimization
-Parallel(n_jobs=n_parallel_studies)(
-    delayed(optimize_study)(trials_per_process) for _ in range(n_parallel_studies)
-)
-
-# study = optuna.create_study(storage=storage, sampler=sampler, study_name=study_name, direction=direction, load_if_exists=True)
-# study.optimize(objective, n_trials=N_TRIALS)
+    study.optimize(objective, n_trials=N_TRIALS)
