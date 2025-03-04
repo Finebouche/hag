@@ -9,7 +9,7 @@ def update_reservoir(W, Win, u, r, leaky_rate, bias, activation_function):
     return activation_function(pre_s)
 
 
-def init_matrices(n, input_connectivity, connectivity, K, spectral_radius=1, w_distribution=stats.uniform(0, 1),
+def init_matrices(n, input_connectivity, connectivity, K, spectral_radius=1, w_distribution=stats.uniform(-1, 1),
                   win_distribution=stats.norm(1, 0.5), seed=111):
     # K is the number of time a single input is repeated to the reservoir
     # The distribution generation functions #
