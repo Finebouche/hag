@@ -1,4 +1,11 @@
 Dataset,Function,Average Score,Standard Deviation,Date
+Sunspot_daily,random,0.24633,± 0.00125,2025-02-27
+Sunspot_daily,random_ei,0.17792,± 0.01913,2025-02-27
+Sunspot_daily,ip_correct,0.22065,± 0.0064,2025-02-27
+Sunspot_daily,anti-oja,0.18223,± 0.00745,2025-02-27
+Sunspot_daily,ip-anti-oja,0.26165,± 0.00101,2025-02-27
+Sunspot_daily,hadsp,0.20475,± 0.00508,2025-02-27
+Sunspot_daily,desp,0.18824,± 0.0375,2025-02-28
 Sunspot,random,0.00261,± 0.00017,2025-02-25
 Sunspot,random_ei,0.003,± 0.00025,2025-02-25
 Sunspot,ip-anti-oja,0.00343,± 0.00079,2025-02-25

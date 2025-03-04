@@ -10,7 +10,7 @@ from datasets.load_data import load_data
 from reservoir.activation_functions import tanh, heaviside, sigmoid
 
 step_ahead=5
-dataset_name = "SPEECHCOMMANDS" # can be "CatsDogs", "FSDD", "JapaneseVowels", "SPEECHCOMMANDS", "SpokenArabicDigits", "MackeyGlass", "Sunspot", "Lorenz", "Henon", "NARMA"
+dataset_name = "Sunspot_daily" # can be "CatsDogs", "FSDD", "JapaneseVowels", "SPEECHCOMMANDS", "SpokenArabicDigits", "MackeyGlass", "Sunspot", "Lorenz", "Henon", "NARMA"
 
 # score for prediction
 if dataset_name == "Sunspot":
@@ -223,8 +223,8 @@ variate_type = "multi"  # "multi" ou "uni"
 if variate_type == "uni" and is_multivariate:
     raise ValueError(f"Invalid variable type: {variate_type}")
 
-#function_name = "ip-anti-oja"  # "random", "random_ei", "desp", "hadsp", "ip_correct", "anti-oja", "ip-anti-oja"
-for function_name in ["ip-anti-oja"]:
+#function_name = "ip-anti-oja"  # "random_ee", "random_ei", "desp", "hadsp", "ip_correct", "anti-oja", "ip-anti-oja"
+for function_name in ["anti-oja"]:
 
     def objective(trial):
         # Suggest values for the parameters you want to optimize
@@ -245,15 +245,15 @@ for function_name in ["ip-anti-oja"]:
         if function_name == "hadsp":
             target_rate = trial.suggest_float('target_rate', 0.5, 1, step=0.01)
             rate_spread = trial.suggest_float('rate_spread', 0.01, 0.4, step=0.005)
-            method = trial.suggest_categorical("method", ["random", "pearson"])
+            method = "pearson"
         # DESP
         elif function_name == "desp":
             variance_target = trial.suggest_float('variance_target', 0.001, 0.02, step=0.001)
             variance_spread = trial.suggest_float('variance_spread', 0.001, 0.05, step=0.002)
             intrinsic_saturation = trial.suggest_float('intrinsic_saturation', 0.8, 0.98, step=0.02)
             intrinsic_coef = trial.suggest_float('intrinsic_coef', 0.8, 0.98, step=0.02)
-            method = trial.suggest_categorical("method", ["pearson"])
-        elif function_name in ["random", "random_ei", "ip_correct", "anti-oja", "ip-anti-oja"]:
+            method = "pearson"
+        elif function_name in ["random_ee", "random_ei", "ip_correct", "anti-oja", "ip-anti-oja"]:
             connectivity = trial.suggest_float('connectivity', 0, 1)
             sr = trial.suggest_float('spectral_radius', 0.4, 1.6, step=0.01)
         else:
@@ -300,11 +300,10 @@ for function_name in ["ip-anti-oja"]:
             val_data = X_val_band_noisy[i] if data_type == "noisy" else X_val_band[i]
 
             # INITIALISATION AND UNSUPERVISED PRETRAINING
-            if function_name == "random_ei":
-                Win, W, bias = init_matrices(n, input_connectivity, connectivity, K, w_distribution=stats.uniform(-1, 1),
-                                             seed=random.randint(0, 1000))
+            if function_name == "random_ee":
+                Win, W, bias = init_matrices(n, input_connectivity, connectivity, K, w_distribution=stats.uniform(0, 1), seed=random.randint(0, 1000))
             else:
-                Win, W, bias = init_matrices(n, input_connectivity, connectivity, K, seed=random.randint(0, 1000))
+                Win, W, bias = init_matrices(n, input_connectivity, connectivity, K, w_distribution=stats.uniform(-1, 1), seed=random.randint(0, 1000))
             bias *= bias_scaling
             Win *= input_scaling
 
@@ -323,7 +322,7 @@ for function_name in ["ip-anti-oja"]:
                                              max_increment=MAX_TIME_INCREMENT, max_partners=max_partners, method=method,
                                              intrinsic_saturation=intrinsic_saturation, intrinsic_coef=intrinsic_coef,
                                              n_jobs=nb_jobs_per_trial)
-            elif function_name in ["random", "random_ei", "ip_correct", "anti-oja", "ip-anti-oja"]:
+            elif function_name in ["random_ee", "random_ei", "ip_correct", "anti-oja", "ip-anti-oja"]:
                 eigen = sparse.linalg.eigs(W, k=1, which="LM", maxiter=W.shape[0] * 20, tol=0.1, return_eigenvectors=False)
                 W *= sr / max(abs(eigen))
             else:
@@ -376,35 +375,35 @@ for function_name in ["ip-anti-oja"]:
         return average_score
 
     import optuna
-    from optuna.samplers import TPESampler
-    from performances.utility import camel_to_snake
+    from optuna.samplers import TPESampler, CmaEsSampler
+    import re
 
-    url= "sqlite:///tpe_" + camel_to_snake(dataset_name) + "_db.sqlite3"
+    def camel_to_snake(name):
+        str1 = re.sub('(.)([A-Z][a-z]+)', r'\1_\2', name)
+        return re.sub('([a-z0-9])([A-Z])', r'\1_\2', str1).lower()
+
+    print("Start optuna")
+
+    sampler = TPESampler()
+    sampler_name = "cmaes" if isinstance(sampler, CmaEsSampler) else "tpe"
+    url = f"sqlite:///{sampler_name}_{camel_to_snake(dataset_name)}_db.sqlite3"
+    storage = optuna.storages.RDBStorage(url=url, engine_kwargs={"pool_size": 20, "connect_args": {"timeout": 10}})
     print(url)
-
     study_name = function_name + "_" + dataset_name + "_" + data_type + "_" + variate_type
     print(study_name)
-
     direction = "maximize" if is_instances_classification else "minimize"
 
-    storage = optuna.storages.RDBStorage(
-        url=url,
-        engine_kwargs={"pool_size": 20, "connect_args": {"timeout": 10}},
-    )
-    sampler = TPESampler()
-
-    def optimize_study(n_trials):
-        study = optuna.create_study(storage=storage, sampler=sampler, study_name=study_name, direction=direction, load_if_exists=True)
-        study.optimize(objective, n_trials=n_trials)
-
-    N_TRIALS = 300
-    n_parallel_studies = 1
+    N_TRIALS = 30
+    n_parallel_studies = 10
     trials_per_process = N_TRIALS // n_parallel_studies
 
     # Use joblib to parallelize the optimization
-    # Parallel(n_jobs=n_parallel_studies)(
-    #     delayed(optimize_study)(trials_per_process) for _ in range(n_parallel_studies)
-    # )
-    #
-    study = optuna.create_study(storage=storage, sampler=sampler, study_name=study_name, direction=direction, load_if_exists=True)
-    study.optimize(objective, n_trials=N_TRIALS)
+    def optimize_study(n_trials):
+        study = optuna.create_study(storage=storage, sampler=sampler, study_name=study_name, direction=direction, load_if_exists=True)
+        study.optimize(objective, n_trials=n_trials)
+    Parallel(n_jobs=n_parallel_studies)(
+        delayed(optimize_study)(trials_per_process) for _ in range(n_parallel_studies)
+    )
+
+    # study = optuna.create_study(storage=storage, sampler=sampler, study_name=study_name, direction=direction, load_if_exists=True)
+    # study.optimize(objective, n_trials=N_TRIALS)

@@ -209,7 +209,7 @@ end_step = 500
 SLICE_RANGE = slice(start_step, end_step)
 RESERVOIR_SIZE = 500
 
-nb_jobs_per_trial = 8
+nb_jobs_per_trial = 10
 function_name = "ip_correct" # "desp" ou "hadsp", "random", "random_ei", "ip", or "nvar"
 variate_type = "multi"  # "multi" ou "uni"
 if variate_type == "uni" and is_multivariate:
@@ -375,7 +375,7 @@ print("Start optuna")
 def camel_to_snake(name):
     str1 = re.sub('(.)([A-Z][a-z]+)', r'\1_\2', name)
     return re.sub('([a-z0-9])([A-Z])', r'\1_\2', str1).lower()
-url= "sqlite:///optuna_" + camel_to_snake(dataset_name) + "_db.sqlite3"
+url= "sqlite:///tpe_" + camel_to_snake(dataset_name) + "_db.sqlite3"
 print(url)
 
 storage = optuna.storages.RDBStorage(
@@ -392,7 +392,12 @@ def optimize_study(n_trials):
     study = optuna.create_study(storage=storage, sampler=sampler, study_name=study_name, direction=direction, load_if_exists=True)
     study.optimize(objective, n_trials=n_trials)
 
-N_TRIALS = 50
-
+N_TRIALS = 206
 # Call the function directly without joblib parallelization
 optimize_study(N_TRIALS)
+
+# n_parallel_studies = 1
+# trials_per_process = N_TRIALS // n_parallel_studies
+# Parallel(n_jobs=n_parallel_studies)(
+#     delayed(optimize_study)(trials_per_process) for _ in range(n_parallel_studies)
+# )

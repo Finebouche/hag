@@ -214,7 +214,7 @@ class SynapticPlasticityReservoir(Unsupervised):
                 f"learning_rule must be one of {valid_rules}, got {local_rule}."
             )
 
-        super(SynapticPlasticityReservoir, self).__init__(
+        super().__init__(
             fb_initializer=partial(
                 initialize_feedback,
                 Wfb_init=Wfb,
@@ -230,7 +230,7 @@ class SynapticPlasticityReservoir(Unsupervised):
                 "internal_state": None,
             },
             hypers={
-                "learning_rule": local_rule.lower(),
+                "local_rule": local_rule.lower(),
                 "bcm_theta": bcm_theta,
                 "eta": eta,
                 "synapse_normalization": synapse_normalization,
