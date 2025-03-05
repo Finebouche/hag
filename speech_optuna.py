@@ -289,11 +289,10 @@ def objective(trial):
         val_data = X_val_band_noisy[i] if data_type == "noisy" else X_val_band[i]
 
         # INITIALISATION AND UNSUPERVISED PRETRAINING
-        if function_name == "random_ei":
-            Win, W, bias = init_matrices(n, input_connectivity, connectivity, K, w_distribution=stats.uniform(-1, 1),
-                                         seed=random.randint(0, 1000))
+        if function_name == "random_ee":
+            Win, W, bias = init_matrices(n, input_connectivity, connectivity, K, w_distribution=stats.uniform(loc=0, scale=1), seed=random.randint(0, 1000))
         else:
-            Win, W, bias = init_matrices(n, input_connectivity, connectivity, K, seed=random.randint(0, 1000))
+            Win, W, bias = init_matrices(n, input_connectivity, connectivity, K, w_distribution=stats.uniform(loc=-1, scale=2), seed=random.randint(0, 1000))
         bias *= bias_scaling
         Win *= input_scaling
 
