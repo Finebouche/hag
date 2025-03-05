@@ -9,8 +9,8 @@ def update_reservoir(W, Win, u, r, leaky_rate, bias, activation_function):
     return activation_function(pre_s)
 
 
-def init_matrices(n, input_connectivity, connectivity, K, spectral_radius=1, w_distribution=stats.uniform(-1, 1),
-                  win_distribution=stats.norm(1, 0.5), seed=111):
+def init_matrices(n, input_connectivity, connectivity, K, spectral_radius=1, w_distribution = stats.uniform(loc=-1, scale=2),
+                  win_distribution=stats.uniform(0, 1), seed=111):
     # K is the number of time a single input is repeated to the reservoir
     # The distribution generation functions #
     # stats.norm(1, 0.5)
@@ -38,7 +38,7 @@ def init_matrices(n, input_connectivity, connectivity, K, spectral_radius=1, w_d
     for i in range(common_size):
         start_index = i * K
         end_index = start_index + K
-        Win[start_index:end_index, i] = w_distribution.rvs(K)
+        Win[start_index:end_index, i] = win_distribution.rvs(K)
 
     # We set the diagonal to zero only for a square matrix
     if n[0] == n[1] and n[0] > 0:

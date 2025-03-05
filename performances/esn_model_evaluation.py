@@ -5,7 +5,7 @@ from joblib import Parallel, delayed
 from sklearn.metrics import accuracy_score
 from tqdm import tqdm
 from performances.losses import nrmse_multivariate
-from reservoirpy.nodes import Reservoir, IPReservoir, Ridge, RLS, LMS, NVAR
+from reservoirpy.nodes import Reservoir, IPReservoir, Ridge, RLS, LMS, NVAR, ESN
 from reservoir.synapticPlasticityReservoir import SynapticPlasticityReservoir
 from reservoir.intrinsicSynapticPlasticityReservoir import IPSPReservoir
 import reservoirpy
@@ -84,8 +84,8 @@ def init_reservoir(W, Win, bias, leaking_rate, activation_function):
                           equation='external')
     return reservoir
 
-def train_model_for_prediction(reservoir, readout, X_train, Y_train, warmup=2, rls=False, lms=False):
-    esn = reservoir >> readout
+def train_model_for_prediction(reservoir, readout, X_train, Y_train, n_jobs, warmup=2, rls=False, lms=False):
+    esn = ESN(reservoir=reservoir, readout=readout, workers=n_jobs)
     if rls or lms:
         for i in range(warmup):
             esn.run(X_train[:warmup])
