@@ -1,12 +1,27 @@
 Dataset,Function,Average Score,Standard Deviation,Date
 Sunspot_daily,random_ee,0.24633,± 0.00125,2025-02-27
+Sunspot_daily,random_ei,0.07593,± 0.0,2025-03-09
+Sunspot_daily,ip_correct,0.13491,± 0.0,2025-03-09
+Sunspot_daily,anti-oja,0.15164,± 0.0,2025-03-09
+Sunspot_daily,anti-oja_fast,0.05236,± 0.0,2025-03-09
 Sunspot_daily,ip-anti-oja,0.26165,± 0.00101,2025-02-27
+Sunspot_daily,ip-anti-oja_fast,0.27708,± 0.0,2025-03-10
 Sunspot_daily,hadsp,0.20475,± 0.00508,2025-02-27
 Sunspot_daily,desp,0.18824,± 0.0375,2025-02-28
 Lorenz,ip-anti-oja,0.10391,± 0.01322,2025-02-25
+Lorenz,random_ei,0.03803,± 0.0,2025-03-09
+Lorenz,ip_correct,0.0363,± 0.0,2025-03-09
+Lorenz,anti-oja,0.03217,± 0.0,2025-03-09
+Lorenz,anti-oja_fast,0.05085,± 0.0,2025-03-09
+Lorenz,ip-anti-oja_fast,0.40058,± 0.0,2025-03-10
 Lorenz,hadsp,0.19435,± 0.1244,2025-02-25
 Lorenz,desp,0.06058,± 0.00642,2025-02-25
 MackeyGlass,random_ee,0.00575,± 0.00038,2025-02-25
+MackeyGlass,random_ei,0.00353,± 0.0,2025-03-09
+MackeyGlass,ip_correct,0.00366,± 0.0,2025-03-09
+MackeyGlass,anti-oja,0.01318,± 0.0,2025-03-09
+MackeyGlass,anti-oja_fast,0.00345,± 0.0,2025-03-09
 MackeyGlass,ip-anti-oja,0.00445,± 0.0006,2025-02-25
+MackeyGlass,ip-anti-oja_fast,0.38768,± 0.0,2025-03-10
 MackeyGlass,hadsp,0.00525,± 0.00019,2025-02-25
 MackeyGlass,desp,0.01054,± 0.00868,2025-02-25

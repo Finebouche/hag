@@ -45,39 +45,64 @@ def synaptic_plasticity(reservoir, pre_state, post_state):
     y = post_state[0]  # shape: (units,)
 
     # Ensure W is in CSR format.
-    if not sp.isspmatrix_csr(W):
-        W = W.tocsr()
+    if sp.isspmatrix_csr(W):
+        # Compute the row index for each nonzero element using np.repeat.
+        # np.diff(W.indptr) gives the count of nonzeros in each row.
+        rows = np.repeat(np.arange(W.shape[0]), np.diff(W.indptr))
+        cols = W.indices
+        w_data = W.data  # Update in place.
 
-    # Compute the row index for each nonzero element using np.repeat.
-    # np.diff(W.indptr) gives the count of nonzeros in each row.
-    rows = np.repeat(np.arange(W.shape[0]), np.diff(W.indptr))
-    cols = W.indices
-    data = W.data  # Update in place.
+        # Vectorized update of nonzero elements based on the chosen rule.
+        if rule == "oja":
+            w_data += eta * y[rows] * (x[cols] - y[rows] * w_data)
+        elif rule == "anti-oja":
+            w_data -= eta * y[rows] * (x[cols] - y[rows] * w_data)
+        elif rule == "hebbian":
+            w_data += eta * y[rows] * x[cols]
+        elif rule == "anti-hebbian":
+            w_data -= eta * y[rows] * x[cols]
+        elif rule == "bcm":
+            w_data += eta * y[rows] * (y[rows] - bcm_theta) * x[cols]
+        else:
+            raise ValueError(
+                f"Unknown learning rule '{rule}'. Choose from: "
+                "['oja', 'anti-oja', 'hebbian', 'anti-hebbian', 'bcm']."
+            )
 
-    # Vectorized update of nonzero elements based on the chosen rule.
-    if rule == "oja":
-        data += eta * y[rows] * (x[cols] - y[rows] * data)
-    elif rule == "anti-oja":
-        data -= eta * y[rows] * (x[cols] - y[rows] * data)
-    elif rule == "hebbian":
-        data += eta * y[rows] * x[cols]
-    elif rule == "anti-hebbian":
-        data -= eta * y[rows] * x[cols]
-    elif rule == "bcm":
-        data += eta * y[rows] * (y[rows] - bcm_theta) * x[cols]
+        # Optionally normalize each row.
+        if do_norm:
+            # Compute the L2 norm per row for the updated data.
+            row_sums = np.bincount(rows, weights=w_data ** 2, minlength=W.shape[0])
+            row_norms = np.sqrt(row_sums)
+            safe_norms = np.where(row_norms > 0, row_norms, 1)
+            w_data /= safe_norms[rows]
+
     else:
-        raise ValueError(
-            f"Unknown learning rule '{rule}'. Choose from: "
-            "['oja', 'anti-oja', 'hebbian', 'anti-hebbian', 'bcm']."
-        )
+        # Update the weight matrix using vectorized operations.
+        if rule == "oja":
+            # Update: W[i,j] = W[i,j] + eta * y[i] * (x[j] - y[i] * W[i,j])
+            W += eta * (np.outer(y, x) - (y ** 2)[:, None] * W)
+        elif rule == "anti-oja":
+            W -= eta * (np.outer(y, x) - (y ** 2)[:, None] * W)
+        elif rule == "hebbian":
+            W += eta * np.outer(y, x)
+        elif rule == "anti-hebbian":
+            W -= eta * np.outer(y, x)
+        elif rule == "bcm":
+            # Update: W[i,j] = W[i,j] + eta * y[i] * (y[i] - bcm_theta) * x[j]
+            W += eta * (y * (y - bcm_theta))[:, None] * x
+        else:
+            raise ValueError(
+                f"Unknown learning rule '{rule}'. Choose from: "
+                "['oja', 'anti-oja', 'hebbian', 'anti-hebbian', 'bcm']."
+            )
 
-    # Optionally normalize each row.
-    if do_norm:
-        # Compute the L2 norm per row for the updated data.
-        row_sums = np.bincount(rows, weights=data ** 2, minlength=W.shape[0])
-        row_norms = np.sqrt(row_sums)
-        safe_norms = np.where(row_norms > 0, row_norms, 1)
-        data /= safe_norms[rows]
+        # Optionally normalize each row of W to have unit L2 norm.
+        if do_norm:
+            row_norms = np.linalg.norm(W, axis=1, keepdims=True)
+            # Avoid division by zero.
+            row_norms[row_norms == 0] = 1
+            W /= row_norms
 
     return W
 
