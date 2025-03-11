@@ -253,7 +253,7 @@ def objective(trial):
         mu = trial.suggest_float('mu', 0, 1)
         sigma = trial.suggest_float('sigma', 0, 1)
         learning_rate = trial.suggest_float('learning_rate', 1e-6, 1e-1, log=True)
-    if function_name in ["anti-oja", "ip-anti-oja", "ip-anti-oja_fast"]:
+    if function_name in ["anti-oja", "anti-oja_fast", "ip-anti-oja", "ip-anti-oja_fast"]:
         # We often use a log-uniform distribution for learning rates:
         oja_eta = trial.suggest_float('oja_eta', 1e-8, 1e-3, log=True)
 
