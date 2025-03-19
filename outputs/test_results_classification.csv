@@ -1,4 +1,11 @@
 Dataset,Function,Average Score,Standard Deviation,Date
+SPEECHCOMMANDS,random_ee,6.0393 %,± 0.08844 %,2025-03-18
+SPEECHCOMMANDS,random_ei,7.40572 %,± 2.00188 %,2025-03-18
+SPEECHCOMMANDS,ip_correct,13.12244 %,± 0.86144 %,2025-03-18
+SPEECHCOMMANDS,anti-oja_fast,8.61654 %,± 0.4596 %,2025-03-18
+SPEECHCOMMANDS,ip-anti-oja_fast,9.73535 %,± 1.75947 %,2025-03-18
+SPEECHCOMMANDS,hadsp,16.50613 %,± 0.55091 %,2025-03-18
+SPEECHCOMMANDS,desp,29.47297 %,± 1.07935 %,2025-03-18
 CatsDogs,random_ee,59.375 %,± 0.85895 %,2025-03-17
 CatsDogs,random_ei,70.57927 %,± 1.84822 %,2025-03-17
 CatsDogs,ip_correct,68.82622 %,± 1.78913 %,2025-03-17
