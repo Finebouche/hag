@@ -1,31 +1,28 @@
 import numpy as np
-from tqdm import tqdm
 import math
 from scipy import sparse
+import os
+import pandas as pd
+from scipy import stats
+from numpy import random
 
 SEED = 923984
 
-from reservoir.activation_functions import tanh, heaviside, sigmoid
-
+from reservoir.activation_functions import tanh
 activation_function = lambda x : tanh(x)
 
 # Preprocessing
 from datasets.multivariate_generation import generate_multivariate_dataset, extract_peak_frequencies
 from sklearn.preprocessing import MinMaxScaler
 from datasets.preprocessing import scale_data
-from datasets.preprocessing import add_noise
 from datasets.load_data import load_data as load_dataset
 
-from scipy import stats
-from numpy import random
-
 # Evaluating
-from performances.esn_model_evaluation import (init_reservoir, init_ip_reservoir,
-                                               init_local_rule_reservoir,
-                                               init_ip_local_rule_reservoir, init_readout)
+from performances.esn_model_evaluation import init_reservoir, init_ip_reservoir, init_local_rule_reservoir, init_ip_local_rule_reservoir
 from analysis.richness import spectral_radius, pearson, squared_uncoupled_dynamics_alternative, distance_correlation
 from reservoir.reservoir import init_matrices
 from connexion_generation.hag import run_algorithm
+from performances.utility import retrieve_best_model
 
 nb_jobs = 10
 
@@ -74,12 +71,7 @@ function_mapping = {
     'random_ee':        'E-ESN',
 }
 
-import os
-import pandas as pd
-from performances.utility import camel_to_snake, retrieve_best_model
-
-
-def load_data(dataset_name, step_ahead=5, visualize=False):
+def load_data(dataset_name, step_ahead=5):
     (is_instances_classification, is_multivariate, sampling_rate,
      X_train_raw, X_test_raw, Y_train_raw, Y_test,
      use_spectral_representation, spectral_representation,
@@ -90,7 +82,8 @@ def load_data(dataset_name, step_ahead=5, visualize=False):
     WINDOW_LENGTH = 10
     freq_train_data = X_train_raw
     flat_train_data = np.concatenate(freq_train_data, axis=0) if is_instances_classification else freq_train_data
-    extract_peak_frequencies(flat_train_data, sampling_rate, smooth=True, window_length=WINDOW_LENGTH, threshold=1e-5,
+    extract_peak_frequencies(flat_train_data, sampling_rate, smooth=True,
+                             window_length=WINDOW_LENGTH, threshold=1e-5,
                              nperseg=1024, visualize=False)
 
     if is_multivariate:
@@ -144,8 +137,6 @@ def load_data(dataset_name, step_ahead=5, visualize=False):
     X_pretrain_band = np.array(X_train_band, dtype=object)[indices]
 
     return X_pretrain_band, X_test_band, is_multivariate, is_instances_classification
-
-
 
 
 def evaluate_dataset_on_test(study, function_name, pretrain_data, test_data, is_instances_classification, nb_trials=8):
@@ -298,43 +289,40 @@ columns = [
 ]
 
 # List of datasets (extract from filenames)
-datasets = ["SPEECHCOMMANDS",]
-
-
+dataset = "SPEECHCOMMANDS"
 
 new_results = pd.DataFrame(columns=columns)
-for dataset in datasets:
-    print(dataset)
-    pretrain_data, test_data, is_multivariate, is_instances_classification = load_data(dataset, visualize=False)
-    for function_name in ["random_ee", "random_ei"]:  # "random_ee", "random_ei", "ip_correct", "anti-oja", "anti-oja_fast",  "ip-anti-oja", "hadsp", "desp"
-        # Get the best trial from the study
-        print(function_name)
-        study = retrieve_best_model(function_name, dataset, is_multivariate, variate_type="multi", data_type="normal")
+print(dataset)
+pretrain_data, test_data, is_multivariate, is_instances_classification = load_data(dataset)
+for function_name in ["random_ee", "random_ei"]:  # "random_ee", "random_ei", "ip_correct", "anti-oja", "anti-oja_fast",  "ip-anti-oja", "hadsp", "desp"
+    # Get the best trial from the study
+    print(function_name)
+    study = retrieve_best_model(function_name, dataset, is_multivariate, variate_type="multi", data_type="normal")
 
-        SRs, pearsons, CEVs, dcors = evaluate_dataset_on_test(
-            study,
-            function_name,
-            pretrain_data,
-            test_data,
-            is_instances_classification,
-            nb_trials=4,
-        )
-        # Create a new DataFrame row
-        new_row = pd.DataFrame({
-            "dataset": [dataset],
-            "function_name": [function_name],
-            "spectral_radius_mean": [np.mean(SRs)],
-            "spectral_radius_std": [np.std(SRs)],
-            "pearson_mean": [np.mean(pearsons)],
-            "pearson_std": [np.std(pearsons)],
-            "CEV_mean": [np.mean(CEVs)],
-            "CEV_std": [np.std(CEVs)],
-            "dcor_mean": [np.mean(dcors)],
-            "dcor_std": [np.std(dcors)],
-        })
+    SRs, pearsons, CEVs, dcors = evaluate_dataset_on_test(
+        study,
+        function_name,
+        pretrain_data,
+        test_data[:500],
+        is_instances_classification,
+        nb_trials=4,
+    )
+    # Create a new DataFrame row
+    new_row = pd.DataFrame({
+        "dataset": [dataset],
+        "function_name": [function_name],
+        "spectral_radius_mean": [np.mean(SRs)],
+        "spectral_radius_std": [np.std(SRs)],
+        "pearson_mean": [np.mean(pearsons)],
+        "pearson_std": [np.std(pearsons)],
+        "CEV_mean": [np.mean(CEVs)],
+        "CEV_std": [np.std(CEVs)],
+        "dcor_mean": [np.mean(dcors)],
+        "dcor_std": [np.std(dcors)],
+    })
 
-        # Concatenate the new row to the results DataFrame
-        new_results = pd.concat([new_results, new_row], ignore_index=True)
+    # Concatenate the new row to the results DataFrame
+    new_results = pd.concat([new_results, new_row], ignore_index=True)
 
 # Display the DataFrame
 print(new_results)
