@@ -270,7 +270,7 @@ def evaluate_dataset_on_test(study, function_name, pretrain_data, test_data, is_
         CEVs.append(CEV[0])
         dcors.append(dcor[0])
 
-        return spectral_radii, pearson_correlations, CEVs, dcors
+    return spectral_radii, pearson_correlations, CEVs, dcors
 
 
 
@@ -294,7 +294,7 @@ dataset = "SPEECHCOMMANDS"
 new_results = pd.DataFrame(columns=columns)
 print(dataset)
 pretrain_data, test_data, is_multivariate, is_instances_classification = load_data(dataset)
-for function_name in ["random_ee", "random_ei"]:  # "random_ee", "random_ei", "ip_correct", "anti-oja", "anti-oja_fast",  "ip-anti-oja", "hadsp", "desp"
+for function_name in ["random_ee", "random_ei", "ip_correct", "anti-oja_fast"]:  # "random_ee", "random_ei", "ip_correct", "anti-oja_fast",  "ip-anti-oja_fast", "hadsp", "desp"
     # Get the best trial from the study
     print(function_name)
     study = retrieve_best_model(function_name, dataset, is_multivariate, variate_type="multi", data_type="normal")
