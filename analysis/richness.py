@@ -15,13 +15,11 @@ def pearson(state_history, size_window=500, step_size=None, num_windows=None, sh
     number_of_steps = state_history.shape[0]
     n_time_points, n_neurons = state_history[:number_of_steps, :].shape
 
-    # Define step size for moving the window; this is optional, set to 1 for a classic rolling window
-    if step_size is None:
-        step_size = int(size_window / 10)
-
     # Calculate the number of possible windows based on the step size
     if num_windows is None:
         num_windows = (n_time_points - size_window) // step_size + 1
+    else:
+        step_size = (n_time_points - size_window) // num_windows
 
     mean_correlations = []
     std_correlations = []
@@ -50,14 +48,11 @@ def squared_uncoupled_dynamics(state_history, size_window=500, step_size=None, n
     state_history = np.array(state_history)
     n_time_points, n_neurons = state_history.shape
 
-    # Define step size for moving the window; this is optional, set to 1 for a classic rolling window
-    if step_size is None:
-        step_size = int(size_window / 10)
-
     # Calculate the number of possible windows based on the step size
     if num_windows is None:
         num_windows = (n_time_points - size_window) // step_size + 1
-
+    else:
+        step_size = (n_time_points - size_window) // num_windows
 
     # List to store the number of principal components for each window
     evolution_num_components = []
@@ -89,17 +84,15 @@ def squared_uncoupled_dynamics(state_history, size_window=500, step_size=None, n
     return evolution_num_components
 
 # Should yield the same result as uncoupled_dynamics
-def squared_uncoupled_dynamics_alternative(state_history, size_window=1000, step_size=None, num_windows=None, A=0.9, show_progress=True):
+def squared_uncoupled_dynamics_alternative(state_history, size_window=500, step_size=None, num_windows=None, A=0.9, show_progress=True):
     state_history = np.array(state_history)
     n_time_points, n_neurons = state_history.shape
-
-    # Define step size for moving the window; this is optional, set to 1 for a classic rolling window
-    if step_size is None:
-        step_size = int(size_window / 10)
 
     # Calculate the number of possible windows based on the step size
     if num_windows is None:
         num_windows = (n_time_points - size_window) // step_size + 1
+    else:
+        step_size = (n_time_points - size_window) // num_windows
 
     # List to store the number of components for each window
     evolution_num_components = []
@@ -129,17 +122,15 @@ def squared_uncoupled_dynamics_alternative(state_history, size_window=1000, step
     return evolution_num_components
 
 
-def linear_uncoupled_dynamics(state_history, size_window=1000, step_size=None, num_windows=None, theta=0.9, show_progress=True):
+def linear_uncoupled_dynamics(state_history, size_window=500, step_size=None, num_windows=None, theta=0.9, show_progress=True):
     state_history = np.array(state_history)
     n_time_points, n_neurons = state_history.shape
-
-    # Define step size for moving the window; this is optional, set to 1 for a classic rolling window
-    if step_size is None:
-        step_size = int(size_window / 10)
 
     # Calculate the number of possible windows based on the step size
     if num_windows is None:
         num_windows = (n_time_points - size_window) // step_size + 1
+    else:
+        step_size = (n_time_points - size_window) // num_windows
 
     # List to store the number of components for each window
     evolution_num_components = []
@@ -169,17 +160,15 @@ def linear_uncoupled_dynamics(state_history, size_window=1000, step_size=None, n
 
 
 
-def condition_number(state_history, size_window=1000, step_size=None, num_windows=None, show_progress=True):
+def condition_number(state_history, size_window=500, step_size=None, num_windows=None, show_progress=True):
     state_history = np.array(state_history)
     n_time_points, n_neurons = state_history.shape
-
-    # Define step size for moving the window; this is optional, set to 1 for a classic rolling window
-    if step_size is None:
-        step_size = int(size_window / 10)
 
     # Calculate the number of possible windows based on the step size
     if num_windows is None:
         num_windows = (n_time_points - size_window) // step_size + 1
+    else:
+        step_size = (n_time_points - size_window) // num_windows
 
     # List to store the number of components for each window
     evolution_condition_number = []
@@ -208,13 +197,11 @@ def distance_correlation(state_history, size_window=500, step_size=None, num_win
     state_history = np.array(state_history)
     n_time_points, n_neurons = state_history.shape
 
-    # Define step size if not provided
-    if step_size is None:
-        step_size = int(size_window / 10)
-
-    # Calculate the number of windows if not provided
+    # Calculate the number of possible windows based on the step size
     if num_windows is None:
         num_windows = (n_time_points - size_window) // step_size + 1
+    else:
+        step_size = (n_time_points - size_window) // num_windows
 
     mean_distance_correlations = []
     std_distance_correlations = []
