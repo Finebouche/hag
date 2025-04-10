@@ -219,8 +219,8 @@ end_step = 500
 SLICE_RANGE = slice(start_step, end_step)
 RESERVOIR_SIZE = 500
 
-nb_jobs_per_trial = 10
-function_name = "ip_correct" # "desp" ou "hadsp", "random", "random_ei", "ip", or "nvar"
+nb_jobs_per_trial = 20
+function_name = "random_ee" # "random_ee", "random_ei", "desp", "hadsp", "ip_correct", "anti-oja_fast", "ip-anti-oja_fast"
 variate_type = "multi"  # "multi" ou "uni"
 if variate_type == "uni" and is_multivariate:
     raise ValueError(f"Invalid variable type: {variate_type}")
@@ -412,7 +412,7 @@ def optimize_study(n_trials):
     study = optuna.create_study(storage=storage, sampler=sampler, study_name=study_name, direction=direction, load_if_exists=True)
     study.optimize(objective, n_trials=n_trials)
 
-N_TRIALS = 206
+N_TRIALS = 400
 # Call the function directly without joblib parallelization
 optimize_study(N_TRIALS)
 
