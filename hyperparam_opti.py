@@ -235,13 +235,13 @@ if __name__ == '__main__':
 
         RESERVOIR_SIZE = 500
 
-        nb_jobs_per_trial = 1
+        nb_jobs_per_trial = 10
         variate_type = "multi"  # "multi" ou "uni"
         if variate_type == "uni" and is_multivariate:
             raise ValueError(f"Invalid variable type: {variate_type}")
 
-        # "random_ee", "random_ei", "desp", "hadsp", "ip_correct", "anti-oja_fast", "ip-anti-oja_fast"
-        for function_name in ["ip_correct", "anti-oja_fast", "ip-anti-oja_fast"]:
+        # "random_ee", "random_ei", "diag_ee", "diag_ei", "desp", "hadsp", "ip_correct", "anti-oja_fast", "ip-anti-oja_fast"
+        for function_name in ["diag_ee"]:
             def objective(trial):
                 # Suggest values for the parameters you want to optimize
                 # COMMON
@@ -266,7 +266,7 @@ if __name__ == '__main__':
                     intrinsic_saturation = trial.suggest_float('intrinsic_saturation', 0.8, 0.98, step=0.02)
                     intrinsic_coef = trial.suggest_float('intrinsic_coef', 0.8, 0.98, step=0.02)
                     method = "pearson"
-                elif function_name in ["random_ee", "random_ei", "ip_correct", "anti-oja_fast", "ip-anti-oja_fast"]:
+                elif function_name in ["random_ee", "random_ei", "diag_ee", "diag_ei", "ip_correct", "anti-oja_fast", "ip-anti-oja_fast"]:
                     connectivity = trial.suggest_float('connectivity', 0, 1)
                     sr = trial.suggest_float('spectral_radius', 0.4, 1.6, step=0.01)
                 else:
@@ -302,6 +302,7 @@ if __name__ == '__main__':
                         common_size = X_train_band[i].shape[common_index]
 
                     # We want the size of the reservoir to be at least network_size
+                    # K is the number of time a single input is repeated to the reservoir
                     K = math.ceil(network_size / common_size)
                     n = common_size * K
 
@@ -309,11 +310,18 @@ if __name__ == '__main__':
                     train_data = X_train_band[i]  # X_train_band_noisy_duplicated or X_train_band_duplicated
                     val_data = X_val_band_noisy[i] if data_type == "noisy" else X_val_band[i]
 
-                    # INITIALISATION AND UNSUPERVISED PRETRAINING
-                    if function_name == "random_ee":
-                        Win, W, bias = init_matrices(n, input_connectivity, connectivity, K, w_distribution=stats.uniform(loc=0, scale=1), seed=random.randint(0, 1000))
+                    if function_name in ["diag_ee", "diag_ei"]:
+                        use_block = True
                     else:
-                        Win, W, bias = init_matrices(n, input_connectivity, connectivity, K, w_distribution=stats.uniform(loc=-1, scale=2), seed=random.randint(0, 1000))
+                        use_block = False
+
+                    # INITIALISATION AND UNSUPERVISED PRETRAINING
+                    if function_name in ["random_ee", "diag_ee"]:
+                        Win, W, bias = init_matrices(n, input_connectivity, connectivity, K, w_distribution=stats.uniform(loc=0, scale=1),
+                                                     use_block=use_block, seed=random.randint(0, 1000))
+                    else:
+                        Win, W, bias = init_matrices(n, input_connectivity, connectivity, K, w_distribution=stats.uniform(loc=-1, scale=2),
+                                                     use_block=use_block, seed=random.randint(0, 1000))
                     bias *= bias_scaling
                     Win *= input_scaling
 
@@ -332,7 +340,7 @@ if __name__ == '__main__':
                                                      max_partners=max_partners, method=method,
                                                      intrinsic_saturation=intrinsic_saturation, intrinsic_coef=intrinsic_coef,
                                                      n_jobs=nb_jobs_per_trial)
-                    elif function_name in ["random_ee", "random_ei", "ip_correct", "anti-oja", "ip-anti-oja", "anti-oja_fast", "ip-anti-oja_fast"]:
+                    elif function_name in ["random_ee", "random_ei", "diag_ee", "diag_ei", "ip_correct", "anti-oja_fast", "ip-anti-oja_fast"]:
                         eigen = sparse.linalg.eigs(W, k=1, which="LM", maxiter=W.shape[0] * 20, tol=0.1, return_eigenvectors=False)
                         W *= sr / max(abs(eigen))
                     else:
@@ -348,25 +356,11 @@ if __name__ == '__main__':
                                                       leaking_rate=leaky_rate, activation_function=activation_function
                                                       )
                         _ = reservoir.fit(unsupervised_pretrain, warmup=100)
-                    elif function_name == "anti-oja":
-                        reservoir = init_local_rule_reservoir(W, Win, bias, local_rule="anti-oja", eta=oja_eta,
-                                                               synapse_normalization=True, bcm_theta=None,
-                                                               leaking_rate=leaky_rate, activation_function=activation_function,
-                                                               )
-                        _ = reservoir.fit(unsupervised_pretrain, warmup=100)
                     elif function_name == "anti-oja_fast":
                         reservoir = init_local_rule_reservoir(W, Win, bias, local_rule="anti-oja", eta=oja_eta,
                                                               synapse_normalization=False, bcm_theta=None,
                                                               leaking_rate=leaky_rate, activation_function=activation_function,
                                                               )
-                        _ = reservoir.fit(unsupervised_pretrain, warmup=100)
-                    elif function_name == "ip-anti-oja":
-                        reservoir = init_ip_local_rule_reservoir(W, Win, bias, local_rule="anti-oja", eta=oja_eta,
-                                                                 synapse_normalization=True, bcm_theta=None,
-                                                                 mu=mu, sigma=sigma, learning_rate=learning_rate,
-                                                                 leaking_rate=leaky_rate,
-                                                                 activation_function=activation_function,
-                                                                 )
                         _ = reservoir.fit(unsupervised_pretrain, warmup=100)
                     elif function_name == "ip-anti-oja_fast":
                         reservoir = init_ip_local_rule_reservoir(W, Win, bias, local_rule="anti-oja", eta=oja_eta,
@@ -419,16 +413,26 @@ if __name__ == '__main__':
             direction = "maximize" if is_instances_classification else "minimize"
 
             N_TRIALS = 400
-            n_parallel_studies = 10
-            trials_per_process = N_TRIALS // n_parallel_studies
+            study = optuna.create_study(storage=storage, sampler=sampler, study_name=study_name, direction=direction, load_if_exists=True)
+            completed_trials = len([trial for trial in study.trials if trial.state == optuna.trial.TrialState.COMPLETE])
 
-            # Use joblib to parallelize the optimization
-            def optimize_study(n_trials):
-                study = optuna.create_study(storage=storage, sampler=sampler, study_name=study_name, direction=direction, load_if_exists=True)
-                study.optimize(objective, n_trials=n_trials)
-            Parallel(n_jobs=n_parallel_studies)(
-                delayed(optimize_study)(trials_per_process) for _ in range(n_parallel_studies)
-            )
+            # Parallelized
+            # n_parallel_studies = 10
+            # trials_per_process = (N_TRIALS - completed_trials) // n_parallel_studies
+            # # Use joblib to parallelize the optimization
+            # def optimize_study(n_trials_per_process):
+            #     study = optuna.create_study(storage=storage, sampler=sampler, study_name=study_name, direction=direction, load_if_exists=True)
+            #     study.optimize(objective, n_trials=n_trials_per_process - completed_trials)
+            # Parallel(n_jobs=n_parallel_studies)(
+            #     delayed(optimize_study)(trials_per_process) for _ in range(n_parallel_studies)
+            # )
 
-            # study = optuna.create_study(storage=storage, sampler=sampler, study_name=study_name, direction=direction, load_if_exists=True)
-            # study.optimize(objective, n_trials=N_TRIALS)
+            # Not Parallelized
+            while completed_trials < N_TRIALS:
+                # get the number of trials already done that have been completed
+                completed_trials = len([trial for trial in study.trials if trial.state == optuna.trial.TrialState.COMPLETE])
+                print(f"Completed trials: {completed_trials}/{N_TRIALS}")
+                try:
+                    study.optimize(objective, n_trials=N_TRIALS-completed_trials)
+                except Exception as e:
+                    print(f"Error during optimization: {e}, retrying...")

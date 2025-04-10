@@ -292,13 +292,20 @@ def objective(trial):
         train_data = X_train_band[i]  # X_train_band_noisy_duplicated or X_train_band_duplicated
         val_data = X_val_band_noisy[i] if data_type == "noisy" else X_val_band[i]
 
+        if function_name in ["diag_ee", "diag_ei"]:
+            use_block = True
+        else:
+            use_block = False
+
         # INITIALISATION AND UNSUPERVISED PRETRAINING
-        if function_name == "random_ee":
+        if function_name in ["random_ee", "diag_ee"]:
             Win, W, bias = init_matrices(n, input_connectivity, connectivity, K,
-                                         w_distribution=stats.uniform(loc=0, scale=1), seed=random.randint(0, 1000))
+                                         w_distribution=stats.uniform(loc=0, scale=1),
+                                         use_block=use_block, seed=random.randint(0, 1000))
         else:
             Win, W, bias = init_matrices(n, input_connectivity, connectivity, K,
-                                         w_distribution=stats.uniform(loc=-1, scale=2), seed=random.randint(0, 1000))
+                                         w_distribution=stats.uniform(loc=-1, scale=2),
+                                         use_block=use_block, seed=random.randint(0, 1000))
         bias *= bias_scaling
         Win *= input_scaling
 
@@ -408,16 +415,30 @@ print(study_name)
 direction = "maximize" if is_instances_classification else "minimize"
 sampler = TPESampler()
 
-def optimize_study(n_trials):
-    study = optuna.create_study(storage=storage, sampler=sampler, study_name=study_name, direction=direction, load_if_exists=True)
-    study.optimize(objective, n_trials=n_trials)
-
 N_TRIALS = 400
-# Call the function directly without joblib parallelization
-optimize_study(N_TRIALS)
-
-# n_parallel_studies = 1
-# trials_per_process = N_TRIALS // n_parallel_studies
+n_parallel_studies = 10
+# study = optuna.create_study(storage=storage, sampler=sampler, study_name=study_name, direction=direction, load_if_exists=True)
+# completed_trials = len([trial for trial in study.trials if trial.state == optuna.trial.TrialState.COMPLETE])
+# trials_per_process = (N_TRIALS - completed_trials) // n_parallel_studies
+#
+# # Use joblib to parallelize the optimization
+# def optimize_study(n_trials_per_process):
+#     study = optuna.create_study(storage=storage, sampler=sampler, study_name=study_name, direction=direction,
+#                                 load_if_exists=True)
+#     study.optimize(objective, n_trials=n_trials_per_process - completed_trials)
+#
+#
 # Parallel(n_jobs=n_parallel_studies)(
 #     delayed(optimize_study)(trials_per_process) for _ in range(n_parallel_studies)
 # )
+
+study = optuna.create_study(storage=storage, sampler=sampler, study_name=study_name, direction=direction, load_if_exists=True)
+completed_trials = len([trial for trial in study.trials if trial.state == optuna.trial.TrialState.COMPLETE])
+while completed_trials < N_TRIALS:
+    # get the number of trials already done that have been completed
+    completed_trials = len([trial for trial in study.trials if trial.state == optuna.trial.TrialState.COMPLETE])
+    print(f"Completed trials: {completed_trials}/{N_TRIALS}")
+    try:
+        study.optimize(objective, n_trials=N_TRIALS-completed_trials)
+    except Exception as e:
+        print(f"Error during optimization: {e}, retrying...")
