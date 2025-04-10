@@ -40,6 +40,7 @@ groups = list(groups)
 is_multivariate = False
 use_spectral_representation = False
 is_instances_classification = True
+spectral_representation = "mfcc"
 
 le = LabelEncoder()
 Y_train_raw = le.fit_transform(Y_train_raw).reshape(-1, 1)
@@ -123,19 +124,21 @@ for i, (train_index, val_index) in enumerate(splits):
         if is_multivariate==False:
             raise ValueError("Cannot use spectral representation if it's not multivariate !")
 
+    hop = 50 if is_instances_classification else 1
+    win_length = edge_cut = 100
     if not is_multivariate:
         x_train_band = generate_multivariate_dataset(
-            x_train, sampling_rate, is_instances_classification, peak_freqs, spectral_representation="stft", hop=100
+            x_train, is_instances_classification, spectral_representation, hop=hop, win_length=win_length
         )
         x_val_band = generate_multivariate_dataset(
-            x_val, sampling_rate, is_instances_classification, peak_freqs, spectral_representation="stft", hop=100
+            x_val, is_instances_classification, spectral_representation, hop=hop, win_length=win_length
         )
     elif is_multivariate and not use_spectral_representation:
         x_train_band = generate_multivariate_dataset(
-            x_train, sampling_rate, is_instances_classification, peak_freqs, spectral_representation=None, hop=100
+            x_train_band, is_instances_classification, spectral_representation, hop=hop, win_length=win_length
         )
         x_val_band = generate_multivariate_dataset(
-            x_val, sampling_rate, is_instances_classification, peak_freqs, spectral_representation=None, hop=100
+            x_val_band, is_instances_classification, spectral_representation, hop=hop, win_length=win_length
         )
     else:
         print("Data is already spectral, nothing to do")
@@ -178,9 +181,11 @@ for i, (train_index, val_index) in enumerate(splits):
             X_val_band_noisy.append(add_noise(x_val_band, noise_std))
 
     # Define the number of instances you want to select
-    x_size = len(x_train_band) if is_multivariate else len(x_train)
-    num_samples_for_pretrain = 500 if x_size >= 500 else x_size
-    indices = np.random.choice(x_size, num_samples_for_pretrain, replace=False)
+    if is_instances_classification:
+        num_samples_for_pretrain = 500 if len(x_train_band) >= 500 else len(x_train_band)
+        indices = np.random.choice(len(x_train_band), num_samples_for_pretrain, replace=False)
+    else:
+        indices = range(len(x_train_band))
 
     # Defining pretrain
     if data_type == "noisy":
@@ -191,6 +196,11 @@ for i, (train_index, val_index) in enumerate(splits):
     if not is_multivariate:
         X_pretrain.append(np.array(x_train, dtype=object)[indices].flatten())
     X_pretrain_band.append(np.array(x_train_band, dtype=object)[indices])
+
+if is_instances_classification:
+    max_time_increment_possible = max(len(instance) for fold in X_train_band for instance in fold)
+else:
+    max_time_increment_possible = 500
 
 #Pretraining
 from reservoir.reservoir import init_matrices
@@ -228,9 +238,6 @@ def objective(trial):
     leaky_rate = trial.suggest_float('leaky_rate', 1, 1)
     input_connectivity = trial.suggest_float('input_connectivity', 1, 1)
 
-    min_window_size = sampling_rate / np.max(np.hstack(peak_freqs))
-    max_window_size = sampling_rate / np.min(np.hstack(peak_freqs))
-
     # HADSP
     if function_name == "hadsp":
         target_rate = trial.suggest_float('target_rate', 0.5, 1, step=0.01)
@@ -260,16 +267,13 @@ def objective(trial):
     if function_name in ["hadsp", "desp"]:
         connectivity = trial.suggest_float('connectivity', 0, 0)
         weight_increment = trial.suggest_float('weight_increment', 0.001, 0.1, step=0.001)
-        max_partners = trial.suggest_int('max_partners', 10, 20)
+        max_partners = np.inf  # trial.suggest_int('max_partners', 10, 20)
         if is_instances_classification:
             use_full_instance = trial.suggest_categorical('use_full_instance', [True, False])
         else:
             use_full_instance = False
-        TIME_INCREMENT = trial.suggest_int('time_increment', int(min_window_size + 1),
-                                           100)  # int(min_window_size+1) or int(max_window_size)
-        max_increment_span = int(max_window_size) if int(max_window_size) - 100 < 0 else int(max_window_size) - 100
-        time_increment_span = trial.suggest_int('time_increment_span', 0, max_increment_span)
-        MAX_TIME_INCREMENT = TIME_INCREMENT + time_increment_span  # int(max_window_size) or None or TIME_INCREMENT
+        min_increment = trial.suggest_int('min_increment', 3, max_time_increment_possible)
+        max_increment = trial.suggest_int('max_increment', min_increment, max_time_increment_possible * 5)
 
     # CROSS-VALIDATION METHODS
     total_score = 0
@@ -290,25 +294,29 @@ def objective(trial):
 
         # INITIALISATION AND UNSUPERVISED PRETRAINING
         if function_name == "random_ee":
-            Win, W, bias = init_matrices(n, input_connectivity, connectivity, K, w_distribution=stats.uniform(loc=0, scale=1), seed=random.randint(0, 1000))
+            Win, W, bias = init_matrices(n, input_connectivity, connectivity, K,
+                                         w_distribution=stats.uniform(loc=0, scale=1), seed=random.randint(0, 1000))
         else:
-            Win, W, bias = init_matrices(n, input_connectivity, connectivity, K, w_distribution=stats.uniform(loc=-1, scale=2), seed=random.randint(0, 1000))
+            Win, W, bias = init_matrices(n, input_connectivity, connectivity, K,
+                                         w_distribution=stats.uniform(loc=-1, scale=2), seed=random.randint(0, 1000))
         bias *= bias_scaling
         Win *= input_scaling
 
         if function_name == "hadsp":
-            W, (_, _, _) = run_algorithm(W, Win, bias, leaky_rate, activation_function, pretrain_data, TIME_INCREMENT,
-                                         weight_increment,
-                                         target_rate, rate_spread, function_name,
-                                         is_instance=is_instances_classification, use_full_instance=use_full_instance,
-                                         max_increment=MAX_TIME_INCREMENT, max_partners=max_partners, method=method,
+            W, (_, _, _) = run_algorithm(W, Win, bias, leaky_rate, activation_function, pretrain_data,
+                                         weight_increment, target_rate, rate_spread, function_name,
+                                         multiple_instances=is_instances_classification,
+                                         min_increment=min_increment, max_increment=max_increment,
+                                         use_full_instance=use_full_instance,
+                                         max_partners=max_partners, method=method,
                                          n_jobs=nb_jobs_per_trial)
         elif function_name == "desp":
-            W, (_, _, _) = run_algorithm(W, Win, bias, leaky_rate, activation_function, pretrain_data, TIME_INCREMENT,
-                                         weight_increment,
-                                         variance_target, variance_spread, function_name,
-                                         is_instance=is_instances_classification, use_full_instance=use_full_instance,
-                                         max_increment=MAX_TIME_INCREMENT, max_partners=max_partners, method=method,
+            W, (_, _, _) = run_algorithm(W, Win, bias, leaky_rate, activation_function, pretrain_data,
+                                         weight_increment, variance_target, variance_spread, function_name,
+                                         multiple_instances=is_instances_classification,
+                                         min_increment=min_increment, max_increment=max_increment,
+                                         use_full_instance=use_full_instance,
+                                         max_partners=max_partners, method=method,
                                          intrinsic_saturation=intrinsic_saturation, intrinsic_coef=intrinsic_coef,
                                          n_jobs=nb_jobs_per_trial)
         elif function_name in ["random_ee", "random_ei", "ip_correct", "anti-oja", "ip-anti-oja", "anti-oja_fast", "ip-anti-oja_fast"]:
@@ -387,7 +395,7 @@ print("Start optuna")
 def camel_to_snake(name):
     str1 = re.sub('(.)([A-Z][a-z]+)', r'\1_\2', name)
     return re.sub('([a-z0-9])([A-Z])', r'\1_\2', str1).lower()
-url= "sqlite:///tpe_" + camel_to_snake(dataset_name) + "_db.sqlite3"
+url= "sqlite:///new_tpe_" + camel_to_snake(dataset_name) + "_db.sqlite3"
 print(url)
 
 storage = optuna.storages.RDBStorage(
