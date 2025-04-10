@@ -45,17 +45,14 @@ def compute_synaptic_change(states, target_rate, rate_spread, change_type="linea
     return delta_z  # -1,5->-1 and 1.5->1
 
 
-def run_algorithm(W, Win, bias, leaky_rate, activation_function, input_data, time_increment, weight_increment,
-                  target, spread, algorithm_type, is_instance, use_full_instance=False, max_increment=None,
-                  max_partners=12, method="random", intrinsic_saturation=0.9, intrinsic_coef=0.9, average="WHOLE",
+def run_algorithm(W, Win, bias, leaky_rate, activation_function, input_data, weight_increment,
+                  target, spread, algorithm_type, multiple_instances, min_increment, max_increment=None, use_full_instance=False,
+                  max_partners=np.inf, method="random", intrinsic_saturation=0.9, intrinsic_coef=0.9, average="WHOLE",
                   n_jobs=1, visualize=False, record_history=False):
     neurons_state = np.random.uniform(0, 1, bias.size)
     states_history = []
     delta_z_history = []
     W_history = []
-
-    if not is_instance:
-        use_full_instance = False
 
     if visualize:
         total_add = 0
@@ -66,23 +63,25 @@ def run_algorithm(W, Win, bias, leaky_rate, activation_function, input_data, tim
     steps = []
 
     if max_increment is None:
+        time_increment = min_increment
         int_logspace = [time_increment]
         max_increment = time_increment
     else:
-        logspace = np.logspace(np.log10(time_increment), np.log10(max_increment), num=10)
+        logspace = np.logspace(np.log10(min_increment), np.log10(max_increment), num=10)
         int_logspace = np.unique(np.round(logspace).astype(int))
 
-    if is_instance and not use_full_instance:
-        input_data = np.concatenate(input_data, axis=0)
+    if not multiple_instances:
+        use_full_instance = False
 
-    if is_instance and use_full_instance:  # if is true, take the next instance of the instance array input_data
+    if use_full_instance:  # if is true, take the next instance of the instance array input_data
         # check that input data comon dimension is the same
         assert len(set([instance.shape[1] for instance in input_data])) == 1, "common dimension must be 1"
         init_array = np.concatenate(input_data[:3], axis=0)
         input_data = input_data[3:]
     else:
-        # randomly select the increment size
-        init_length = time_increment * 5
+        if multiple_instances:
+            input_data = np.concatenate(input_data, axis=0)
+        init_length = min_increment * 5
         init_array = input_data[:init_length]
         input_data = input_data[init_length:]
 
@@ -93,7 +92,7 @@ def run_algorithm(W, Win, bias, leaky_rate, activation_function, input_data, tim
 
     pbar = tqdm(total=len(input_data), desc="HAG algorithm")
     while (len(input_data) > max_increment and not use_full_instance) or (len(input_data) > 0 and use_full_instance):
-        if is_instance and use_full_instance:  # if is true, take the next instance of the instance array input_data
+        if use_full_instance:  # if is true, take the next instance of the instance array input_data
             input_array = input_data[0]
             input_data = input_data[1:]
             inc = 1
@@ -159,7 +158,7 @@ def run_algorithm(W, Win, bias, leaky_rate, activation_function, input_data, tim
     return W, [states_history, delta_z_history, W_history]
 
 
-def hag_step(W_e, states, delta_z, weight_increment, W_inhibitory=np.array([]), max_partners=12, method="random",
+def hag_step(W_e, states, delta_z, weight_increment, W_inhibitory=np.array([]), max_partners=np.inf, method="random",
              n_jobs=1):
     states = np.array(states).T
     nb_neurons = W_e.shape[0]

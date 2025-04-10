@@ -2,14 +2,12 @@ import numpy as np
 import matplotlib.pyplot as plt
 from scipy import signal
 from matplotlib.colors import to_rgb, to_rgba
-from scipy.signal import butter, cheby2, sosfiltfilt
 from joblib import Parallel, delayed
 from librosa import stft
 from librosa.feature import mfcc
 from scipy.signal.windows import gaussian
 
-def extract_peak_frequencies(input_data, sampling_rate, threshold, smooth=True, window_length=10, nperseg=1024,
-                             visualize=True):
+def extract_peak_frequencies(input_data, sampling_rate, threshold, smooth=True, window_length=10, nperseg=1024, visualize=True):
     assert threshold < 1, "Threshold should be a fraction of the maximum power"
     if visualize:
         print("Frequency limit: ", np.round(sampling_rate / 2), "(Shannon sampling theorem)")
@@ -68,76 +66,42 @@ def extract_peak_frequencies(input_data, sampling_rate, threshold, smooth=True, 
         return np.array(filtered_peak_freqs, dtype=object)
 
 
-def band_filter(x, low_cut, high_cut, fs, order=6):
-    # sos = butter(order, [low_cut, high_cut], btype="bandpass", fs=fs, output='sos')
-    sos = cheby2(order, 20, [low_cut, high_cut], btype='bandpass', fs=fs, output='sos')
-    return sosfiltfilt(sos, x).flatten()
+def generate_multivariate_dataset(X, is_instances_classification, spectral_representation=None, hop=50, win_length=100,
+                                  nb_jobs=-1, verbosity=1):
+    print("Using window length (nperseg):", win_length, "and hop:", hop)
 
+    def compute_instance_spectrogram(x):
+        g_std = 8  # standard deviation for Gaussian window in samples
+        w = gaussian(win_length, std=g_std, sym=True)  # symmetric Gaussian window
+        # w = hann(win_length, sym=True) # symmetric Hann window
+        if spectral_representation == "stft":
+            Sx = np.abs(stft(x, hop_length=hop, win_length=win_length, n_fft=win_length, window=w))
+        elif spectral_representation == "mfcc":
+            Sx = np.abs(mfcc(y = x, hop_length=hop, win_length=win_length, n_fft=win_length, window=w))
 
-def generate_multivariate_dataset(X, sampling_rate, is_instances_classification, filtered_peak_freqs=None,
-                                  spectral_representation=None, hop=20, nb_jobs=-1, verbosity=1):
-
-    if spectral_representation is not None:
-        def compute_instance_spectrogram(x):
-            g_std = 8  # standard deviation for Gaussian window in samples
-            win_length = 50
-            w = gaussian(win_length, std=g_std, sym=True)  # symmetric Gaussian window
-            if spectral_representation == "stft":
-                Sx = np.abs(stft(x, hop_length=hop, win_length=win_length, n_fft=win_length, window=w))
-            elif spectral_representation == "mfcc":
-                Sx = np.abs(mfcc(y = x, hop_length=hop, win_length=win_length, n_fft=win_length, window=w))
+        if is_instances_classification:
             return np.hstack(Sx).T
-
-        process_instance_func = compute_instance_spectrogram
-    else:  # always use band filter for prediction
-        if X.ndim == 1 or X.shape[1] == 1:
-            extended_freqs = np.concatenate(([0], filtered_peak_freqs, [sampling_rate / 2]))
-
-            # Calculate bandwidth as half the inter-frequency distances
-            bandwidth = np.diff(extended_freqs) / 2
-
-            # Calculate low_cut and high_cut frequencies
-            low_cut_list = filtered_peak_freqs - bandwidth[:-1]
-            high_cut_list = filtered_peak_freqs + bandwidth[1:]
         else:
-            low_cut_list = []
-            high_cut_list = []
-            for dim, _ in enumerate(filtered_peak_freqs):
-                # Extend frequencies with 0 at the start and sampling_rate / 2 at the end
-                extended_freqs = np.concatenate(([0], filtered_peak_freqs[dim], [sampling_rate / 2]))
-
-                # Calculate bandwidth as half the inter-frequency distances
-                bandwidth = np.diff(extended_freqs) / 2
-
-                # Calculate low_cut and high_cut frequencies
-                low_cut = filtered_peak_freqs[dim] - bandwidth[:-1]
-                high_cut = filtered_peak_freqs[dim] + bandwidth[1:]
-                low_cut_list.append(low_cut)
-                high_cut_list.append(high_cut)
-
-        def filter_instance_frequencies(X):
-            if X.ndim == 1 or X.shape[0] == 1:
-                return np.array([
-                    band_filter(X, low_cut_list[freq_index], high_cut_list[freq_index], fs=sampling_rate)
-                    for freq_index, _ in enumerate(filtered_peak_freqs)
-                ]).T
-            else:
-                filtered_X = []
-                for dim, _ in enumerate(X):
-                    filtered_X.append(np.array([
-                        band_filter(X[dim], low_cut_list[dim][freq_index], high_cut_list[dim][freq_index], fs=sampling_rate)
-                        for freq_index, _ in enumerate(filtered_peak_freqs[dim])
-                    ]).T)
-                return np.hstack(filtered_X)
-
-        process_instance_func = filter_instance_frequencies
+            return Sx.T
 
     if is_instances_classification:  # classification -> Multiple instances
-        x_band = Parallel(n_jobs=nb_jobs, verbose=verbosity)(delayed(process_instance_func)(x.T) for x in X)
+        X_band = Parallel(n_jobs=nb_jobs, verbose=verbosity)(delayed(compute_instance_spectrogram)(x.T) for x in X)
     else :
-        x_band = process_instance_func(X.T)
+        for i in range(X.shape[1]):
+            x_band = compute_instance_spectrogram(X[:,0])
+            if i == 0:
+                X_band = x_band
+            else:
+                X_band = np.hstack((X_band, x_band))
 
-    return x_band
+        # if dimension doesn't match the original signal, we need to remove 1
+        if X_band.shape[0] == X.shape[0] + 1 :
+            X_band = X_band[:-1, :]
+            print("Dropped the last time frame to match expected shape.")
+
+        print("X_band.shape", X_band.shape)
+
+    return X_band
 
 
 if __name__ == "__main__":
@@ -154,9 +118,7 @@ if __name__ == "__main__":
     print("filtered_peak_freqs", filtered_peak_freqs)
 
     # Generate multivariate dataset
-    X_band = generate_multivariate_dataset(filtered_peak_freqs, X.reshape(-1, 1), fs, is_instances_classification=False,
-                                           nb_jobs=1,
-                                           verbosity=0)
+    X_band = generate_multivariate_dataset(filtered_peak_freqs, is_instances_classification=False, nb_jobs=1, verbosity=0)
 
     plt.figure(figsize=(24, 6))
     # Plot the original and filtered signals on the same graph

@@ -3,7 +3,7 @@ from connexion_generation.correlation_utility import compute_mutual_information,
 from joblib import Parallel, delayed
 
 
-def available_neurons(neuron, connectivity_matrix, neurons_pool, max_partners=12, is_inter_matrix=False):
+def available_neurons(neuron, connectivity_matrix, neurons_pool, max_partners=np.inf, is_inter_matrix=False):
     # If neuron already has more than MAX_NUMBER_OF_PARTNER partners:
     # the available neurons are the one that already have a connexion with it
     non_zeros = connectivity_matrix[neuron].nonzero()[0]
@@ -22,7 +22,7 @@ def available_neurons(neuron, connectivity_matrix, neurons_pool, max_partners=12
 
 
 def determine_connection_pairs(neurons_needing_new_connection, connectivity_matrix, states=None, method="random",
-                               is_inter_matrix=False, max_partners=12, random_seed=None, n_jobs=1):
+                               is_inter_matrix=False, max_partners=np.inf, random_seed=None, n_jobs=1):
     """
     Determine pairs of neurons for establishing new connections based on specified criteria.
 
@@ -53,10 +53,11 @@ def determine_connection_pairs(neurons_needing_new_connection, connectivity_matr
         elif method == "random":
             neuron_to_choose_from = np.array(available_for_neuron)
         else:
-            raise ValueError("Invalid method. Must be one of 'mi', 'pearson'.")
+            raise ValueError("Invalid method. Must be one of 'mi', 'pearson', 'random'.")
 
         if neuron_to_choose_from.size == 0:
-            raise ValueError("No neuron_to_choose_from found for neuron in adding, this should not happen.")
+            raise ValueError("No neuron_to_choose_from found for neuron in adding, this should not happen as"
+                             f'list(neurons_needing_new_connection) is : {neurons_needing_new_connection}.')
 
         incoming_neuron = np.random.choice(neuron_to_choose_from)
         return neuron, incoming_neuron
