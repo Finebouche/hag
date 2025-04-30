@@ -223,7 +223,7 @@ dataset = "SPEECHCOMMANDS"
 new_results = pd.DataFrame(columns=columns)
 print(dataset)
 pretrain_data, test_data, is_multivariate, is_instances_classification = load_data(dataset)
-for function_name in ["random_ee", "random_ei", "ip_correct", "anti-oja_fast",  "ip-anti-oja_fast", "hadsp", "desp"]:  # "random_ee", "random_ei", "ip_correct", "anti-oja_fast",  "ip-anti-oja_fast", "hadsp", "desp"
+for function_name in ["random_ee", "random_ei", "ip_correct", "hadsp", "desp"]:  # "random_ee", "random_ei", "ip_correct", "anti-oja_fast",  "ip-anti-oja_fast", "hadsp", "desp"
     # Get the best trial from the study
     print(function_name)
     study = retrieve_best_model(function_name, dataset, is_multivariate, variate_type="multi", data_type="normal")
@@ -234,7 +234,7 @@ for function_name in ["random_ee", "random_ei", "ip_correct", "anti-oja_fast",  
         pretrain_data,
         test_data[:500],
         is_instances_classification,
-        nb_trials=1,
+        nb_trials=4,
     )
     # Create a new DataFrame row
     new_row = pd.DataFrame({

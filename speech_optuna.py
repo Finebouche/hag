@@ -242,14 +242,14 @@ def objective(trial):
     if function_name == "hadsp":
         target_rate = trial.suggest_float('target_rate', 0.5, 1, step=0.01)
         rate_spread = trial.suggest_float('rate_spread', 0.01, 0.4, step=0.005)
-        method = trial.suggest_categorical("method", ["random", "pearson"])
+        method = "pearson"
     # DESP
     elif function_name == "desp":
         variance_target = trial.suggest_float('variance_target', 0.001, 0.02, step=0.001)
         variance_spread = trial.suggest_float('variance_spread', 0.001, 0.05, step=0.002)
         intrinsic_saturation = trial.suggest_float('intrinsic_saturation', 0.8, 0.98, step=0.02)
         intrinsic_coef = trial.suggest_float('intrinsic_coef', 0.8, 0.98, step=0.02)
-        method = trial.suggest_categorical("method", ["pearson"])
+        method = "pearson"
     elif function_name in ["random_ee", "random_ei", "ip_correct", "anti-oja_fast", "ip-anti-oja_fast"]:
         connectivity = trial.suggest_float('connectivity', 0, 1)
         sr = trial.suggest_float('spectral_radius', 0.4, 1.6, step=0.01)

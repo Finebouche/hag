@@ -26,7 +26,7 @@ if __name__ == '__main__':
 
     step_ahead=5
     # can be "CatsDogs", "FSDD", "JapaneseVowels", "SpokenArabicDigits", "SPEECHCOMMANDS", "MackeyGlass", "Sunspot_daily", "Lorenz", "Henon", "NARMA"
-    datasets = ["SpokenArabicDigits"]
+    datasets = ["CatsDogs", "FSDD", "JapaneseVowels", "SpokenArabicDigits"]
     for dataset_name in datasets:
         # score for prediction
         start_step = 500
@@ -241,7 +241,7 @@ if __name__ == '__main__':
             raise ValueError(f"Invalid variable type: {variate_type}")
 
         # "random_ee", "random_ei", "diag_ee", "diag_ei", "desp", "hadsp", "ip_correct", "anti-oja_fast", "ip-anti-oja_fast"
-        for function_name in ["diag_ee"]:
+        for function_name in ["hadsp", "desp"]:
             def objective(trial):
                 # Suggest values for the parameters you want to optimize
                 # COMMON
