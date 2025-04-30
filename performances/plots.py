@@ -1,7 +1,7 @@
 import numpy as np
 import matplotlib.pyplot as plt
 
-def plot_results(y_pred, y_test, start=0, end=500):
+def plot_prediction_vs_actual(y_pred, y_test, start=0, end=500):
     sample = slice(start, end)
     x_corrd = np.arange(start, end)
     fig = plt.figure(figsize=(15, 7))

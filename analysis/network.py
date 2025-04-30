@@ -1,9 +1,9 @@
 from graph_tool.all import arf_layout, Graph, graph_draw, get_hierarchy_tree, radial_tree_layout, \
     get_hierarchy_control_points, minimize_nested_blockmodel_dl
-import matplotlib.cm as colormaps
+
 import numpy as np
 import matplotlib.pyplot as plt
-import matplotlib.colors as mcolors
+
 import imageio
 from tqdm.notebook import tqdm
 
