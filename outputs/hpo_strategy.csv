@@ -1,0 +1,15 @@
+Dataset,Function,Sampler,Average Score,Standard Deviation,Date
+JapaneseVowels,desp,cmaes,93.81757 %,± 0.21098 %,2025-02-26
+JapaneseVowels,hadsp,cmaes,98.10811 %,± 0.42733 %,2025-02-26
+JapaneseVowels,ip-anti-oja,cmaes,93.31081 %,± 0.11703 %,2025-02-26
+JapaneseVowels,anti-oja,cmaes,96.01351 %,± 0.11703 %,2025-02-26
+JapaneseVowels,ip_correct,cmaes,95.03378 %,± 0.13084 %,2025-02-27
+JapaneseVowels,random,cmaes,94.66216 %,± 0.11703 %,2025-02-27
+JapaneseVowels,random_ei,cmaes,92.66892 %,± 0.08938 %,2025-02-27
+JapaneseVowels,desp,tpe,94.05405 %,± 0.19111 %,2025-02-27
+JapaneseVowels,hadsp,tpe,98.41216 %,± 0.21098 %,2025-02-27
+JapaneseVowels,ip-anti-oja,tpe,97.22973 %,± 0.44307 %,2025-02-27
+JapaneseVowels,anti-oja,tpe,96.95946 %,± 0.2241 %,2025-02-27
+JapaneseVowels,ip_correct,tpe,95.97973 %,± 0.16202 %,2025-02-27
+JapaneseVowels,random,tpe,95.81081 %,± 0.13514 %,2025-02-27
+JapaneseVowels,random_ei,tpe,96.79054 %,± 0.25055 %,2025-02-27
