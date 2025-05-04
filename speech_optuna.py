@@ -116,10 +116,6 @@ for i, (train_index, val_index) in enumerate(splits):
 
 
     # PREPROCESSING
-    freq_train_data = x_train_band if is_multivariate else x_train
-    flat_train_data = np.concatenate(freq_train_data, axis=0) if is_instances_classification else freq_train_data
-    peak_freqs = extract_peak_frequencies(flat_train_data, sampling_rate, smooth=True, window_length=WINDOW_LENGTH, threshold=1e-5, nperseg=1024, visualize=False)
-
     if use_spectral_representation == True:
         if is_multivariate==False:
             raise ValueError("Cannot use spectral representation if it's not multivariate !")
@@ -220,7 +216,7 @@ SLICE_RANGE = slice(start_step, end_step)
 RESERVOIR_SIZE = 500
 
 nb_jobs_per_trial = 20
-function_name = "random_ee" # "random_ee", "random_ei", "desp", "hadsp", "ip_correct", "anti-oja_fast", "ip-anti-oja_fast"
+function_name = "anti-oja_fast" # "random_ee", "random_ei", "desp", "hadsp", "ip_correct", "anti-oja_fast", "ip-anti-oja_fast"
 variate_type = "multi"  # "multi" ou "uni"
 if variate_type == "uni" and is_multivariate:
     raise ValueError(f"Invalid variable type: {variate_type}")
