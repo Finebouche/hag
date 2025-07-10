@@ -66,10 +66,10 @@ from sklearn.model_selection import StratifiedKFold, TimeSeriesSplit, Stratified
 from datasets.preprocessing import flexible_indexing
 
 #Preprocessing
-from datasets.multivariate_generation import generate_multivariate_dataset, extract_peak_frequencies
+from datasets.multivariate_generation import generate_multivariate_dataset
 from sklearn.preprocessing import MinMaxScaler
 from datasets.preprocessing import scale_data
-from datasets.preprocessing import add_noise, duplicate_data
+from datasets.preprocessing import add_noise
 
 # Define noise parameter
 noise_std = 0.001
@@ -113,7 +113,6 @@ for i, (train_index, val_index) in enumerate(splits):
     if is_multivariate:
         x_train_band, x_val_band = x_train, x_val
         del x_train, x_val
-
 
     # PREPROCESSING
     if use_spectral_representation == True:
@@ -215,8 +214,8 @@ end_step = 500
 SLICE_RANGE = slice(start_step, end_step)
 RESERVOIR_SIZE = 500
 
-nb_jobs_per_trial = 20
-function_name = "anti-oja_fast" # "random_ee", "random_ei", "desp", "hadsp", "ip_correct", "anti-oja_fast", "ip-anti-oja_fast"
+nb_jobs_per_trial = 10
+function_name = "ip-anti-oja_fast" # "random_ee", "random_ei", "desp", "hadsp", "ip_correct", "anti-oja_fast", "ip-anti-oja_fast"
 variate_type = "multi"  # "multi" ou "uni"
 if variate_type == "uni" and is_multivariate:
     raise ValueError(f"Invalid variable type: {variate_type}")
@@ -341,7 +340,7 @@ def objective(trial):
         elif function_name == "anti-oja_fast":
             reservoir = init_local_rule_reservoir(W, Win, bias, local_rule="anti-oja", eta=oja_eta,
                                                   synapse_normalization=False, bcm_theta=None,
-                                                  leaking_rate=leaky_rate, activation_function=activation_function,
+                                                    leaking_rate=leaky_rate, activation_function=activation_function,
                                                   )
             _ = reservoir.fit(unsupervised_pretrain, warmup=100)
         elif function_name == "ip-anti-oja_fast":
@@ -399,7 +398,7 @@ direction = "maximize" if is_instances_classification else "minimize"
 sampler = TPESampler()
 
 N_TRIALS = 400
-n_parallel_studies = 10
+# n_parallel_studies = 10
 # study = optuna.create_study(storage=storage, sampler=sampler, study_name=study_name, direction=direction, load_if_exists=True)
 # completed_trials = len([trial for trial in study.trials if trial.state == optuna.trial.TrialState.COMPLETE])
 # trials_per_process = (N_TRIALS - completed_trials) // n_parallel_studies

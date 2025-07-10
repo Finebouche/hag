@@ -12,7 +12,7 @@ from reservoir.activation_functions import tanh
 activation_function = lambda x : tanh(x)
 
 # Preprocessing
-from datasets.multivariate_generation import generate_multivariate_dataset, extract_peak_frequencies
+from datasets.multivariate_generation import generate_multivariate_dataset
 from sklearn.preprocessing import MinMaxScaler
 from datasets.preprocessing import scale_data
 from datasets.load_data import load_data as load_dataset
@@ -33,13 +33,6 @@ def load_data(dataset_name, step_ahead=5):
      groups) = load_dataset(dataset_name, step_ahead, visualize=False)
     del Y_train_raw
     del Y_test
-
-    WINDOW_LENGTH = 10
-    freq_train_data = X_train_raw
-    flat_train_data = np.concatenate(freq_train_data, axis=0) if is_instances_classification else freq_train_data
-    extract_peak_frequencies(flat_train_data, sampling_rate, smooth=True,
-                             window_length=WINDOW_LENGTH, threshold=1e-5,
-                             nperseg=1024, visualize=False)
 
     if is_multivariate:
         X_train_band, X_test_band = X_train_raw, X_test_raw
@@ -219,11 +212,11 @@ columns = [
 
 # List of datasets (extract from filenames)
 dataset = "SPEECHCOMMANDS"
-
-new_results = pd.DataFrame(columns=columns)
 print(dataset)
 pretrain_data, test_data, is_multivariate, is_instances_classification = load_data(dataset)
-for function_name in ["random_ee", "random_ei", "ip_correct", "hadsp", "desp"]:  # "random_ee", "random_ei", "ip_correct", "anti-oja_fast",  "ip-anti-oja_fast", "hadsp", "desp"
+
+new_results = []
+for function_name in ["ip-anti-oja_fast"]:  # "random_ee", "random_ei", "ip_correct", "anti-oja_fast",  "ip-anti-oja_fast", "hadsp", "desp"
     # Get the best trial from the study
     print(function_name)
     study = retrieve_best_model(function_name, dataset, is_multivariate, variate_type="multi", data_type="normal")
@@ -251,27 +244,27 @@ for function_name in ["random_ee", "random_ei", "ip_correct", "hadsp", "desp"]: 
     })
 
     # Concatenate the new row to the results DataFrame
-    new_results = pd.concat([new_results, new_row], ignore_index=True)
+    new_results.append(new_row)
 
 # Display the DataFrame
 print(new_results)
 file_name = "outputs/metrics.csv"
 
-# Load the existing CSV
-if os.path.exists(file_name) and os.path.getsize(file_name) > 0:
-    try:
-        previous_results = pd.read_csv(file_name)
-    except pd.errors.EmptyDataError:
-        print(f"{file_name} is empty. Initializing with default columns.")
-        previous_results = pd.DataFrame(columns=columns)
-        previous_results.to_csv(file_name, index=False)
-else:
-    print(f"{file_name} does not exist or is empty. Creating a new file.")
-    previous_results = pd.DataFrame(columns=columns)
-    previous_results.to_csv(file_name, index=False)
+orig = pd.read_csv(file_name).set_index(["dataset", "function_name"])
+corr_df = (
+    pd.concat(new_results, ignore_index=True)   # ← melts the list into rows
+      .set_index(["dataset", "function_name"])  # use the two key columns
+)
+corr_df.combine_first(orig)      # ← key line
 
-tots_results = pd.concat([new_results, previous_results], axis=0)
+# 1) make sure orig has all the columns corr_df has (fills with NaN where missing)
+for col in corr_df.columns:
+    if col not in orig.columns:
+        orig[col] = np.nan
+# Update with new values (non-null values overwrite)
+orig.update(corr_df)
 
-tots_results.to_csv(file_name, index=False)
-
-print(f"Results saved to {file_name}")
+# Save to file
+augmented = orig.reset_index()
+augmented.to_csv(file_name, index=False)
+print(f"✔ Added / updated columns in {file_name} (without overwriting with NaNs)")

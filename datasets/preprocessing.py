@@ -34,11 +34,6 @@ def add_noise(data, noise_std):
     return np.random.normal(0, noise_std, data.shape) + data
 
 
-def duplicate_data(data_list, K):
-    """Duplicates each instance in the data K times along the specified axis."""
-    return [np.repeat(instance, K, axis=1) for instance in data_list]
-
-
 def plot_classes_distribution(y_train_encoded, y_test_encoded, val=False):
     # Sum across rows to get the count of each class (each column represents a class)
     train_counts = np.sum(y_train_encoded, axis=0)

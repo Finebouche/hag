@@ -33,7 +33,9 @@ def pearson(state_history, size_window=500, step_size=None, num_windows=None, sh
 
         # Compute the mean and standard deviation of correlations, excluding the diagonal
         off_diagonal_correlations = correlation_matrix[np.triu_indices(n_neurons, k=1)]
-        mean_corr = np.mean(off_diagonal_correlations)
+        # we take the absolute value
+        abs_diagonal_correlations = np.abs(off_diagonal_correlations)
+        mean_corr = np.mean(abs_diagonal_correlations)
         std_corr = np.std(off_diagonal_correlations)
 
         mean_correlations.append(mean_corr)

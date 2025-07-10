@@ -17,16 +17,16 @@ from sklearn.model_selection import StratifiedKFold, TimeSeriesSplit, Stratified
 from datasets.preprocessing import flexible_indexing
 
 # Preprocessing
-from datasets.multivariate_generation import generate_multivariate_dataset, extract_peak_frequencies
+from datasets.multivariate_generation import generate_multivariate_dataset
 from sklearn.preprocessing import MinMaxScaler
-from datasets.preprocessing import scale_data, add_noise, duplicate_data
+from datasets.preprocessing import scale_data, add_noise
 
 
 if __name__ == '__main__':
 
     step_ahead=5
     # can be "CatsDogs", "FSDD", "JapaneseVowels", "SpokenArabicDigits", "SPEECHCOMMANDS", "MackeyGlass", "Sunspot_daily", "Lorenz", "Henon", "NARMA"
-    datasets = ["CatsDogs", "FSDD", "JapaneseVowels", "SpokenArabicDigits"]
+    datasets = ["FSDD"]
     for dataset_name in datasets:
         # score for prediction
         start_step = 500
@@ -71,13 +71,6 @@ if __name__ == '__main__':
 
         Y_train = []
         Y_val = []
-
-        WINDOW_LENGTH = 10
-        print("Extracting frequencies")
-        freq_train_data = X_train_raw
-        flat_train_data = np.concatenate(freq_train_data, axis=0) if is_instances_classification else freq_train_data
-        extract_peak_frequencies(flat_train_data, sampling_rate, smooth=False, threshold=1e-5, nperseg=1024, visualize=True)
-
         print("Preprocessing")
         for i, (train_index, val_index) in enumerate(splits):
             x_train = flexible_indexing(X_train_raw, train_index)
@@ -91,11 +84,6 @@ if __name__ == '__main__':
                 del x_train, x_val
 
             # PREPROCESSING
-            freq_train_data = x_train_band if is_multivariate else x_train
-            flat_train_data = np.concatenate(freq_train_data, axis=0) if is_instances_classification else freq_train_data
-            peak_freqs = extract_peak_frequencies(flat_train_data, sampling_rate, smooth=True, window_length=WINDOW_LENGTH,
-                                                  threshold=1e-5, nperseg=1024, visualize=False)
-
             # if it has use_spectral_representation, then it is multivariate
             if use_spectral_representation == True:
                 if is_multivariate == False:
@@ -130,6 +118,7 @@ if __name__ == '__main__':
             Y_train.append(y_train)
             Y_val.append(y_val)
 
+            # NORMALIZATION
             if not is_multivariate:
                 scaler_x_uni = MinMaxScaler(feature_range=(0, 1))
                 x_train, x_val, _ = scale_data(x_train, x_val, None, scaler_x_uni, is_instances_classification)
@@ -141,32 +130,33 @@ if __name__ == '__main__':
             X_train_band.append(x_train_band)
             X_val_band.append(x_val_band)
 
-            # NOISE
+            # OPTIONAL NOISE
             if data_type == "noisy":
                 if is_instances_classification:
-                    # UNI
+                    # uni
                     if not is_multivariate:
                         x_train_noisy = [add_noise(instance, noise_std) for instance in x_train]
                         X_train_noisy.append([add_noise(instance, noise_std) for instance in x_train])
                         X_val_noisy.append([add_noise(instance, noise_std) for instance in x_val])
 
-                    # MULTI
+                    # multi
                     x_train_band_noisy = [add_noise(instance, noise_std) for instance in x_train_band]
                     X_train_band_noisy.append(x_train_band_noisy)
                     X_val_band_noisy.append([add_noise(instance, noise_std) for instance in x_val_band])
 
                 else:  # if prediction
-                    # UNI
+                    # uni
                     if not is_multivariate:
                         x_train_noisy = add_noise(x_train, noise_std)
                         X_train_noisy.append(x_train_noisy)
                         X_val_noisy.append(add_noise(x_val, noise_std))
 
-                    # MULTI
+                    # multi
                     x_train_band_noisy = add_noise(x_train_band, noise_std)
                     X_train_band_noisy.append(x_train_band_noisy)
                     X_val_band_noisy.append(add_noise(x_val_band, noise_std))
 
+            # PRETRAINING SET
             if is_instances_classification:
                 num_samples_for_pretrain = 500 if len(x_train_band) >= 500 else len(x_train_band)
                 indices = np.random.choice(len(x_train_band), num_samples_for_pretrain, replace=False)
@@ -174,12 +164,11 @@ if __name__ == '__main__':
                 indices = range(len(x_train_band))
 
             if data_type == "noisy":
-                # Defining pretrain
                 if not is_multivariate:
                     X_pretrain_noisy.append(np.array(x_train_noisy, dtype=object)[indices].flatten())
                 X_pretrain_band_noisy.append(np.array(x_train_band_noisy, dtype=object)[indices])
 
-            # Defining pretrain
+
             if not is_multivariate:
                 X_pretrain.append(np.array(x_train, dtype=object)[indices].flatten())
             X_pretrain_band.append(np.array(x_train_band, dtype=object)[indices])
@@ -241,7 +230,7 @@ if __name__ == '__main__':
             raise ValueError(f"Invalid variable type: {variate_type}")
 
         # "random_ee", "random_ei", "diag_ee", "diag_ei", "desp", "hadsp", "ip_correct", "anti-oja_fast", "ip-anti-oja_fast"
-        for function_name in ["hadsp", "desp"]:
+        for function_name in ["diag_ei"]:
             def objective(trial):
                 # Suggest values for the parameters you want to optimize
                 # COMMON
@@ -417,7 +406,7 @@ if __name__ == '__main__':
             completed_trials = len([trial for trial in study.trials if trial.state == optuna.trial.TrialState.COMPLETE])
 
             # Parallelized
-            # n_parallel_studies = 10
+            n_parallel_studies = 10
             # trials_per_process = (N_TRIALS - completed_trials) // n_parallel_studies
             # # Use joblib to parallelize the optimization
             # def optimize_study(n_trials_per_process):

@@ -7,64 +7,6 @@ from librosa import stft
 from librosa.feature import mfcc
 from scipy.signal.windows import gaussian
 
-def extract_peak_frequencies(input_data, sampling_rate, threshold, smooth=True, window_length=10, nperseg=1024, visualize=True):
-    assert threshold < 1, "Threshold should be a fraction of the maximum power"
-    if visualize:
-        print("Frequency limit: ", np.round(sampling_rate / 2), "(Shannon sampling theorem)")
-    filtered_peak_freqs = []
-    max_power = 0
-    max_frequency = 0
-    for i in range(input_data.shape[1]):
-        # Estimate power spectral density using Welch's method
-        # https://dsp.stackexchange.com/questions/81640/trying-to-understand-the-nperseg-effect-of-welch-method
-        f, Pxx_den = signal.welch(input_data[:, i], sampling_rate, nperseg=nperseg)
-
-        # Smoothing the Power Spectral Density (Pxx_den) before peak detection helps in emphasizing
-        # the more significant, broader peaks that are often of greater interest in signal processing tasks.
-        if smooth:
-            # Create a Gaussian window
-            gaus_window = gaussian(window_length, std=7)
-            gaus_window /= np.sum(gaus_window)
-            # Apply the Gaussian filter
-            Pxx_den = signal.convolve(Pxx_den, gaus_window, mode='same')
-
-        # Find the peaks in the power spectral density
-        peak_indices, _ = signal.find_peaks(Pxx_den)
-        peak_freqs = f[peak_indices]
-        peak_powers = Pxx_den[peak_indices]
-
-        # Define a power threshold and select the peaks based on that threshold
-        relative_threshold = threshold * np.max(Pxx_den[peak_indices])
-        filtered_peak_freqs.append(peak_freqs[peak_powers > relative_threshold])
-
-        if visualize:
-            lines = plt.semilogy(f, Pxx_den)
-            line_color = to_rgb(lines[0].get_color())
-            darkened_color = to_rgba([x * 0.7 for x in line_color])
-            plt.plot(peak_freqs, Pxx_den[peak_indices], "o", color=darkened_color, markersize=4, label=i)
-
-        # Calculate the maximum power peak and the maximum frequency
-        if np.max(Pxx_den[peak_indices]) > max_power:
-            max_power = np.max(Pxx_den[peak_indices])
-        if np.max(peak_freqs[peak_powers > threshold * max_power * 1e-2]) > max_frequency:
-            max_frequency = np.max(peak_freqs[peak_powers > (threshold * max_power * 1e-2)])
-
-    if visualize:
-        plt.ylim([threshold * max_power * 1e-2, max_power * 1e1])
-        plt.xlim([0, max_frequency])
-        plt.xlabel('frequency [Hz]')
-        plt.ylabel('PSD [V**2/Hz]')
-        # Add threshold lines
-        plt.axhline(threshold * max_power, color='g', linestyle='--', label='P threshold')
-        plt.axvline(sampling_rate / 2, color='r', linestyle='--', label='f limit')
-        plt.legend()  # Show legend with the threshold line
-        plt.show()
-
-    if input_data.shape[1] == 1:
-        return filtered_peak_freqs[0]
-    else:
-        return np.array(filtered_peak_freqs, dtype=object)
-
 
 def generate_multivariate_dataset(X, is_instances_classification, spectral_representation=None, hop=50, win_length=100,
                                   nb_jobs=-1, verbosity=1):
