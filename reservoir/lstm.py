@@ -96,23 +96,23 @@ class LSTMModel(nn.Module):
 def train(model, loader, criterion, optimizer):
     model.train()
     total_loss = 0.0
-    for X_batch, y_batch in loader:
+    for X_batch, y_batch, lengths in loader:
         X_batch = X_batch.to(DEVICE)
         y_batch = y_batch.to(DEVICE)
+        # Optionally use lengths for packing
         optimizer.zero_grad()
-        preds = model(X_batch)
+        preds = model(X_batch)  # or modify to handle packed sequences
         loss = criterion(preds, y_batch)
         loss.backward()
         optimizer.step()
         total_loss += loss.item() * X_batch.size(0)
     return total_loss / len(loader.dataset)
 
-
 def evaluate(model, loader, task_type="classification"):
     model.eval()
     ys, preds = [], []
     with torch.no_grad():
-        for X_batch, y_batch in loader:
+        for X_batch, y_batch, lengths in loader:
             X_batch = X_batch.to(DEVICE)
             y_true = y_batch.cpu().numpy()
             y_pred = model(X_batch).cpu().numpy()

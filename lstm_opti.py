@@ -28,7 +28,7 @@ if __name__ == '__main__':
 
     step_ahead=5
     # can be "CatsDogs", "FSDD", "JapaneseVowels", "SpokenArabicDigits", "SPEECHCOMMANDS", "MackeyGlass", "Sunspot_daily", "Lorenz", "Henon", "NARMA"
-    datasets = ["CatsDogs", "JapaneseVowels"]
+    datasets = ["SpokenArabicDigits"]
     for dataset_name in datasets:
         # score for prediction
         start_step = 500
@@ -180,52 +180,16 @@ if __name__ == '__main__':
         else:
             max_time_increment_possible = 500
 
-
-        from scipy.special import comb
-
-        def find_optimal_order(dim, delay, s, max_network_size, max_order_size=5):
-            """
-            Finds the optimal order N and the total number of variables such that
-            total_variables is less than or equal to max_network_size.
-            """
-            delay_eff = (delay - 1) // (s + 1)
-            N = 0
-            total_variables = 0
-
-            while True:
-                N += 1
-                # Ensure N does not exceed max_order_size
-                if N > max_order_size:
-                    N -= 1
-                    break
-
-                # Calculate the new combination incrementally
-                new_comb = comb(dim * delay_eff + N - 1, N, exact=True)
-                total_variables += new_comb
-
-                # Check if the total exceeds the maximum network size
-                if total_variables > max_network_size:
-                    # Subtract the last addition and decrement N
-                    total_variables -= new_comb
-                    N -= 1
-                    break
-
-            return N, total_variables
-
-
-        # Pretraining
-        from reservoir.reservoir import init_matrices
-        from connexion_generation.hag import run_algorithm
-
-
         # Evaluating
-        from performances.esn_model_evaluation import train_model_for_classification, predict_model_for_classification, \
-            compute_score, init_readout
-        from performances.esn_model_evaluation import train_model_for_prediction, init_reservoir, init_ip_reservoir, \
-            init_local_rule_reservoir, init_ip_local_rule_reservoir, init_readout
-        from reservoir.lstm import LSTMModel, SequenceDataset, train, evaluate
+        from reservoir.lstm import LSTMModel, SequenceDataset, train, evaluate, pad_collate, BucketBatchSampler
+        import torch.nn as nn
 
         RESERVOIR_SIZE = 500
+        avg_length = np.mean([len(x) for fold in X_train_band for x in fold])
+        # min an max lengths
+        min_length = min([len(x) for fold in X_train_band for x in fold])
+        max_length = max([len(x) for fold in X_train_band for x in fold])
+        print(f"Average length: {avg_length}, Min length: {min_length}, Max length: {max_length}")
 
         nb_jobs_per_trial = 10
         variate_type = "multi"  # "multi" ou "uni"
@@ -242,39 +206,50 @@ if __name__ == '__main__':
                 dropout = trial.suggest_float('dropout', 0.0, 0.5)
                 bidirectional = trial.suggest_categorical('bidirectional', [False, True])
                 learning_rate = trial.suggest_float('learning_rate', 1e-4, 1e-1, log=True)
-                batch_size = trial.suggest_categorical('batch_size', [32, 64, 128])
+                batch_size = trial.suggest_categorical('batch_size', [8, 16, 32, 64])
                 epochs = trial.suggest_int('epochs', 5, 20)
 
                 # 2) CROSS‐VALIDATION LOOP
                 total_metric = 0.0
                 for fold_idx in range(nb_splits):
                     # prepare PyTorch datasets/loaders
-                    X_tr = np.array(X_train_band[fold_idx])  # shape: (n_samples, seq_len, feat_dim)
-                    y_tr = np.array(Y_train[fold_idx])  # one-hot or reg targets
-                    X_va = np.array(X_val_band[fold_idx])
-                    y_va = np.array(Y_val[fold_idx])
+                    X_tr = X_train_band[fold_idx]  # shape: (n_samples, seq_len, feat_dim)
+                    y_tr = Y_train[fold_idx]  # one-hot or reg targets
+                    X_va = X_val_band[fold_idx]
+                    y_va = Y_val[fold_idx]
 
                     train_ds = SequenceDataset(X_tr, y_tr)
                     val_ds = SequenceDataset(X_va, y_va)
-                    train_loader = torch.utils.data.DataLoader(
-                        train_ds, batch_size=batch_size, shuffle=True, drop_last=True)
-                    val_loader = torch.utils.data.DataLoader(
-                        val_ds, batch_size=batch_size, shuffle=False)
+
+                    # Check if variable length
+                    train_lengths = [len(x) for x in X_tr]
+                    val_lengths = [len(x) for x in X_va]
+
+                    if len(set(train_lengths)) > 1:
+                        train_sampler = BucketBatchSampler(train_lengths, batch_size=batch_size, bucket_size=batch_size * 20, shuffle=True)
+                        train_loader = torch.utils.data.DataLoader(train_ds, batch_sampler=train_sampler, collate_fn=pad_collate)
+                    else:
+                        train_loader = torch.utils.data.DataLoader(train_ds, batch_size=batch_size, shuffle=True, collate_fn=pad_collate)
+
+                    if len(set(val_lengths)) > 1:
+                        val_sampler = BucketBatchSampler(val_lengths, batch_size=batch_size, bucket_size=batch_size * 20, shuffle=False)
+                        val_loader = torch.utils.data.DataLoader(val_ds, batch_sampler=val_sampler, collate_fn=pad_collate)
+                    else:
+                        val_loader = torch.utils.data.DataLoader(val_ds, batch_size=batch_size, shuffle=False, collate_fn=pad_collate)
 
                     # instantiate model + optimizer + loss
-                    input_size = X_tr.shape[2]
+                    common_index = 1
+                    input_size = X_tr[0].shape[common_index]
                     output_size = y_tr.shape[1] if y_tr.ndim > 1 else 1
-                    model = LSTMModel(
-                        input_size=input_size,
-                        hidden_size=hidden_size,
-                        num_layers=num_layers,
-                        output_size=output_size,
-                        dropout=dropout,
-                        bidirectional=bidirectional
+                    model = LSTMModel(input_size=input_size,
+                                    hidden_size=hidden_size,
+                                    num_layers=num_layers,
+                                    output_size=output_size,
+                                    dropout=dropout,
+                                    bidirectional=bidirectional,
                     ).to(DEVICE)
 
-                    criterion = (torch.nn.CrossEntropyLoss() if is_instances_classification
-                                 else torch.nn.MSELoss())
+                    criterion = (torch.nn.CrossEntropyLoss() if is_instances_classification else torch.nn.MSELoss())
                     optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
 
                     # train for a few epochs
@@ -282,14 +257,15 @@ if __name__ == '__main__':
                         _ = train(model, train_loader, criterion, optimizer)
 
                     # evaluate
-                    fold_metric = evaluate(model, val_loader,
-                                           task_type=(
-                                               'classification' if is_instances_classification else 'regression'))
+                    fold_metric = evaluate(model,
+                                           val_loader,
+                                           task_type=('classification' if is_instances_classification else 'regression')
+                                        )
                     total_metric += fold_metric
 
                 # 3) RETURN MEAN METRIC (to maximize accuracy or minimize MSE)
                 average_metric = total_metric / nb_splits
-                return average_metric if is_instances_classification else -average_metric
+                return average_metric
 
 
             import optuna

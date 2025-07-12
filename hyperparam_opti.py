@@ -26,7 +26,7 @@ if __name__ == '__main__':
 
     step_ahead=5
     # can be "CatsDogs", "FSDD", "JapaneseVowels", "SpokenArabicDigits", "SPEECHCOMMANDS", "MackeyGlass", "Sunspot_daily", "Lorenz", "Henon", "NARMA"
-    datasets = ["FSDD"]
+    datasets = ["CatsDogs", "JapaneseVowels"]
     for dataset_name in datasets:
         # score for prediction
         start_step = 500
@@ -168,7 +168,6 @@ if __name__ == '__main__':
                     X_pretrain_noisy.append(np.array(x_train_noisy, dtype=object)[indices].flatten())
                 X_pretrain_band_noisy.append(np.array(x_train_band_noisy, dtype=object)[indices])
 
-
             if not is_multivariate:
                 X_pretrain.append(np.array(x_train, dtype=object)[indices].flatten())
             X_pretrain_band.append(np.array(x_train_band, dtype=object)[indices])
@@ -178,43 +177,9 @@ if __name__ == '__main__':
         else:
             max_time_increment_possible = 500
 
-
-        from scipy.special import comb
-
-        def find_optimal_order(dim, delay, s, max_network_size, max_order_size=5):
-            """
-            Finds the optimal order N and the total number of variables such that
-            total_variables is less than or equal to max_network_size.
-            """
-            delay_eff = (delay - 1) // (s + 1)
-            N = 0
-            total_variables = 0
-
-            while True:
-                N += 1
-                # Ensure N does not exceed max_order_size
-                if N > max_order_size:
-                    N -= 1
-                    break
-
-                # Calculate the new combination incrementally
-                new_comb = comb(dim * delay_eff + N - 1, N, exact=True)
-                total_variables += new_comb
-
-                # Check if the total exceeds the maximum network size
-                if total_variables > max_network_size:
-                    # Subtract the last addition and decrement N
-                    total_variables -= new_comb
-                    N -= 1
-                    break
-
-            return N, total_variables
-
-
         # Pretraining
         from reservoir.reservoir import init_matrices
         from connexion_generation.hag import run_algorithm
-
 
         # Evaluating
         from performances.esn_model_evaluation import train_model_for_classification, predict_model_for_classification, \
@@ -229,8 +194,8 @@ if __name__ == '__main__':
         if variate_type == "uni" and is_multivariate:
             raise ValueError(f"Invalid variable type: {variate_type}")
 
-        # "random_ee", "random_ei", "diag_ee", "diag_ei", "desp", "hadsp", "ip_correct", "anti-oja_fast", "ip-anti-oja_fast"
-        for function_name in ["diag_ei"]:
+        # "random_ee", "random_ei", "diag_ee", "diag_ei", "desp", "hadsp", "ip_correct", "anti-oja_fast", "ip-anti-oja_fast", "lstm"
+        for function_name in ["lstm"]:
             def objective(trial):
                 # Suggest values for the parameters you want to optimize
                 # COMMON
@@ -296,7 +261,7 @@ if __name__ == '__main__':
                     n = common_size * K
 
                     pretrain_data = X_pretrain_band[i]
-                    train_data = X_train_band[i]  # X_train_band_noisy_duplicated or X_train_band_duplicated
+                    train_data = X_train_band[i]
                     val_data = X_val_band_noisy[i] if data_type == "noisy" else X_val_band[i]
 
                     if function_name in ["diag_ee", "diag_ei"]:
