@@ -1,10 +1,13 @@
-import tensorflow as tf
+import os
+import glob
+import zipfile
+
+import urllib.request
+import torchaudio
+
 import numpy as np
 import matplotlib.pyplot as plt
 import pandas as pd
-import os
-import urllib.request
-import zipfile
 
 from aeon.datasets import load_classification
 from sklearn.preprocessing import LabelEncoder, OneHotEncoder
@@ -15,20 +18,27 @@ from torchaudio.datasets import SPEECHCOMMANDS
 from torch.utils.data import ConcatDataset
 
 
-def process_audio(file_path):
-    filename = tf.strings.split(file_path, '/')[-1]
+def process_audio(file_path: str):
+    """
+    Load a WAV via torchaudio, return a dict (label,speaker,audio,filename) plus its sampling rate.
+    """
+    filename = os.path.basename(file_path)
+    parts   = filename.split('_')
+    label, speaker = parts[0], parts[1]
 
-    #    Extract the label from the filename
-    label = tf.strings.split(filename, '_')[0]
-    speaker = tf.strings.split(filename, '_')[1]
-    audio = tf.io.read_file(file_path)
-    audio, sampling_rate = tf.audio.decode_wav(audio, desired_channels=1)
+    # torchaudio.load returns (waveform, sample_rate), waveform shape (channels, time)
+    waveform, sampling_rate = torchaudio.load(file_path)
+    # convert to mono if needed, shape (1, T)
+    if waveform.size(0) > 1:
+        waveform = waveform.mean(dim=0, keepdim=True)
+    # transpose to (T, 1)
+    audio_np = waveform.T.numpy()
 
     return {
-        'label': label,
-        'audio': audio,
+        'label':        label,
+        'speaker':      speaker,
+        'audio':        audio_np,
         'audio/filename': filename,
-        'speaker': speaker,
     }, sampling_rate
 
 
@@ -75,67 +85,49 @@ def visualize_groups_distribution(groups):
     plt.show()
 
 
-def load_FSDD_dataset(data_dir, test_split=1 / 3, validation_split=0.25, seed=None, visualize=False):
-    # Get the list of all audio files in the dataset directory
-    audio_files = [os.path.join(data_dir, file) for file in os.listdir(data_dir) if file.endswith('.wav')]
 
-    # Create a TensorFlow dataset from the audio files
-    audio_files_dataset = tf.data.Dataset.from_tensor_slices(audio_files)
-
-    # Print the number of audio files in the dataset
+def load_FSDD_dataset(data_dir, test_split=1/3, validation_split=0.25, seed=None, visualize=False):
+    # gather all .wav files
+    audio_files = glob.glob(os.path.join(data_dir, '*.wav'))
     print("Number of audio files:", len(audio_files))
 
-    audio_files_dataset = audio_files_dataset.map(process_audio, num_parallel_calls=tf.data.AUTOTUNE)
-
-    feature_dict = []
+    features, labels, speakers = [], [], []
     sampling_rates = []
 
-    for data, sampling_rate in audio_files_dataset:
-        feature_dict.append(data)
-        sampling_rates.append(sampling_rate.numpy())
+    # process all files
+    for fp in audio_files:
+        data, sr = process_audio(fp)
+        features.append(data['audio'])
+        labels.append(data['label'])
+        speakers.append(data['speaker'])
+        sampling_rates.append(sr)
 
-    # Calculate and print the mean sampling rate
-    sampling_rate = np.mean(np.array(sampling_rates))
-    print("Mean sampling rate:", sampling_rate)  # Should be 8000
+    sampling_rate = int(np.mean(sampling_rates))
+    print("Mean sampling rate:", sampling_rate)
 
-    # List to store the features, labels and speakers
-    features = []
-    labels = []
-    speakers = []
-
-    # Iterate over the feature dictionary and store the features, labels and speakers
-    for item in feature_dict:
-        features.append(item['audio'].numpy())  # Use numpy() to convert the tensor to a numpy array
-        labels.append(item['label'].numpy())  # Use numpy() to convert the tensor to a numpy array
-        speakers.append(item['speaker'].numpy())  # Use numpy() to convert the tensor to a numpy array
-
-    # Convert the features, labels and speakers to numpy arrays
+    # numpy arrays
     X = np.array(features, dtype=object)
     Y = np.array(labels)
     groups = np.array(speakers)
 
-    # Encode the labels
-    le = LabelEncoder()
-    Y_encoded = le.fit_transform(Y)
-
-    # One-hot encode the labels
+    # label encode + one-hot
+    le  = LabelEncoder()
     ohe = OneHotEncoder(sparse_output=False)
-    Y_one_hot = ohe.fit_transform(Y_encoded.reshape(-1, 1))
+    y_enc = le.fit_transform(Y).reshape(-1, 1)
+    Y_one = ohe.fit_transform(y_enc)
 
-    # Split the data into training and test sets
-    gss_test = GroupShuffleSplit(n_splits=1, test_size=test_split, random_state=seed)
-    train_val_idx, test_idx = next(gss_test.split(X, Y_one_hot, groups))  # Use the speaker groups for the split
-    X_train, X_test = X[train_val_idx], X[test_idx]
-    Y_train, Y_test = Y_one_hot[train_val_idx], Y_one_hot[test_idx]
-    train_speakers, test_speakers = groups[train_val_idx], groups[test_idx]
+    # split into train/test by speaker groups
+    gss = GroupShuffleSplit(n_splits=1, test_size=test_split, random_state=seed)
+    train_idx, test_idx = next(gss.split(X, Y_one, groups))
+    X_train, X_test = X[train_idx], X[test_idx]
+    Y_train, Y_test = Y_one[train_idx], Y_one[test_idx]
+    train_speakers, test_speakers = groups[train_idx], groups[test_idx]
 
-    # Call the visualization function
     if visualize:
         visualize_groups_distribution(train_speakers)
         visualize_groups_distribution(test_speakers)
 
-    return sampling_rate, X_train, X_test, Y_train, Y_test, groups[train_val_idx]
-
+    return sampling_rate, X_train, X_test, Y_train, Y_test, train_speakers
 
 def load_haart_dataset(train_path, test_path):
     # Charge HAART dataset from https://www.cs.ubc.ca/labs/spin/data/HAART%20DataSet.zip if it's not already done
