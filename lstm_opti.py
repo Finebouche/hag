@@ -6,7 +6,12 @@ from joblib import Parallel, delayed
 import math
 
 SEED = 923984
-DEVICE = torch.device("mps")
+if torch.backends.mps.is_available():
+    DEVICE = torch.device("mps")
+elif torch.cuda.is_available():
+    DEVICE = torch.device("cuda")
+else:
+    DEVICE = torch.device("cpu")
 
 from datasets.load_data import load_data
 from reservoir.activation_functions import tanh
