@@ -33,7 +33,7 @@ if __name__ == '__main__':
 
     step_ahead=5
     # can be "CatsDogs", "FSDD", "JapaneseVowels", "SpokenArabicDigits", "SPEECHCOMMANDS", "MackeyGlass", "Sunspot_daily", "Lorenz", "Henon", "NARMA"
-    datasets = ["MackeyGlass"]
+    datasets = ["SPEECHCOMMANDS"]
     for dataset_name in datasets:
         # score for prediction
         start_step = 500
@@ -316,6 +316,7 @@ if __name__ == '__main__':
                 url=uri,
                 engine_kwargs={
                     "connect_args": {
+                        "uri": True,                # treat URL as a URI
                         "timeout": 60,  # wait up to 60s for locks
                         "uri": True,  # tell pysqlite that our URL is a URI
                     }
