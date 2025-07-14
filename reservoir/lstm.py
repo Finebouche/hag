@@ -27,31 +27,24 @@ class BucketBatchSampler(Sampler):
     """
     Groups indices into buckets of size `bucket_size`, each bucket is
     sorted by sequence length, then yields batches of size `batch_size`
-    from within each bucket (shuffled if desired).
+    from within each bucket.
     """
     def __init__(self, lengths, batch_size, bucket_size=None, shuffle=True):
         self.lengths = np.array(lengths)
         self.batch_size = batch_size
         self.shuffle = shuffle
-        # bucket_size default to ~batch_size * 20 for enough variety
         self.bucket_size = bucket_size or batch_size * 20
-
-        # create a single array of all indices
         self.indices = np.arange(len(lengths))
 
     def __iter__(self):
         if self.shuffle:
-            # shuffle all indices before bucketing
             np.random.shuffle(self.indices)
 
-        # then split into buckets
         for i in range(0, len(self.indices), self.bucket_size):
-            bucket_inds = self.indices[i : i + self.bucket_size]
-            # sort this bucket by length
+            bucket_inds = self.indices[i: i + self.bucket_size]
             bucket_inds = sorted(bucket_inds, key=lambda idx: self.lengths[idx])
-            # now yield batches from the bucket
             for j in range(0, len(bucket_inds), self.batch_size):
-                batch = bucket_inds[j : j + self.batch_size]
+                batch = bucket_inds[j: j + self.batch_size]
                 if len(batch) == self.batch_size:
                     yield batch
 
@@ -85,48 +78,66 @@ class LSTMModel(nn.Module):
         directions = 2 if bidirectional else 1
         self.fc = nn.Linear(hidden_size * directions, output_size)
 
-    def forward(self, x):
-        # x: (batch, seq_len, input_size)
-        out, _ = self.lstm(x)
-        # take last time step
-        out = out[:, -1, :]
-        return self.fc(out)
+    def forward(self, x, lengths=None):
+        # x: (B, T_max, D_in)
+        out, _ = self.lstm(x)  # out: (B, T_max, H*dirs)
+        if lengths is not None:
+            # create a [0,1,...,B-1] tensor on the same device
+            batch_idx = torch.arange(out.size(0), device=out.device)
+            # pick the real last hidden state for each sequence
+            last_out = out[batch_idx, lengths-1, :]  # (B, H*dirs)
+        else:
+            last_out = out[:, -1, :]
+        return self.fc(last_out)
 
 
-def train(model, loader, criterion, optimizer):
+def train(model, loader, criterion, optimizer, task_type="classification"):
     model.train()
     total_loss = 0.0
     for X_batch, y_batch, lengths in loader:
         X_batch = X_batch.to(DEVICE)
         y_batch = y_batch.to(DEVICE)
-        # Optionally use lengths for packing
+        lengths.to(DEVICE),
         optimizer.zero_grad()
-        preds = model(X_batch)  # or modify to handle packed sequences
-        loss = criterion(preds, y_batch)
+        preds = model(X_batch, lengths)  # shape (B, C) or (B,1)
+        if task_type == "classification":
+        # y_batch is one-hot: convert to class indices
+            target = y_batch.argmax(dim=1)
+        else:
+        # regression: assume y_batch shape (B, T_max) or (B, T_max,1)
+            target = y_batch[torch.arange(len(lengths)), lengths - 1]
+        loss = criterion(preds, target)
         loss.backward()
         optimizer.step()
         total_loss += loss.item() * X_batch.size(0)
     return total_loss / len(loader.dataset)
 
 def evaluate(model, loader, task_type="classification"):
+    """
+    Run evaluation over loader.
+    Returns accuracy (classification) or MSE (regression).
+    """
     model.eval()
-    ys, preds = [], []
+    ys, ps = [], []
     with torch.no_grad():
         for X_batch, y_batch, lengths in loader:
-            X_batch = X_batch.to(DEVICE)
-            y_true = y_batch.cpu().numpy()
-            y_pred = model(X_batch).cpu().numpy()
+            X_batch, lengths = X_batch.to(DEVICE), lengths.to(DEVICE)
+            preds = model(X_batch, lengths).cpu().numpy()
+            if task_type == "classification":
+                y_true = y_batch.argmax(dim=1).cpu().numpy()
+            else:
+                idx = (lengths - 1).cpu().numpy()
+                arr = y_batch.numpy()
+                y_true = arr[np.arange(len(idx)), idx]
             ys.append(y_true)
-            preds.append(y_pred)
+            ps.append(preds)
     y_true = np.concatenate(ys, axis=0)
-    y_pred = np.concatenate(preds, axis=0)
+    y_pred = np.concatenate(ps, axis=0)
     if task_type == "classification":
-        y_pred_labels = np.argmax(y_pred, axis=1)
-        y_true_labels = np.argmax(y_true, axis=1)
-        return accuracy_score(y_true_labels, y_pred_labels)
+        y_pred_labels = y_pred.argmax(axis=1)
+        return accuracy_score(y_true, y_pred_labels)
     else:
         return mean_squared_error(y_true, y_pred)
-
 
 def main(args):
     data = np.load(args.data_path, allow_pickle=True)
