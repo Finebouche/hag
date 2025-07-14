@@ -307,7 +307,20 @@ if __name__ == '__main__':
             sampler = TPESampler()
             sampler_name = "cmaes" if isinstance(sampler, CmaEsSampler) else "tpe"
             url = f"sqlite:///new_{sampler_name}_{camel_to_snake(dataset_name)}_db.sqlite3"
-            storage = optuna.storages.RDBStorage(url=url, engine_kwargs={"pool_size": 20, "connect_args": {"timeout": 10}})
+            uri = (
+                f"{url}"
+                "?cache=shared"  # allow multiple connections to share page cache
+                "&journal_mode=WAL"  # enable write-ahead log
+            )
+            storage = optuna.storages.RDBStorage(
+                url=uri,
+                engine_kwargs={
+                    "connect_args": {
+                        "timeout": 60,  # wait up to 60s for locks
+                        "uri": True,  # tell pysqlite that our URL is a URI
+                    }
+                }
+            )
             print(url)
             study_name = function_name + "_" + dataset_name + "_" + data_type + "_" + variate_type
             print(study_name)
