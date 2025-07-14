@@ -181,8 +181,9 @@ if __name__ == '__main__':
             max_time_increment_possible = 500
 
         # Evaluating
-        from reservoir.lstm import LSTMModel, SequenceDataset, train, evaluate, pad_collate, BucketBatchSampler
+        from reservoir.lstm import LSTMModel, SequenceDataset, train, evaluate, pad_collate, BucketBatchSampler, ForecastDataset
         import torch.nn as nn
+        from torch.utils.data import DataLoader
 
         RESERVOIR_SIZE = 500
         avg_length = np.mean([len(x) for fold in X_train_band for x in fold])
@@ -206,8 +207,11 @@ if __name__ == '__main__':
                 dropout = trial.suggest_float('dropout', 0.0, 0.5)
                 bidirectional = trial.suggest_categorical('bidirectional', [False, True])
                 learning_rate = trial.suggest_float('learning_rate', 1e-4, 1e-1, log=True)
-                batch_size = trial.suggest_categorical('batch_size', [8, 16, 32, 64])
+                batch_size = trial.suggest_categorical('batch_size', [32, 64, 128, 256, 512])  # [8, 16, 32, 64]
                 epochs = trial.suggest_int('epochs', 5, 20)
+
+                task_type = 'classification' if is_instances_classification else 'regression'
+                criterion = torch.nn.CrossEntropyLoss() if task_type == 'classification'else torch.nn.MSELoss()
 
                 # 2) CROSS‐VALIDATION LOOP
                 total_metric = 0.0
@@ -218,29 +222,49 @@ if __name__ == '__main__':
                     X_va = X_val_band[fold_idx]
                     y_va = Y_val[fold_idx]
 
-                    train_ds = SequenceDataset(X_tr, y_tr)
-                    val_ds = SequenceDataset(X_va, y_va)
+                    if task_type == 'classification':
+                        # variable‐length audio → use SequenceDataset + padding
+                        train_ds = SequenceDataset(X_tr, y_tr)
+                        val_ds = SequenceDataset(X_va, y_va)
 
-                    # Check if variable length
-                    train_lengths = [len(x) for x in X_tr]
-                    val_lengths = [len(x) for x in X_va]
+                        # bucket/pad as before
+                        train_lengths = [len(x) for x in X_tr]
+                        if len(set(train_lengths)) > 1:
+                            sampler = BucketBatchSampler(train_lengths, batch_size=batch_size, bucket_size=batch_size * 20, shuffle=True)
+                            train_loader = DataLoader(train_ds, batch_sampler=sampler, collate_fn=pad_collate)
+                        else:
+                            train_loader = DataLoader(train_ds, batch_size=batch_size, shuffle=True, collate_fn=pad_collate)
 
-                    if len(set(train_lengths)) > 1:
-                        train_sampler = BucketBatchSampler(train_lengths, batch_size=batch_size, bucket_size=batch_size * 20, shuffle=True)
-                        train_loader = torch.utils.data.DataLoader(train_ds, batch_sampler=train_sampler, collate_fn=pad_collate)
+                        val_lengths = [len(x) for x in X_va]
+                        if len(set(val_lengths)) > 1:
+                            sampler = BucketBatchSampler(val_lengths, batch_size=batch_size, bucket_size=batch_size * 20, shuffle=False)
+                            val_loader = DataLoader(val_ds, batch_sampler=sampler, collate_fn=pad_collate)
+                        else:
+                            val_loader = DataLoader(val_ds, batch_size=batch_size, shuffle=False, collate_fn=pad_collate)
+
                     else:
-                        train_loader = torch.utils.data.DataLoader(train_ds, batch_size=batch_size, shuffle=True, collate_fn=pad_collate)
+                        # forecasting → fixed‐window regression
+                        WINDOW = 100  # or trial.suggest_int(...)
+                        HORIZON = 1
+                        # y_tr here is the raw series of shape (T,) or (T, D)
+                        train_ds = ForecastDataset(X_tr, window=WINDOW, horizon=HORIZON)
+                        val_ds = ForecastDataset(X_va, window=WINDOW, horizon=HORIZON)
 
-                    if len(set(val_lengths)) > 1:
-                        val_sampler = BucketBatchSampler(val_lengths, batch_size=batch_size, bucket_size=batch_size * 20, shuffle=False)
-                        val_loader = torch.utils.data.DataLoader(val_ds, batch_sampler=val_sampler, collate_fn=pad_collate)
-                    else:
-                        val_loader = torch.utils.data.DataLoader(val_ds, batch_size=batch_size, shuffle=False, collate_fn=pad_collate)
+                        train_loader = DataLoader(train_ds, batch_size=batch_size, shuffle=True)
+                        val_loader = DataLoader(val_ds, batch_size=batch_size, shuffle=False)
 
                     # instantiate model + optimizer + loss
-                    common_index = 1
-                    input_size = X_tr[0].shape[common_index]
-                    output_size = y_tr.shape[1] if y_tr.ndim > 1 else 1
+                    # get one sample
+                    sample_x, sample_y = train_ds[0]
+                    # sample_x has shape (seq_len, D_in)
+                    input_size = sample_x.shape[-1]
+                    if task_type == 'classification':
+                        # sample_y is one-hot vector
+                        output_size = sample_y.shape[-1]
+                    else:
+                        # sample_y could be (D_out,) or scalar
+                        output_size = sample_y.shape[-1] if sample_y.ndim > 0 else 1
+
                     model = LSTMModel(input_size=input_size,
                                     hidden_size=hidden_size,
                                     num_layers=num_layers,
@@ -248,19 +272,16 @@ if __name__ == '__main__':
                                     dropout=dropout,
                                     bidirectional=bidirectional,
                     ).to(DEVICE)
+                    model = torch.compile(model)
 
-                    criterion = (torch.nn.CrossEntropyLoss() if is_instances_classification else torch.nn.MSELoss())
                     optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
 
                     # train for a few epochs
                     for epoch in range(epochs):
-                        _ = train(model, train_loader, criterion, optimizer)
+                        _ = train(model, train_loader, criterion, optimizer, task_type=task_type)
 
                     # evaluate
-                    fold_metric = evaluate(model,
-                                           val_loader,
-                                           task_type=('classification' if is_instances_classification else 'regression')
-                                        )
+                    fold_metric = evaluate(model, val_loader, task_type=task_type)
                     total_metric += fold_metric
 
                 # 3) RETURN MEAN METRIC (to maximize accuracy or minimize MSE)

@@ -68,6 +68,30 @@ class SequenceDataset(Dataset):
         return x, y
 
 
+class ForecastDataset(Dataset):
+    """
+    From a single time series of shape (T, D), produce pairs
+      X: windows of length `window`  →  shape (window, D)
+      y: the next `horizon` points     →  shape (horizon, D) or (D,) if horizon=1
+    """
+    def __init__(self, series: np.ndarray, window: int, horizon: int = 1):
+        if series.ndim == 1:
+            series = series[:, None]
+        self.series = torch.tensor(series, dtype=torch.float32)
+        self.window  = window
+        self.horizon = horizon
+
+    def __len__(self):
+        # last start = T - window - horizon
+        return len(self.series) - self.window - self.horizon + 1
+
+    def __getitem__(self, idx):
+        x = self.series[idx : idx + self.window]               # (window, D)
+        y = self.series[idx + self.window : idx + self.window + self.horizon]
+        if self.horizon == 1:
+            y = y.squeeze(0)  # (D,)
+        return x, y
+
 class LSTMModel(nn.Module):
     def __init__(self, input_size: int, hidden_size: int, num_layers: int,
                  output_size: int, dropout: float = 0.0, bidirectional: bool = False):
@@ -94,18 +118,26 @@ class LSTMModel(nn.Module):
 def train(model, loader, criterion, optimizer, task_type="classification"):
     model.train()
     total_loss = 0.0
-    for X_batch, y_batch, lengths in loader:
+    for batch in loader:
+        # support both (x,y,lengths) and (x,y)
+        if len(batch) == 3:
+            X_batch, y_batch, lengths = batch
+            lengths = lengths.to(DEVICE)
+        else:
+            X_batch, y_batch = batch
+            lengths = None
+
         X_batch = X_batch.to(DEVICE)
         y_batch = y_batch.to(DEVICE)
-        lengths.to(DEVICE),
         optimizer.zero_grad()
         preds = model(X_batch, lengths)  # shape (B, C) or (B,1)
         if task_type == "classification":
-        # y_batch is one-hot: convert to class indices
             target = y_batch.argmax(dim=1)
         else:
-        # regression: assume y_batch shape (B, T_max) or (B, T_max,1)
-            target = y_batch[torch.arange(len(lengths)), lengths - 1]
+            # regression: last hidden state predicts next value
+            # y_batch shape (B, D) or (B, D_out)
+            target = y_batch
+
         loss = criterion(preds, target)
         loss.backward()
         optimizer.step()
@@ -120,15 +152,21 @@ def evaluate(model, loader, task_type="classification"):
     model.eval()
     ys, ps = [], []
     with torch.no_grad():
-        for X_batch, y_batch, lengths in loader:
-            X_batch, lengths = X_batch.to(DEVICE), lengths.to(DEVICE)
+        for batch in loader:
+            if len(batch) == 3:
+                X_batch, y_batch, lengths = batch
+                lengths = lengths.to(DEVICE)
+            else:
+                X_batch, y_batch = batch
+                lengths = None
+
+            X_batch = X_batch.to(DEVICE)
             preds = model(X_batch, lengths).cpu().numpy()
             if task_type == "classification":
                 y_true = y_batch.argmax(dim=1).cpu().numpy()
             else:
-                idx = (lengths - 1).cpu().numpy()
-                arr = y_batch.numpy()
-                y_true = arr[np.arange(len(idx)), idx]
+                y_true = y_batch.cpu().numpy()
+
             ys.append(y_true)
             ps.append(preds)
     y_true = np.concatenate(ys, axis=0)
