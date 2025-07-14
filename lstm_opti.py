@@ -1,9 +1,5 @@
 import numpy as np
 import torch
-from scipy import sparse, stats
-from numpy import random
-from joblib import Parallel, delayed
-import math
 
 SEED = 923984
 if torch.backends.mps.is_available():
@@ -12,6 +8,8 @@ elif torch.cuda.is_available():
     DEVICE = torch.device("cuda")
 else:
     DEVICE = torch.device("cpu")
+
+print(f"Using device: {DEVICE}")
 
 from datasets.load_data import load_data
 from reservoir.activation_functions import tanh
@@ -30,6 +28,8 @@ from datasets.preprocessing import scale_data, add_noise
 
 
 if __name__ == '__main__':
+
+    print("Starting LSTM optimization...")
 
     step_ahead=5
     # can be "CatsDogs", "FSDD", "JapaneseVowels", "SpokenArabicDigits", "SPEECHCOMMANDS", "MackeyGlass", "Sunspot_daily", "Lorenz", "Henon", "NARMA"
@@ -313,14 +313,8 @@ if __name__ == '__main__':
                 "&journal_mode=WAL"  # enable write-ahead log
             )
             storage = optuna.storages.RDBStorage(
-                url=uri,
-                engine_kwargs={
-                    "connect_args": {
-                        "uri": True,                # treat URL as a URI
-                        "timeout": 60,  # wait up to 60s for locks
-                        "uri": True,  # tell pysqlite that our URL is a URI
-                    }
-                }
+                url="postgresql+psycopg2://optuna_user:secret_password@localhost/optuna_db",
+                heartbeat_interval=1.0,   # optional
             )
             print(url)
             study_name = function_name + "_" + dataset_name + "_" + data_type + "_" + variate_type
