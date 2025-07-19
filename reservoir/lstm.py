@@ -96,23 +96,24 @@ class LSTMModel(nn.Module):
     def __init__(self, input_size: int, hidden_size: int, num_layers: int,
                  output_size: int, dropout: float = 0.0, bidirectional: bool = False):
         super(LSTMModel, self).__init__()
-        self.lstm = nn.LSTM(input_size, hidden_size, num_layers,
-                            dropout=dropout, batch_first=True,
-                            bidirectional=bidirectional)
-        directions = 2 if bidirectional else 1
-        self.fc = nn.Linear(hidden_size * directions, output_size)
+        self.lstm = nn.LSTM(input_size, hidden_size, num_layers, batch_first=True, bidirectional=bidirectional)
+        self.dropout = nn.Dropout(dropout)
+        self.directions = 2 if bidirectional else 1
+        self.fc = nn.Linear(hidden_size * self.directions, output_size)
 
     def forward(self, x, lengths=None):
         # x: (B, T_max, D_in)
         out, _ = self.lstm(x)  # out: (B, T_max, H*dirs)
+        B, T, _ = out.shape
+        # grab the true last time step for each sequence
         if lengths is not None:
-            # create a [0,1,...,B-1] tensor on the same device
-            batch_idx = torch.arange(out.size(0), device=out.device)
-            # pick the real last hidden state for each sequence
-            last_out = out[batch_idx, lengths-1, :]  # (B, H*dirs)
+            idx = torch.arange(B, device=out.device)
+            last = out[idx, lengths - 1]  # (B, H*dirs)
         else:
-            last_out = out[:, -1, :]
-        return self.fc(last_out)
+            last = out[:, -1, :]  # (B, H*dirs)
+
+        last = self.dropout(last)  # apply dropout here
+        return self.fc(last)
 
 
 def train(model, loader, criterion, optimizer, task_type="classification"):

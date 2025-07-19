@@ -33,7 +33,7 @@ if __name__ == '__main__':
 
     step_ahead=5
     # can be "CatsDogs", "FSDD", "JapaneseVowels", "SpokenArabicDigits", "SPEECHCOMMANDS", "MackeyGlass", "Sunspot_daily", "Lorenz", "Henon", "NARMA"
-    datasets = ["SPEECHCOMMANDS"]
+    datasets = ["Sunspot_daily"]
     for dataset_name in datasets:
         # score for prediction
         start_step = 500
@@ -313,7 +313,7 @@ if __name__ == '__main__':
                 "&journal_mode=WAL"  # enable write-ahead log
             )
             storage = optuna.storages.RDBStorage(
-                url="postgresql+psycopg2://optuna_user:secret_password@localhost/optuna_db",
+                url=uri,
                 heartbeat_interval=1.0,   # optional
             )
             print(url)
