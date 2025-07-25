@@ -186,7 +186,7 @@ if __name__ == '__main__':
             max_time_increment_possible = 500
 
         # Evaluating
-        from reservoir.lstm import LSTMModel, SequenceDataset, train, evaluate, pad_collate, BucketBatchSampler, ForecastDataset
+        from reservoir.lstm import LSTMModel, SequenceDataset, train, evaluate, pad_collate, BucketBatchSampler, PrecomputedForecastDataset
         import torch.nn as nn
         from torch.utils.data import DataLoader
 
@@ -249,13 +249,10 @@ if __name__ == '__main__':
 
                     else:
                         # forecasting → fixed‐window regression
-                        WINDOW = 100  # or trial.suggest_int(...)
-                        HORIZON = 5
-                        # y_tr here is the raw series of shape (T,) or (T, D)
-                        train_ds = ForecastDataset(X_tr, window=WINDOW, horizon=HORIZON)
-                        val_ds = ForecastDataset(X_va, window=WINDOW, horizon=HORIZON)
-
+                        train_ds = PrecomputedForecastDataset(X_tr, y_tr)
                         train_loader = DataLoader(train_ds, batch_size=batch_size, shuffle=True)
+
+                        val_ds = PrecomputedForecastDataset(X_va, y_va)
                         val_loader = DataLoader(val_ds, batch_size=batch_size, shuffle=False)
 
                     # instantiate model + optimizer + loss

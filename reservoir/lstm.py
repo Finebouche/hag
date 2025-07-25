@@ -67,29 +67,26 @@ class SequenceDataset(Dataset):
         y = torch.tensor(self.y_list[idx], dtype=torch.float32)
         return x, y
 
-class ForecastDataset(Dataset):
+class PrecomputedForecastDataset(Dataset):
     """
-    From a single time series of shape (T, D), produce pairs
-      X: windows of length `window`  →  shape (window, D)
-      y: the next `horizon` points     →  shape (horizon, D) or (D,) if horizon=1
+    Wraps pre-windowed inputs + targets.
+      X_windows: array-like of shape (N, window, D)
+      Y_targets: array-like of shape (N, horizon, D) or (N, D) if horizon=1
     """
-    def __init__(self, series: np.ndarray, window: int, horizon: int = 1):
-        if series.ndim == 1:
-            series = series[:, None]
-        self.series = torch.tensor(series, dtype=torch.float32)
-        self.window  = window
-        self.horizon = horizon
+    def __init__(self, X_windows, Y_targets):
+        # convert to float-tensors
+        self.X = torch.as_tensor(X_windows, dtype=torch.float32)
+        self.y = torch.as_tensor(Y_targets, dtype=torch.float32)
+        # if horizon=1 you might want to squeeze the time axis:
+        if self.y.ndim == 3 and self.y.shape[1] == 1:
+            # makes y.shape = (N, D)
+            self.y = self.y.squeeze(1)
 
     def __len__(self):
-        # last start = T - window - horizon
-        return len(self.series) - self.window - self.horizon + 1
+        return len(self.X)
 
     def __getitem__(self, idx):
-        x = self.series[idx : idx + self.window]               # (window, D)
-        y = self.series[idx + self.window : idx + self.window + self.horizon]
-        if self.horizon == 1:
-            y = y.squeeze(0)  # (D,)
-        return x, y
+        return self.X[idx], self.y[idx]
 
 class LSTMModel(nn.Module):
     def __init__(self, input_size: int, hidden_size: int, num_layers: int,
