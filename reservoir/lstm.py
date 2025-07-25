@@ -112,6 +112,40 @@ class LSTMModel(nn.Module):
         return self.fc(last)
 
 
+def make_sliding_windows(X, y, window):
+    """
+    X: np.ndarray, shape (T, D)
+    y: np.ndarray, shape (T,) or (T, D_out)
+    window: int, length of the input sequence
+    horizon: int, how many steps ahead to predict (default=1)
+
+    Returns:
+      X_windows: np.ndarray, shape (N, window, D)
+      y_targets: np.ndarray, shape (N, D_out) if horizon==1, else (N, horizon, D_out)
+    """
+    if X.ndim == 1:
+        X = X[:, None]
+    if y.ndim == 1:
+        y = y[:, None]
+
+    T = len(X)
+    N = T - window + 1
+    if N <= 0:
+        raise ValueError(f"Not enough time steps: T={T}, window={window}")
+
+    # build X_windows
+    X_windows = np.stack([X[i: i + window]
+                          for i in range(N)], axis=0)  # (N, window, D)
+
+    y_targets = np.stack([y[i + window: i + window]  for i in range(N)], axis=0)  # (N, horizon, D_out)
+
+    # if you’d rather have y_targets shape (N,) when D_out==1:
+    if y_targets.shape[-1] == 1:
+        y_targets = y_targets.squeeze(-1)
+
+    return X_windows, y_targets
+
+
 def train(model, loader, criterion, optimizer, task_type="classification"):
     model.train()
     total_loss = 0.0
@@ -122,6 +156,7 @@ def train(model, loader, criterion, optimizer, task_type="classification"):
             lengths = lengths.to(DEVICE)
         else:
             X_batch, y_batch = batch
+            print("  >> X_batch.shape:", X_batch.shape, "   y_batch.shape:", y_batch.shape)
             lengths = None
 
         X_batch = X_batch.to(DEVICE)

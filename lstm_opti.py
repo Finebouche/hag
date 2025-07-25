@@ -186,7 +186,8 @@ if __name__ == '__main__':
             max_time_increment_possible = 500
 
         # Evaluating
-        from reservoir.lstm import LSTMModel, SequenceDataset, train, evaluate, pad_collate, BucketBatchSampler, PrecomputedForecastDataset
+        from reservoir.lstm import (LSTMModel, SequenceDataset, train, evaluate, pad_collate, BucketBatchSampler,
+                                    PrecomputedForecastDataset, make_sliding_windows)
         import torch.nn as nn
         from torch.utils.data import DataLoader
 
@@ -248,11 +249,14 @@ if __name__ == '__main__':
                             val_loader = DataLoader(val_ds, batch_size=batch_size, shuffle=False, collate_fn=pad_collate)
 
                     else:
-                        # forecasting → fixed‐window regression
-                        train_ds = PrecomputedForecastDataset(X_tr, y_tr)
+                        WINDOW = 100
+                        X_tr_win, y_tr_tgt = make_sliding_windows(X_tr, y=y_tr, window=WINDOW)
+                        X_va_win, y_va_tgt = make_sliding_windows(X_va, y=y_va, window=WINDOW)
+
+                        train_ds = PrecomputedForecastDataset(X_tr_win, y_tr_tgt)
                         train_loader = DataLoader(train_ds, batch_size=batch_size, shuffle=True)
 
-                        val_ds = PrecomputedForecastDataset(X_va, y_va)
+                        val_ds = PrecomputedForecastDataset(X_va_win, y_va_tgt)
                         val_loader = DataLoader(val_ds, batch_size=batch_size, shuffle=False)
 
                     # instantiate model + optimizer + loss
