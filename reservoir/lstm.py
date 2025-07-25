@@ -67,7 +67,6 @@ class SequenceDataset(Dataset):
         y = torch.tensor(self.y_list[idx], dtype=torch.float32)
         return x, y
 
-
 class ForecastDataset(Dataset):
     """
     From a single time series of shape (T, D), produce pairs

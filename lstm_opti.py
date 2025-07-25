@@ -32,7 +32,7 @@ if __name__ == '__main__':
     print("Starting LSTM optimization...")
 
     step_ahead=5
-    # can be "CatsDogs", "FSDD", "JapaneseVowels", "SpokenArabicDigits", "SPEECHCOMMANDS", "MackeyGlass", "Sunspot_daily", "Lorenz", "Henon", "NARMA"
+    # can be "JapaneseVowels", "CatsDogs", "FSDD", "SpokenArabicDigits", "SPEECHCOMMANDS", "MackeyGlass", "Sunspot_daily", "Lorenz", "Henon", "NARMA"
     datasets = ["Sunspot_daily"]
     for dataset_name in datasets:
         # score for prediction
@@ -250,7 +250,7 @@ if __name__ == '__main__':
                     else:
                         # forecasting → fixed‐window regression
                         WINDOW = 100  # or trial.suggest_int(...)
-                        HORIZON = 1
+                        HORIZON = 5
                         # y_tr here is the raw series of shape (T,) or (T, D)
                         train_ds = ForecastDataset(X_tr, window=WINDOW, horizon=HORIZON)
                         val_ds = ForecastDataset(X_va, window=WINDOW, horizon=HORIZON)
