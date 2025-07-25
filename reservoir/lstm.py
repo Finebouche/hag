@@ -156,7 +156,6 @@ def train(model, loader, criterion, optimizer, task_type="classification"):
             lengths = lengths.to(DEVICE)
         else:
             X_batch, y_batch = batch
-            print("  >> X_batch.shape:", X_batch.shape, "   y_batch.shape:", y_batch.shape)
             lengths = None
 
         X_batch = X_batch.to(DEVICE)
