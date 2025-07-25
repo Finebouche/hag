@@ -33,7 +33,7 @@ if __name__ == '__main__':
 
     step_ahead=5
     # can be "JapaneseVowels", "CatsDogs", "FSDD", "SpokenArabicDigits", "SPEECHCOMMANDS", "MackeyGlass", "Sunspot_daily", "Lorenz", "Henon", "NARMA"
-    datasets = ["Sunspot_daily"]
+    datasets = ["MackeyGlass"]
     for dataset_name in datasets:
         # score for prediction
         start_step = 500

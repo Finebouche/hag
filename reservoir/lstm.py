@@ -77,10 +77,13 @@ class PrecomputedForecastDataset(Dataset):
         # convert to float-tensors
         self.X = torch.as_tensor(X_windows, dtype=torch.float32)
         self.y = torch.as_tensor(Y_targets, dtype=torch.float32)
-        # if horizon=1 you might want to squeeze the time axis:
+        # ALWAYS keep y 2D: (N, D_out).  For D_out=1, y will be (N,1).
         if self.y.ndim == 3 and self.y.shape[1] == 1:
-            # makes y.shape = (N, D)
-            self.y = self.y.squeeze(1)
+            # instead of removing the time axis, just reshape to (N,1)
+            self.y = self.y.reshape(self.y.shape[0], 1)
+        elif self.y.ndim == 1:
+            # if someone passed in a flat (N,), make it (N,1)
+            self.y = self.y[:, None]
 
     def __len__(self):
         return len(self.X)
@@ -112,36 +115,41 @@ class LSTMModel(nn.Module):
         return self.fc(last)
 
 
+
 def make_sliding_windows(X, y, window):
     """
     X: np.ndarray, shape (T, D)
-    y: np.ndarray, shape (T,) or (T, D_out)
-    window: int, length of the input sequence
-    horizon: int, how many steps ahead to predict (default=1)
+    y: np.ndarray, shape (T, D_out)  (already 5-step-ahead targets)
+    window: int, length of each input sequence
 
     Returns:
       X_windows: np.ndarray, shape (N, window, D)
-      y_targets: np.ndarray, shape (N, D_out) if horizon==1, else (N, horizon, D_out)
+      y_targets: np.ndarray, shape (N, D_out)
     """
+    # make sure both are 2D
     if X.ndim == 1:
         X = X[:, None]
     if y.ndim == 1:
         y = y[:, None]
 
-    T = len(X)
+    T, D  = X.shape
+    _, D_out = y.shape
     N = T - window + 1
     if N <= 0:
         raise ValueError(f"Not enough time steps: T={T}, window={window}")
 
-    # build X_windows
-    X_windows = np.stack([X[i: i + window]
-                          for i in range(N)], axis=0)  # (N, window, D)
+    # 1) your sliding windows from X
+    X_windows = np.stack(
+        [X[i : i + window] for i in range(N)],
+        axis=0,   # → (N, window, D)
+    )
 
-    y_targets = np.stack([y[i + window: i + window]  for i in range(N)], axis=0)  # (N, horizon, D_out)
+    # 2) just take the first N targets from y
+    y_targets = y[:N]        # → (N, D_out)
 
-    # if you’d rather have y_targets shape (N,) when D_out==1:
-    if y_targets.shape[-1] == 1:
-        y_targets = y_targets.squeeze(-1)
+    # if you really want a 1D target when D_out==1:
+    if D_out == 1:
+        y_targets = y_targets.squeeze(-1)  # → (N,)
 
     return X_windows, y_targets
 
@@ -207,44 +215,6 @@ def evaluate(model, loader, task_type="classification"):
         return accuracy_score(y_true, y_pred_labels)
     else:
         return mean_squared_error(y_true, y_pred)
-
-def main(args):
-    data = np.load(args.data_path, allow_pickle=True)
-    X_train, y_train = data['X_train'], data['y_train']
-    X_val, y_val = data['X_val'], data['y_val']
-
-    train_ds = SequenceDataset(X_train, y_train)
-    val_ds = SequenceDataset(X_val, y_val)
-    train_loader = DataLoader(train_ds, batch_size=args.batch_size, shuffle=True)
-    val_loader = DataLoader(val_ds, batch_size=args.batch_size)
-
-    input_size = X_train.shape[2]
-    output_size = y_train.shape[1] if y_train.ndim > 1 else 1
-
-    model = LSTMModel(
-        input_size=input_size,
-        hidden_size=args.hidden_size,
-        num_layers=args.num_layers,
-        output_size=output_size,
-        dropout=args.dropout,
-        bidirectional=args.bidirectional
-    ).to(DEVICE)
-
-    criterion = nn.CrossEntropyLoss() if args.task == "classification" else nn.MSELoss()
-    optimizer = torch.optim.Adam(model.parameters(), lr=args.learning_rate)
-
-    best_metric = -np.inf if args.task == "classification" else np.inf
-    for epoch in range(1, args.epochs + 1):
-        train_loss = train(model, train_loader, criterion, optimizer)
-        metric = evaluate(model, val_loader, task_type=args.task)
-        print(f"Epoch {epoch}/{args.epochs} - train_loss: {train_loss:.4f} - val_{args.task}: {metric:.4f}")
-        # Save best
-        if (args.task == "classification" and metric > best_metric) or \
-           (args.task == "regression" and metric < best_metric):
-            best_metric = metric
-            torch.save(model.state_dict(), args.save_path)
-
-    print(f"Best validation {args.task}: {best_metric:.4f}")
 
 if __name__ == '__main__':
     import torch
