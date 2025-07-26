@@ -4,8 +4,9 @@ import math
 import numpy as np
 import torch
 import torch.nn as nn
-from torch.utils.data import Dataset, DataLoader, Sampler
+from torch.utils.data import Dataset, Sampler
 from torch.nn.utils.rnn import pad_sequence
+from performances.losses import nrmse_multivariate
 
 # Select device: Apple GPU via MPS if available, else fallback
 if torch.backends.mps.is_available():
@@ -214,7 +215,7 @@ def evaluate(model, loader, task_type="classification"):
         y_pred_labels = y_pred.argmax(axis=1)
         return accuracy_score(y_true, y_pred_labels)
     else:
-        return mean_squared_error(y_true, y_pred)
+        return nrmse_multivariate(y_true, y_pred)
 
 if __name__ == '__main__':
     import torch
