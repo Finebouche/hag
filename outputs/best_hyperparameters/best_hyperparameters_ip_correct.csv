@@ -1,0 +1,9 @@
+dataset,function_name,ridge,network_size,input_scaling,bias_scaling,leaky_rate,input_connectivity,connectivity,spectral_radius,mu,sigma,learning_rate
+JapaneseVowels,ip_correct,-3,500,0.025,0.12,1.0,1.0,0.82061,0.89,0.20637,0.66652,1.61898e-06
+CatsDogs,ip_correct,1,500,0.185,0.105,1.0,1.0,0.10605,0.93,0.31114,0.11898,0.00278
+SpokenArabicDigits,ip_correct,-8,500,0.025,0.2,1.0,1.0,0.22223,1.39,6.09492e-04,0.14368,3.12062e-04
+FSDD,ip_correct,0,500,0.105,0.1,1.0,1.0,0.90339,1.27,0.16436,0.08529,6.43940e-05
+SPEECHCOMMANDS,ip_correct,-3,500,0.015,0.07,1.0,1.0,0.70052,1.6,0.3303,0.17147,1.59287e-05
+MackeyGlass,ip_correct,-11,500,0.155,0.065,1.0,1.0,0.80864,0.4,0.98106,0.39367,1.30711e-05
+Lorenz,ip_correct,-2,500,0.145,0.145,1.0,1.0,0.64031,0.99,0.18872,0.12845,2.67560e-06
+Sunspot_daily,ip_correct,-12,500,0.025,0.035,1.0,1.0,0.87499,0.44,0.03698,0.70829,1.42434e-06

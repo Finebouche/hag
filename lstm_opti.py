@@ -12,7 +12,7 @@ else:
 print(f"Using device: {DEVICE}")
 
 from datasets.load_data import load_data
-from reservoir.activation_functions import tanh
+from models.activation_functions import tanh
 
 # the activation function chosen for the rest of the experiment
 activation_function = lambda x : tanh(x)
@@ -33,7 +33,7 @@ if __name__ == '__main__':
 
     step_ahead=5
     # can be "JapaneseVowels", "CatsDogs", "FSDD", "SpokenArabicDigits", "SPEECHCOMMANDS", "MackeyGlass", "Sunspot_daily", "Lorenz", "Henon", "NARMA"
-    datasets = ["MackeyGlass"]
+    datasets = ["FSDD"]
     for dataset_name in datasets:
         # score for prediction
         start_step = 500
@@ -186,8 +186,8 @@ if __name__ == '__main__':
             max_time_increment_possible = 500
 
         # Evaluating
-        from reservoir.lstm import (LSTMModel, SequenceDataset, train, evaluate, pad_collate, BucketBatchSampler,
-                                    PrecomputedForecastDataset, make_sliding_windows)
+        from models.rnn import (LSTMModel, RNNModel, SequenceDataset, train, evaluate, pad_collate,
+                                BucketBatchSampler, PrecomputedForecastDataset, make_sliding_windows)
         import torch.nn as nn
         from torch.utils.data import DataLoader
 
@@ -203,17 +203,17 @@ if __name__ == '__main__':
         if variate_type == "uni" and is_multivariate:
             raise ValueError(f"Invalid variable type: {variate_type}")
 
-        # "random_ee", "random_ei", "diag_ee", "diag_ei", "desp", "hadsp", "ip_correct", "anti-oja_fast", "ip-anti-oja_fast", "lstm"
-        for function_name in ["lstm_last"]:
+        # "random_ee", "random_ei", "diag_ee", "diag_ei", "desp", "hadsp", "ip_correct", "anti-oja_fast", "ip-anti-oja_fast", "lstm_last", "rnn"
+        for function_name in ["rnn"]:
 
             def objective(trial):
                 # 1) HYPERPARAMETERS TO OPTIMIZE
-                hidden_size = trial.suggest_int('hidden_size', 320, 512, step=32)
+                hidden_size = trial.suggest_int('hidden_size', 256, 512, step=32)
                 num_layers = trial.suggest_int('num_layers', 1, 1)
                 dropout = trial.suggest_float('dropout', 0.0, 0.5)
                 bidirectional = trial.suggest_categorical('bidirectional', [False, True])
-                learning_rate = trial.suggest_float('learning_rate', 1e-4, 1e-1, log=True)
-                batch_size = trial.suggest_categorical('batch_size', [32, 64, 128, 256, 512])  # [8, 16, 32, 64]
+                learning_rate = trial.suggest_float('learning_rate', 1e-6, 1e-1, log=True)
+                batch_size = trial.suggest_categorical('batch_size', [8, 16, 32, 64])  # [8, 16, 32, 64] or [32, 64, 128, 256, 512]
                 epochs = trial.suggest_int('epochs', 5, 20)
 
                 task_type = 'classification' if is_instances_classification else 'regression'
@@ -259,7 +259,7 @@ if __name__ == '__main__':
                         val_ds = PrecomputedForecastDataset(X_va_win, y_va_tgt)
                         val_loader = DataLoader(val_ds, batch_size=batch_size, shuffle=False)
 
-                    # instantiate model + optimizer + loss
+                    # instantiate models + optimizer + loss
                     # get one sample
                     sample_x, sample_y = train_ds[0]
                     # sample_x has shape (seq_len, D_in)
@@ -271,15 +271,23 @@ if __name__ == '__main__':
                         # sample_y could be (D_out,) or scalar
                         output_size = sample_y.shape[-1] if sample_y.ndim > 0 else 1
 
-                    model = LSTMModel(input_size=input_size,
-                                    hidden_size=hidden_size,
-                                    num_layers=num_layers,
-                                    output_size=output_size,
-                                    dropout=dropout,
-                                    bidirectional=bidirectional,
-                    ).to(DEVICE)
-                    model = torch.compile(model)
+                    if function_name == "lstm_last":
+                        model = LSTMModel(input_size=input_size,
+                                        hidden_size=hidden_size,
+                                        num_layers=num_layers,
+                                        output_size=output_size,
+                                        dropout=dropout,
+                                        bidirectional=bidirectional).to(DEVICE)
+                    elif function_name == "rnn":
+                        model = RNNModel(input_size=input_size,
+                                      hidden_size=hidden_size,
+                                      num_layers=num_layers,
+                                      output_size=output_size,
+                                      dropout=dropout,
+                                      bidirectional=bidirectional,
+                                      ).to(DEVICE)
 
+                    model = torch.compile(model)
                     optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
 
                     # train for a few epochs

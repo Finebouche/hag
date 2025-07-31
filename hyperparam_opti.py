@@ -7,7 +7,7 @@ import math
 SEED = 923984
 
 from datasets.load_data import load_data
-from reservoir.activation_functions import tanh
+from models.activation_functions import tanh
 
 # the activation function chosen for the rest of the experiment
 activation_function = lambda x : tanh(x)
@@ -25,8 +25,8 @@ from datasets.preprocessing import scale_data, add_noise
 if __name__ == '__main__':
 
     step_ahead=5
-    # can be "CatsDogs", "FSDD", "JapaneseVowels", "SpokenArabicDigits", "SPEECHCOMMANDS", "MackeyGlass", "Sunspot_daily", "Lorenz", "Henon", "NARMA"
-    datasets = ["CatsDogs", "JapaneseVowels"]
+    # can be  "JapaneseVowels", "CatsDogs", "FSDD", "SpokenArabicDigits", "SPEECHCOMMANDS", "MackeyGlass", "Sunspot_daily", "Lorenz", "Henon", "NARMA"
+    datasets = ["CatsDogs", "JapaneseVowels", "FSDD"]
     for dataset_name in datasets:
         # score for prediction
         start_step = 500
@@ -178,8 +178,8 @@ if __name__ == '__main__':
             max_time_increment_possible = 500
 
         # Pretraining
-        from reservoir.reservoir import init_matrices
-        from connexion_generation.hag import run_algorithm
+        from models.reservoir import init_matrices
+        from hag.hag import run_algorithm
 
         # Evaluating
         from performances.esn_model_evaluation import train_model_for_classification, predict_model_for_classification, \
@@ -195,7 +195,7 @@ if __name__ == '__main__':
             raise ValueError(f"Invalid variable type: {variate_type}")
 
         # "random_ee", "random_ei", "diag_ee", "diag_ei", "desp", "hadsp", "ip_correct", "anti-oja_fast", "ip-anti-oja_fast", "lstm"
-        for function_name in ["lstm"]:
+        for function_name in ["mean_hag_marked"]:
             def objective(trial):
                 # Suggest values for the parameters you want to optimize
                 # COMMON
@@ -209,12 +209,12 @@ if __name__ == '__main__':
                 input_connectivity = trial.suggest_float('input_connectivity', 1, 1)
 
                 # HADSP
-                if function_name == "hadsp":
+                if function_name in ("hadsp", "mean_hag_marked"):
                     target_rate = trial.suggest_float('target_rate', 0.5, 1, step=0.01)
                     rate_spread = trial.suggest_float('rate_spread', 0.01, 0.4, step=0.005)
                     method = "pearson"
                 # DESP
-                elif function_name == "desp":
+                elif function_name in ("desp", "var_hag_marked"):
                     variance_target = trial.suggest_float('variance_target', 0.001, 0.02, step=0.001)
                     variance_spread = trial.suggest_float('variance_spread', 0.001, 0.05, step=0.002)
                     intrinsic_saturation = trial.suggest_float('intrinsic_saturation', 0.8, 0.98, step=0.02)
@@ -235,7 +235,7 @@ if __name__ == '__main__':
                     oja_eta = trial.suggest_float('oja_eta', 1e-8, 1e-3, log=True)
 
 
-                if function_name in ["hadsp", "desp"]:
+                if function_name in ["hadsp", "desp", "mean_hag_marked", "var_hag_marked"]:
                     connectivity = trial.suggest_float('connectivity', 0, 0)
                     weight_increment = trial.suggest_float('weight_increment', 0.001, 0.1, step=0.001)
                     max_partners = np.inf # trial.suggest_int('max_partners', 10, 20)
@@ -255,8 +255,8 @@ if __name__ == '__main__':
                     else:
                         common_size = X_train_band[i].shape[common_index]
 
-                    # We want the size of the reservoir to be at least network_size
-                    # K is the number of time a single input is repeated to the reservoir
+                    # We want the size of the models to be at least network_size
+                    # K is the number of time a single input is repeated to the models
                     K = math.ceil(network_size / common_size)
                     n = common_size * K
 
@@ -279,14 +279,14 @@ if __name__ == '__main__':
                     bias *= bias_scaling
                     Win *= input_scaling
 
-                    if function_name == "hadsp":
+                    if function_name in ("hadsp", "mean_hag_marked"):
                         W, (_, _, _) = run_algorithm(W, Win, bias, leaky_rate, activation_function, pretrain_data,
                                                      weight_increment, target_rate, rate_spread, function_name,
                                                      multiple_instances=is_instances_classification,
                                                      min_increment = min_increment, max_increment=max_increment, use_full_instance=use_full_instance,
                                                      max_partners=max_partners, method=method,
                                                      n_jobs=nb_jobs_per_trial)
-                    elif function_name == "desp":
+                    elif function_name in ("desp", "var_hag_marked"):
                         W, (_, _, _) = run_algorithm(W, Win, bias, leaky_rate, activation_function, pretrain_data,
                                                      weight_increment, variance_target, variance_spread, function_name,
                                                      multiple_instances=is_instances_classification,
@@ -372,21 +372,21 @@ if __name__ == '__main__':
 
             # Parallelized
             n_parallel_studies = 10
-            # trials_per_process = (N_TRIALS - completed_trials) // n_parallel_studies
-            # # Use joblib to parallelize the optimization
-            # def optimize_study(n_trials_per_process):
-            #     study = optuna.create_study(storage=storage, sampler=sampler, study_name=study_name, direction=direction, load_if_exists=True)
-            #     study.optimize(objective, n_trials=n_trials_per_process - completed_trials)
-            # Parallel(n_jobs=n_parallel_studies)(
-            #     delayed(optimize_study)(trials_per_process) for _ in range(n_parallel_studies)
-            # )
+            trials_per_process = (N_TRIALS - completed_trials) // n_parallel_studies
+            # Use joblib to parallelize the optimization
+            def optimize_study(n_trials_per_process):
+                study = optuna.create_study(storage=storage, sampler=sampler, study_name=study_name, direction=direction, load_if_exists=True)
+                study.optimize(objective, n_trials=n_trials_per_process - completed_trials)
+            Parallel(n_jobs=n_parallel_studies)(
+                delayed(optimize_study)(trials_per_process) for _ in range(n_parallel_studies)
+            )
 
             # Not Parallelized
-            while completed_trials < N_TRIALS:
-                # get the number of trials already done that have been completed
-                completed_trials = len([trial for trial in study.trials if trial.state == optuna.trial.TrialState.COMPLETE])
-                print(f"Completed trials: {completed_trials}/{N_TRIALS}")
-                try:
-                    study.optimize(objective, n_trials=N_TRIALS-completed_trials)
-                except Exception as e:
-                    print(f"Error during optimization: {e}, retrying...")
+            # while completed_trials < N_TRIALS:
+            #     # get the number of trials already done that have been completed
+            #     completed_trials = len([trial for trial in study.trials if trial.state == optuna.trial.TrialState.COMPLETE])
+            #     print(f"Completed trials: {completed_trials}/{N_TRIALS}")
+            #     try:
+            #         study.optimize(objective, n_trials=N_TRIALS-completed_trials)
+            #     except Exception as e:
+            #         print(f"Error during optimization: {e}, retrying...")

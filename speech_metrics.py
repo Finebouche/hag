@@ -8,7 +8,7 @@ from numpy import random
 
 SEED = 923984
 
-from reservoir.activation_functions import tanh
+from models.activation_functions import tanh
 activation_function = lambda x : tanh(x)
 
 # Preprocessing
@@ -20,7 +20,7 @@ from datasets.load_data import load_data as load_dataset
 # Evaluating
 from performances.esn_model_evaluation import init_reservoir, init_ip_reservoir, init_local_rule_reservoir, init_ip_local_rule_reservoir
 from analysis.richness import spectral_radius, pearson, squared_uncoupled_dynamics_alternative, distance_correlation
-from reservoir.reservoir import init_matrices
+from models.reservoir import init_matrices
 from connexion_generation.hag import run_algorithm
 from performances.utility import retrieve_best_model
 
@@ -110,7 +110,7 @@ def evaluate_dataset_on_test(study, function_name, pretrain_data, test_data, is_
         else:
             common_size = pretrain_data.shape[common_index]
 
-        # We want the size of the reservoir to be at least network_size
+        # We want the size of the models to be at least network_size
         K = math.ceil(hyperparams['network_size'] / common_size)
         n = common_size * K
 

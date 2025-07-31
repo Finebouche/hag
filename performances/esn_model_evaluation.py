@@ -6,8 +6,8 @@ from sklearn.metrics import accuracy_score
 from tqdm import tqdm
 from performances.losses import nrmse_multivariate
 from reservoirpy.nodes import Reservoir, IPReservoir, Ridge, RLS, LMS, NVAR, ESN
-from reservoir.synapticPlasticityReservoir import SynapticPlasticityReservoir
-from reservoir.intrinsicSynapticPlasticityReservoir import IPSPReservoir
+from models.synapticPlasticityReservoir import SynapticPlasticityReservoir
+from models.intrinsicSynapticPlasticityReservoir import IPSPReservoir
 import reservoirpy
 
 reservoirpy.verbosity(level=0)
@@ -128,7 +128,7 @@ def predict_model_for_classification(reservoir, readout, X_test, esn=None, n_job
             import reservoirpy
             reservoirpy.verbosity(level=0)
 
-            states = reservoir.run(x, reset=True)[-1, np.newaxis].flatten() # read from the last state of the reservoir
+            states = reservoir.run(x, reset=True)[-1, np.newaxis].flatten() # read from the last state of the models
             y = readout.run(states)
             return y
 

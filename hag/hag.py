@@ -1,6 +1,6 @@
 import numpy as np
-from connexion_generation.utility import determine_connection_pairs, determine_pruning_pairs
-from reservoir.reservoir import update_reservoir
+from hag.neuron_selection import determine_connection_pairs, determine_pruning_pairs
+from models.reservoir import update_reservoir
 import matplotlib.pyplot as plt
 from tqdm import tqdm
 
@@ -108,9 +108,9 @@ def run_algorithm(W, Win, bias, leaky_rate, activation_function, input_data, wei
             neurons_state = update_reservoir(W, Win, input_value, neurons_state, leaky_rate, bias, activation_function)
             states_history.append(neurons_state)
 
-        if algorithm_type == "hadsp":
+        if algorithm_type in ("hadsp", "mean_hag_marked"):
             delta_z = compute_synaptic_change(states_history[-state_inc:], target, spread, average=average)
-        elif algorithm_type == "desp":
+        elif algorithm_type in ("desp", "var_hag_marked"):
             delta_z = compute_variance(states_history[-state_inc:], target, spread, average=average)
         else:
             raise ValueError("type must be one of 'hadsp', 'desp'")
@@ -118,7 +118,7 @@ def run_algorithm(W, Win, bias, leaky_rate, activation_function, input_data, wei
         W, _, nb_new_add, nb_new_prun = hag_step(W, states_history[-state_inc:], delta_z, weight_increment,
                                                  max_partners=max_partners, method=method, n_jobs=n_jobs)
 
-        if algorithm_type == "desp":
+        if algorithm_type in ("desp", "var_hag_marked"):
             # implement intrinsic homeostatic plasticity based on saturation of states
             neurons_states = np.array(states_history[-state_inc:]).T
             for neuron_states, i in zip(neurons_states, range(bias.size)):

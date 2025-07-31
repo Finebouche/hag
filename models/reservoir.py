@@ -11,7 +11,7 @@ def update_reservoir(W, Win, u, r, leaky_rate, bias, activation_function):
 
 def init_matrices(n, input_connectivity, connectivity, K, spectral_radius=1, w_distribution = stats.uniform(loc=-1, scale=2),
                   win_distribution=stats.uniform(0, 1), use_block=False, seed=111):
-    # K is the number of time a single input is repeated to the reservoir
+    # K is the number of time a single input is repeated to the models
     # The distribution generation functions #
     # stats.norm(1, 0.5)
     # stats.uniform(-1, 1)
@@ -31,7 +31,7 @@ def init_matrices(n, input_connectivity, connectivity, K, spectral_radius=1, w_d
 
     # Reservoir matrix
     if use_block:
-        # Create block-diagonal reservoir matrix W
+        # Create block-diagonal models matrix W
         blocks = []
         for i in range(num_block):
             # Each block is a K x K random sparse matrix

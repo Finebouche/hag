@@ -31,7 +31,7 @@ from reservoirpy.nodes.reservoirs.intrinsic_plasticity import (
 )
 
 # Local update function:
-from reservoir.synapticPlasticityReservoir import synaptic_plasticity
+from models.synapticPlasticityReservoir import synaptic_plasticity
 
 
 ##########################################
@@ -40,11 +40,11 @@ from reservoir.synapticPlasticityReservoir import synaptic_plasticity
 
 def ip_sp_backward(reservoir: "IPSPReservoir", X=None, *args, **kwargs):
     """
-    Offline learning method for a reservoir combining intrinsic plasticity (IP)
+    Offline learning method for a models combining intrinsic plasticity (IP)
     and a local synaptic rule (Oja, Hebb, etc.). The logic is:
       - For each epoch and each sequence:
         - For each time step:
-          1) Update reservoir state by calling `reservoir.call(input)`.
+          1) Update models state by calling `models.call(input)`.
           2) Perform IP update on parameters 'a', 'b'.
           3) Perform local rule update on recurrent weights 'W'.
     """
@@ -71,7 +71,7 @@ def ip_sp_backward(reservoir: "IPSPReservoir", X=None, *args, **kwargs):
 
 def initialize_ip_sp_reservoir(reservoir, *args, **kwargs):
     """
-    Custom initializer for an IP + Synaptic Plasticity reservoir.
+    Custom initializer for an IP + Synaptic Plasticity models.
     1) Calls the usual ESN-like initialization (W, Win, bias, etc.).
     2) Initializes IP parameters (a, b).
     """
@@ -91,7 +91,7 @@ def initialize_ip_sp_reservoir(reservoir, *args, **kwargs):
 
 class IPSPReservoir(Unsupervised):
     """
-    A reservoir implementing:
+    A models implementing:
       - Intrinsic Plasticity (neuron-wise parameters 'a' and 'b'), and
       - A local synaptic learning rule (e.g., Oja, Hebbian, BCM, etc.) for the
         recurrent weight matrix 'W'.
@@ -122,7 +122,7 @@ class IPSPReservoir(Unsupervised):
         Intrinsic Plasticity learning rate for a,b updates.
     epochs : int
         How many passes of IP+Local learning to perform.
-    (… plus typical reservoir hyperparameters: units, sr, lr, etc.)
+    (… plus typical models hyperparameters: units, sr, lr, etc.)
 
     Notes
     -----
@@ -171,7 +171,7 @@ class IPSPReservoir(Unsupervised):
         seed=None,
         **kwargs,
     ):
-        # Check for mandatory reservoir size or custom W
+        # Check for mandatory models size or custom W
         if units is None and not is_array(W):
             raise ValueError(
                 "'units' must be provided if 'W' is not an explicit matrix."
@@ -230,7 +230,7 @@ class IPSPReservoir(Unsupervised):
                     ip_activation, reservoir=self, f=get_function(activation)
                 ),
                 "fb_activation": fb_activation,
-                # standard reservoir stuff
+                # standard models stuff
                 "noise_in": noise_in,
                 "noise_rc": noise_rc,
                 "noise_out": noise_fb,
@@ -332,7 +332,7 @@ class IPSPReservoir(Unsupervised):
     def partial_fit(self, X_batch, Y_batch=None, warmup=0, **kwargs) -> "IPSPReservoir":
         """
         Partial offline fitting method:
-          - Warmup the reservoir for `warmup` steps (no learning).
+          - Warmup the models for `warmup` steps (no learning).
           - Then, for each sequence, run IP + local rule updates.
 
         Parameters
@@ -346,7 +346,7 @@ class IPSPReservoir(Unsupervised):
         Returns
         -------
         IPSPReservoir
-            The reservoir itself (fitted).
+            The models itself (fitted).
         """
         X, _ = check_xy(self, X_batch, allow_n_inputs=False)
         X, _ = _init_with_sequences(self, X)

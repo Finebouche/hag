@@ -43,7 +43,7 @@ def train_ei(W_ee, W_ie, W_ei, Win_e, bias_e, bias_i, Utrain, Ytrain, activation
     if state_i is None:
         state_i = np.random.uniform(-1, 1, n_i)
 
-    # run the reservoir with the data and collect R = (u, state)
+    # run the models with the data and collect R = (u, state)
     seq_len = len(Utrain)
     if Utrain.ndim == 2 and Utrain.shape[1] > 1:
         seq_len = len(Utrain[1,:])
@@ -57,7 +57,7 @@ def train_ei(W_ee, W_ie, W_ei, Win_e, bias_e, bias_i, Utrain, Ytrain, activation
 
         state_e, state_i = update_ei_reservoir(W_ee, W_ie, W_ei, Win_e, u, state_e, state_i, leaky_rate, bias_e, bias_i,
                                                activation_function)
-        # we collect after the initialisation of the reservoir (default = 0)
+        # we collect after the initialisation of the models (default = 0)
         if t > init_len:
             R[:, t - init_len] = state_e
     #             R[:,t-init_len] = np.concatenate((u, state))

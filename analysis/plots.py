@@ -16,7 +16,7 @@ def plot_readout(readout, that="Wout"):
     ax = fig.add_subplot(111)
     ax.grid(axis="y")
     ax.set_ylabel('Coefs. de {string}'.format(string=that))
-    ax.set_xlabel("Neurones du reservoir")
+    ax.set_xlabel("Neurones du models")
     ax.bar(np.arange(Wout.size), Wout.ravel()[::-1])
 
     plt.show()

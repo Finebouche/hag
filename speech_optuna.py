@@ -50,7 +50,7 @@ ohe = OneHotEncoder(sparse_output=False)
 Y_train_raw = ohe.fit_transform(Y_train_raw.reshape(-1, 1))
 
 
-from reservoir.activation_functions import tanh, heaviside, sigmoid
+from models.activation_functions import tanh, heaviside, sigmoid
 
 # the activation function choosen for the rest of the experiment
 # activation_function = lambda x : sigmoid(2*(x-0.5))tanh(x)
@@ -198,7 +198,7 @@ else:
     max_time_increment_possible = 500
 
 #Pretraining
-from reservoir.reservoir import init_matrices
+from models.reservoir import init_matrices
 from connexion_generation.hag import run_algorithm
 from scipy import sparse
 
@@ -279,7 +279,7 @@ def objective(trial):
         else:
             common_size = X_train_band[i].shape[common_index]
 
-        # We want the size of the reservoir to be at least network_size
+        # We want the size of the models to be at least network_size
         K = math.ceil(network_size / common_size)
         n = common_size * K
 

@@ -1,5 +1,5 @@
 import numpy as np
-from connexion_generation.correlation_utility import compute_mutual_information, compute_pearson_corr
+from hag.correlation_utility import compute_mutual_information, compute_pearson_corr
 from joblib import Parallel, delayed
 
 
@@ -22,7 +22,7 @@ def available_neurons(neuron, connectivity_matrix, neurons_pool, max_partners=np
 
 
 def determine_connection_pairs(neurons_needing_new_connection, connectivity_matrix, states=None, method="random",
-                               is_inter_matrix=False, max_partners=np.inf, random_seed=None, n_jobs=1):
+                               is_inter_matrix=False, max_partners=np.inf, random_seed=None, mark_and_skip=True, n_jobs=1):
     """
     Determine pairs of neurons for establishing new connections based on specified criteria.
 
@@ -31,41 +31,51 @@ def determine_connection_pairs(neurons_needing_new_connection, connectivity_matr
     """
     if random_seed is not None:
         np.random.seed(random_seed)
-    if states is None and (method == "mi" or method == "pearson"):
+    if states is None and method in ("mi", "pearson"):
         raise ValueError("States must be provided if mutual information or pearson based pruning is used.")
 
-    neurons_pool = list(range(connectivity_matrix.shape[1])) if is_inter_matrix \
-        else list(neurons_needing_new_connection)
+    neurons_pool = list(range(connectivity_matrix.shape[1])) if is_inter_matrix else list(neurons_needing_new_connection)
     if len(neurons_pool) <= 1:
         return []
 
-    def compute_new_connexion(neuron):
-        available_for_neuron = available_neurons(neuron, connectivity_matrix, neurons_pool, max_partners)
+    remaining = set(neurons_needing_new_connection)
+    new_connections = []
 
+    for neuron in neurons_needing_new_connection:
+        # skip any neuron that was already used as a source or target
+        if neuron not in remaining:
+            continue
+
+        # get all allowed targets for this neuron
+        available = available_neurons(neuron, connectivity_matrix, neurons_pool, max_partners)
+        if not available:
+            continue
+
+        # pick best by MI or Pearson, or random
         if method == "mi":
-            mi_for_available_neurons = compute_mutual_information(states, [available_for_neuron, [neuron]])
-            mi_for_neuron = mi_for_available_neurons[neuron, available_for_neuron]
-            neuron_to_choose_from = np.array(available_for_neuron)[np.isclose(mi_for_neuron, np.nanmax(mi_for_neuron))]
+            mi_mat = compute_mutual_information(states, [available, [neuron]])
+            scores = mi_mat[neuron, available]
+            best = np.array(available)[np.isclose(scores, np.nanmax(scores))]
         elif method == "pearson":
-            # Alternative : np.corrcoef(states[neuron, 1:], states[available_for_neuron, :-1])[0, 1:]
-            correlations = compute_pearson_corr(states[neuron, 1:], states[available_for_neuron, 1:])
-            neuron_to_choose_from = np.array(available_for_neuron)[np.isclose(correlations, np.nanmax(correlations))]
+            corrs = compute_pearson_corr(states[neuron], states[available])
+            best = np.array(available)[np.isclose(corrs, np.nanmax(corrs))]
         elif method == "random":
-            neuron_to_choose_from = np.array(available_for_neuron)
+            best = np.array(available)
         else:
             raise ValueError("Invalid method. Must be one of 'mi', 'pearson', 'random'.")
 
-        if neuron_to_choose_from.size == 0:
+        if best.size == 0:
             raise ValueError("No neuron_to_choose_from found for neuron in adding, this should not happen as"
                              f'list(neurons_needing_new_connection) is : {neurons_needing_new_connection}.')
+        # choose one at random among the best
+        incoming = np.random.choice(best)
+        new_connections.append((neuron, incoming))
 
-        incoming_neuron = np.random.choice(neuron_to_choose_from)
-        return neuron, incoming_neuron
-
-    new_connections = Parallel(n_jobs=n_jobs)(
-        delayed(compute_new_connexion)(neuron)
-        for neuron in neurons_needing_new_connection
-    )
+        if mark_and_skip: #otherwise we end up with symmetric connections
+            # also remove 'neuron' so it never re-selects in case of duplicates
+            remaining.discard(neuron)
+            # mark-and-skip: remove 'incoming' so it won't choose later
+            remaining.discard(incoming)
 
     return new_connections
 

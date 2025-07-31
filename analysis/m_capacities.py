@@ -88,12 +88,12 @@ def memory_capacity(
     Y_train, Y_test = Y[:train_end], Y[train_end:]
 
     # ----------------------------------
-    # 5) Fit a (cloned) model on the training set
+    # 5) Fit a (cloned) models on the training set
     # ----------------------------------
     model_clone = deepcopy(model)
-    # We warm up for k_max steps (optional). If your model requires a different
-    # warmup, adapt it. If your model can handle zero warmup, set warmup=0.
-    # Or if your model typically has separate warmup, you can remove "warmup=k_max".
+    # We warm up for k_max steps (optional). If your models requires a different
+    # warmup, adapt it. If your models can handle zero warmup, set warmup=0.
+    # Or if your models typically has separate warmup, you can remove "warmup=k_max".
     model_clone.fit(X_train, Y_train, warmup=k_max)
 
     # ----------------------------------

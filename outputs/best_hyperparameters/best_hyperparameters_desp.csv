@@ -1,0 +1,9 @@
+dataset,function_name,ridge,network_size,input_scaling,bias_scaling,leaky_rate,input_connectivity,variance_target,variance_spread,intrinsic_saturation,intrinsic_coef,connectivity,weight_increment,use_full_instance,min_increment,max_increment,method
+JapaneseVowels,desp,-3,500,0.19,0.04,1.0,1.0,0.016,0.003,0.98,0.92,0.0,0.076,True,20,117,
+CatsDogs,desp,1,500,0.1,0.035,1.0,1.0,0.014,0.007,0.86,0.92,0.0,0.065,True,267,897,
+SpokenArabicDigits,desp,-11,500,0.015,0.025,1.0,1.0,0.014,0.003,0.98,0.8,0.0,0.073,False,54,170,
+FSDD,desp,-3,500,0.01,0.005,1.0,1.0,0.012,0.003,0.86,0.96,0.0,0.023,True,281,1744,
+SPEECHCOMMANDS,desp,-9,500,0.01,0.0,1.0,1.0,0.006,0.001,0.96,0.94,0.0,0.01,False,32,101,pearson
+MackeyGlass,desp,-12,500,0.085,0.185,1.0,1.0,0.019,0.003,0.94,0.8,0.0,0.1,,287,671,
+Lorenz,desp,-11,500,0.09,0.01,1.0,1.0,0.018,0.001,0.84,0.86,0.0,0.007,,53,1248,
+Sunspot_daily,desp,-12,500,0.19,0.005,1.0,1.0,0.017,0.005,0.86,0.84,0.0,0.046,,252,1365,

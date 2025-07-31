@@ -115,6 +115,63 @@ class LSTMModel(nn.Module):
         last = self.dropout(last)  # apply dropout here
         return self.fc(last)
 
+import torch
+import torch.nn as nn
+
+class RNNModel(nn.Module):
+    def __init__(self,
+                 input_size: int,
+                 hidden_size: int,
+                 num_layers: int,
+                 output_size: int,
+                 dropout: float = 0.0,
+                 bidirectional: bool = False,
+                 *,
+                 custom_ih: torch.Tensor = None,
+                 custom_hh: torch.Tensor = None,
+                 custom_bias: torch.Tensor = None):
+        super().__init__()
+        self.rnn = nn.RNN(input_size, hidden_size, num_layers,
+                          nonlinearity="tanh",
+                          batch_first=True,
+                          bidirectional=bidirectional,
+                          dropout=dropout if num_layers>1 else 0.0)
+        self.directions = 2 if bidirectional else 1
+        self.fc = nn.Linear(hidden_size * self.directions, output_size)
+
+        # If a custom weight matrices we copy them into the RNN.
+        #   custom_ih  → (num_layers * directions, hidden_size, input_size)
+        #   custom_hh  → (num_layers * directions, hidden_size, hidden_size)
+        #   custom_bias→ (num_layers * directions,  hidden_size)
+
+        if custom_ih is not None:
+            assert custom_ih.shape == self.rnn.weight_ih_l0.shape, \
+                f"weight_ih_l0 shape mismatch: got {custom_ih.shape}, expected {self.rnn.weight_ih_l0.shape}"
+            self.rnn.weight_ih_l0.data.copy_(custom_ih)
+
+        if custom_hh is not None:
+            assert custom_hh.shape == self.rnn.weight_hh_l0.shape, \
+                f"weight_hh_l0 shape mismatch: got {custom_hh.shape}, expected {self.rnn.weight_hh_l0.shape}"
+            self.rnn.weight_hh_l0.data.copy_(custom_hh)
+
+        if custom_bias is not None:
+            # RNN has two bias vectors per layer: bias_ih_l0 and bias_hh_l0
+            assert custom_bias.shape == self.rnn.bias_ih_l0.shape, \
+                f"bias shape mismatch: got {custom_bias.shape}, expected {self.rnn.bias_ih_l0.shape}"
+            self.rnn.bias_ih_l0.data.copy_(custom_bias)
+            self.rnn.bias_hh_l0.data.copy_(custom_bias)
+
+    def forward(self, x, lengths=None):
+        out, _ = self.rnn(x)
+        B, T_max, _ = out.shape
+
+        if lengths is not None:
+            idx = torch.arange(B, device=out.device)
+            last_hidden = out[idx, lengths - 1]
+        else:
+            last_hidden = out[:, -1, :]
+
+        return self.fc(last_hidden)
 
 
 def make_sliding_windows(X, y, window):

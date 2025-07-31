@@ -108,7 +108,7 @@ def synaptic_plasticity(reservoir, pre_state, post_state):
 
 def sp_backward(reservoir, X=None, *args, **kwargs):
     """
-    Offline learning method for the local-rule-based reservoir.
+    Offline learning method for the local-rule-based models.
     """
     for epoch in range(reservoir.epochs):
         for seq in X:
@@ -125,7 +125,7 @@ def sp_backward(reservoir, X=None, *args, **kwargs):
 def initialize_synaptic_plasticity(reservoir, *args, **kwargs):
     """
     Custom initializer for the LocalRuleReservoir.
-    Reuses the ESN-like initialization and sets the reservoir internal state to zeros.
+    Reuses the ESN-like initialization and sets the models internal state to zeros.
     """
     initialize_base(reservoir, *args, **kwargs)
 
@@ -136,7 +136,7 @@ def initialize_synaptic_plasticity(reservoir, *args, **kwargs):
 
 class SynapticPlasticityReservoir(Unsupervised):
     """
-    A reservoir that learns its recurrent weights W through a local
+    A models that learns its recurrent weights W through a local
     learning rule selected by the 'learning_rule' hyperparameter.
 
     Supported rules:
@@ -171,7 +171,7 @@ class SynapticPlasticityReservoir(Unsupervised):
     synapse_normalization : bool, optional
         If True, L2-normalize each row of W after its update. Default = False.
 
-    Other standard reservoir parameters:
+    Other standard models parameters:
       - units, sr, lr, epochs, ...
       - input_bias, noise_in, noise_rc, ...
       - input_scaling, rc_connectivity, ...
@@ -179,14 +179,14 @@ class SynapticPlasticityReservoir(Unsupervised):
 
     Example
     -------
-    >>> reservoir = SynapticPlasticityReservoir(
+    >>> models = SynapticPlasticityReservoir(
     ...     units=100, sr=0.9, local_rule="hebbian",
     ...     eta=1e-3, epochs=5, synapse_normalization=True
     ... )
     >>> # Fit on data timeseries
-    >>> reservoir.fit(X_data, warmup=10)
+    >>> models.fit(X_data, warmup=10)
     >>> # Then run
-    >>> states = reservoir.run(X_data)
+    >>> states = models.run(X_data)
     """
 
     def __init__(
@@ -196,7 +196,7 @@ class SynapticPlasticityReservoir(Unsupervised):
         eta: float = 1e-3,
         synapse_normalization: bool = False,
         bcm_theta: float = 0.0,
-        # standard reservoir params
+        # standard models params
         units: int = None,
         sr: Optional[float] = None,
         lr: float = 1.0,

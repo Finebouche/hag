@@ -1,0 +1,9 @@
+dataset,function_name,ridge,network_size,input_scaling,bias_scaling,leaky_rate,input_connectivity,connectivity,spectral_radius
+JapaneseVowels,random_ee,-11,500,0.025,0.165,1.0,1.0,0.06503,0.72
+CatsDogs,random_ee,0,500,0.105,0.005,1.0,1.0,0.20486,0.82
+SpokenArabicDigits,random_ee,-11,500,0.01,0.04,1.0,1.0,0.00353,1.01
+FSDD,random_ee,0,500,0.045,0.01,1.0,1.0,0.14733,0.97
+SPEECHCOMMANDS,random_ee,-8,500,0.035,0.0,1.0,1.0,0.36021,1.0
+MackeyGlass,random_ee,-12,500,0.195,0.17,1.0,1.0,0.2114,0.4
+Lorenz,random_ee,-9,500,0.155,0.08,1.0,1.0,0.99326,0.5
+Sunspot_daily,random_ee,-12,500,0.095,0.08,1.0,1.0,0.01406,1.38
