@@ -205,7 +205,6 @@ if __name__ == '__main__':
 
         # "random_ee", "random_ei", "diag_ee", "diag_ei", "desp", "hadsp", "ip_correct", "anti-oja_fast", "ip-anti-oja_fast", "lstm_last", "rnn"
         for function_name in ["rnn"]:
-
             def objective(trial):
                 # 1) HYPERPARAMETERS TO OPTIMIZE
                 hidden_size = trial.suggest_int('hidden_size', 256, 512, step=32)
@@ -213,7 +212,7 @@ if __name__ == '__main__':
                 dropout = trial.suggest_float('dropout', 0.0, 0.5)
                 bidirectional = trial.suggest_categorical('bidirectional', [False, True])
                 learning_rate = trial.suggest_float('learning_rate', 1e-6, 1e-1, log=True)
-                batch_size = trial.suggest_categorical('batch_size', [8, 16, 32, 64])  # [8, 16, 32, 64] or [32, 64, 128, 256, 512]
+                batch_size = trial.suggest_categorical('batch_size', [8, 16, 32, 64, 128, 256, 512])  # [8, 16, 32, 64] or [32, 64, 128, 256, 512]
                 epochs = trial.suggest_int('epochs', 5, 20)
 
                 task_type = 'classification' if is_instances_classification else 'regression'
