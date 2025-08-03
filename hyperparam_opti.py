@@ -226,14 +226,13 @@ if __name__ == '__main__':
                 else:
                     raise ValueError(f"Invalid function name: {function_name}")
 
-                if function_name in ["ip_correct", "ip-anti-oja", "ip-anti-oja_fast"] :
+                if function_name in ["ip_correct", "ip-anti-oja", "ip-anti-oja_fast"]:
                     mu = trial.suggest_float('mu', 0, 1)
                     sigma = trial.suggest_float('sigma', 0, 1)
                     learning_rate = trial.suggest_float('learning_rate', 1e-6, 1e-1, log=True)
                 if function_name in ["anti-oja", "anti-oja_fast", "ip-anti-oja", "ip-anti-oja_fast"]:
                     # We often use a log-uniform distribution for learning rates:
                     oja_eta = trial.suggest_float('oja_eta', 1e-8, 1e-3, log=True)
-
 
                 if function_name in ["hadsp", "desp", "mean_hag_marked", "var_hag_marked"]:
                     connectivity = trial.suggest_float('connectivity', 0, 0)
@@ -331,12 +330,10 @@ if __name__ == '__main__':
                     if is_instances_classification:
                         mode = "sequence-to-vector"
                         train_model_for_classification(reservoir, readout, train_data, Y_train[i], n_jobs=nb_jobs_per_trial, mode=mode)
-
                         Y_pred = predict_model_for_classification(reservoir, readout, val_data, n_jobs=nb_jobs_per_trial, mode=mode)
                         score = compute_score(Y_pred, Y_val[i], is_instances_classification)
                     else:
                         esn = train_model_for_prediction(reservoir, readout, train_data, Y_train[i], warmup=start_step, n_jobs=nb_jobs_per_trial)
-
                         Y_pred = esn.run(val_data, reset=False)
                         score = compute_score(Y_pred[SLICE_RANGE], Y_val[i][SLICE_RANGE], is_instances_classification)
 

@@ -115,9 +115,6 @@ class LSTMModel(nn.Module):
         last = self.dropout(last)  # apply dropout here
         return self.fc(last)
 
-import torch
-import torch.nn as nn
-
 class RNNModel(nn.Module):
     def __init__(self,
                  input_size: int,

@@ -108,7 +108,7 @@ def run_algorithm(W, Win, bias, leaky_rate, activation_function, input_data, wei
             neurons_state = update_reservoir(W, Win, input_value, neurons_state, leaky_rate, bias, activation_function)
             states_history.append(neurons_state)
 
-        if algorithm_type in ("hadsp", "mean_hag_marked"):
+        if algorithm_type in ("hadsp", "mean_hag_marked", "rnn-mean_hag"):
             delta_z = compute_synaptic_change(states_history[-state_inc:], target, spread, average=average)
         elif algorithm_type in ("desp", "var_hag_marked"):
             delta_z = compute_variance(states_history[-state_inc:], target, spread, average=average)

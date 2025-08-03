@@ -9,6 +9,8 @@ elif torch.cuda.is_available():
 else:
     DEVICE = torch.device("cpu")
 
+nb_jobs = 2
+
 print(f"Using device: {DEVICE}")
 
 from datasets.load_data import load_data
@@ -203,17 +205,20 @@ if __name__ == '__main__':
         if variate_type == "uni" and is_multivariate:
             raise ValueError(f"Invalid variable type: {variate_type}")
 
-        # "random_ee", "random_ei", "diag_ee", "diag_ei", "desp", "hadsp", "ip_correct", "anti-oja_fast", "ip-anti-oja_fast", "lstm_last", "rnn"
-        for function_name in ["rnn"]:
+        # "random_ee", "random_ei", "diag_ee", "diag_ei", "desp", "hadsp", "ip_correct", "anti-oja_fast", "ip-anti-oja_fast",
+        # "lstm_last", "rnn", "rnn-mean_hag"
+        for function_name in ["rnn-mean_hag"]:
             def objective(trial):
                 # 1) HYPERPARAMETERS TO OPTIMIZE
-                hidden_size = trial.suggest_int('hidden_size', 256, 512, step=32)
                 num_layers = trial.suggest_int('num_layers', 1, 1)
                 dropout = trial.suggest_float('dropout', 0.0, 0.5)
-                bidirectional = trial.suggest_categorical('bidirectional', [False, True])
-                learning_rate = trial.suggest_float('learning_rate', 1e-6, 1e-1, log=True)
-                batch_size = trial.suggest_categorical('batch_size', [8, 16, 32, 64, 128, 256, 512])  # [8, 16, 32, 64] or [32, 64, 128, 256, 512]
+                learning_rate = trial.suggest_float('learning_rate', 1e-10, 1e-1, log=True)
+                batch_size = trial.suggest_categorical('batch_size', [8, 16, 32, 64])  # [8, 16, 32, 64] or [32, 64, 128, 256, 512]
                 epochs = trial.suggest_int('epochs', 5, 20)
+
+                if function_name in ["lstm", "rnn"]:
+                    hidden_size = trial.suggest_int('hidden_size', 128, 512, step=32)
+                    bidirectional = trial.suggest_categorical('bidirectional', [False, True])
 
                 task_type = 'classification' if is_instances_classification else 'regression'
                 criterion = torch.nn.CrossEntropyLoss() if task_type == 'classification'else torch.nn.MSELoss()
@@ -285,6 +290,93 @@ if __name__ == '__main__':
                                       dropout=dropout,
                                       bidirectional=bidirectional,
                                       ).to(DEVICE)
+                    elif function_name == "rnn-mean_hag":
+                        from performances.utility import retrieve_best_model
+                        from hag.hag import run_algorithm
+                        from models.reservoir import init_matrices
+                        import math
+                        from scipy import stats
+                        from numpy import random
+
+                        # 1) Retrieve the best HAG hyperparameters
+                        study = retrieve_best_model("hadsp", dataset_name, is_multivariate, variate_type="multi",
+                                                    data_type="normal")
+                        hyperparams = {k: v for k, v in study.best_trial.params.items()}
+                        # handle renamed variance parameter
+                        if 'variance_target' not in hyperparams and 'min_variance' in hyperparams:
+                            hyperparams['variance_target'] = hyperparams['min_variance']
+                        if not is_instances_classification:
+                            hyperparams['use_full_instance'] = False
+
+                        # 2) Build the random reservoir matrices
+                        input_connectivity = 1
+                        common_index = 1
+                        if is_instances_classification:
+                            common_size = X_tr[0].shape[common_index]
+                        else:
+                            common_size = X_tr.shape[common_index]
+                        # ensure reservoir ≥ network_size
+                        K = math.ceil(hyperparams['network_size'] / common_size)
+                        n = common_size * K
+                        Win, W, bias = init_matrices(n, input_connectivity, hyperparams['connectivity'], K,
+                            w_distribution=stats.uniform(loc=-1, scale=2), seed=random.randint(0, 1000))
+                        bias *= hyperparams['bias_scaling']
+                        Win *= hyperparams['input_scaling']
+
+                        # 3) Adapt W via the HAG algorithm
+                        W, (_, _, _) = run_algorithm(
+                            W, Win, bias,
+                            hyperparams['leaky_rate'],
+                            activation_function,
+                            X_pretrain_band[fold_idx],
+                            hyperparams['weight_increment'],
+                            hyperparams['target_rate'],
+                            hyperparams['rate_spread'],
+                            function_name,
+                            multiple_instances=is_instances_classification,
+                            min_increment=hyperparams['min_increment'],
+                            max_increment=hyperparams['max_increment'],
+                            use_full_instance=hyperparams['use_full_instance'],
+                            max_partners=np.inf,
+                            method="pearson",
+                            n_jobs=nb_jobs
+                        )
+                        from performances.esn_model_evaluation import (train_model_for_classification, train_model_for_prediction,
+                                                                       init_readout, init_reservoir)
+
+                        reservoir = init_reservoir(W, Win, bias, hyperparams['leaky_rate'], activation_function)
+                        RIDGE_COEF = 10 ** hyperparams['ridge']
+                        readout = init_readout(ridge_coef=RIDGE_COEF)
+                        if is_instances_classification:
+                            mode = "sequence-to-vector"
+                            train_model_for_classification(reservoir, readout, X_tr, y_tr, n_jobs=nb_jobs, mode=mode)
+                        else:
+                            _ = train_model_for_prediction(reservoir, readout, X_tr, y_tr, warmup=start_step, n_jobs=nb_jobs)
+                        Wout = readout.Wout  # shape: (output_dim, state_dim + 1)
+                        bias_out = readout.bias.reshape(-1)  # shape: (output_dim,)
+
+                        # 4) Instantiate your RNNModel
+                        model = RNNModel(
+                            input_size=input_size,
+                            hidden_size=n,
+                            num_layers=num_layers,
+                            output_size=output_size,
+                            dropout=dropout,
+                            bidirectional=False,
+                        ).to(DEVICE)
+
+                        # 5) Overwrite its weights/biases with the HAG matrices
+                        with torch.no_grad():
+                            # input‐to‐hidden weights for layer 0
+                            model.rnn.weight_ih_l0.copy_(torch.tensor(Win, dtype=torch.float32, device=DEVICE))
+                            # hidden‐to‐hidden weights for layer 0
+                            model.rnn.weight_hh_l0.copy_(torch.tensor(W, dtype=torch.float32, device=DEVICE))
+                            # zero‐out the input bias, use HAG bias as the recurrent bias
+                            model.rnn.bias_ih_l0.zero_()
+                            model.rnn.bias_hh_l0.copy_(torch.tensor(bias, dtype=torch.float32, device=DEVICE))
+                            # final linear layer ← ESN readout
+                            model.fc.weight.copy_(torch.tensor(Wout.T, dtype=torch.float32, device=DEVICE))
+                            model.fc.bias.copy_(torch.tensor(bias_out, dtype=torch.float32, device=DEVICE))
 
                     model = torch.compile(model)
                     optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
