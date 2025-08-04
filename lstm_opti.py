@@ -213,7 +213,8 @@ if __name__ == '__main__':
                 num_layers = trial.suggest_int('num_layers', 1, 1)
                 dropout = trial.suggest_float('dropout', 0.0, 0.5)
                 learning_rate = trial.suggest_float('learning_rate', 1e-10, 1e-1, log=True)
-                batch_size = trial.suggest_categorical('batch_size', [8, 16, 32, 64])  # [8, 16, 32, 64] or [32, 64, 128, 256, 512]
+                batch_size_pool =  [32, 64, 128, 256, 512] if dataset_name in ["SPEECHCOMMANDS", "MackeyGlass", "Sunspot_daily", "Lorenz"] else [8, 16, 32, 64]
+                batch_size = trial.suggest_categorical('batch_size', batch_size_pool)
                 epochs = trial.suggest_int('epochs', 5, 20)
 
                 if function_name in ["lstm", "rnn"]:
