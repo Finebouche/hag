@@ -115,6 +115,31 @@ class LSTMModel(nn.Module):
         last = self.dropout(last)  # apply dropout here
         return self.fc(last)
 
+class GRUModel(nn.Module):
+    def __init__(self, input_size: int, hidden_size: int, num_layers: int,
+                 output_size: int, dropout: float = 0.0, bidirectional: bool = False):
+        super(GRUModel, self).__init__()
+        self.gru = nn.GRU(input_size, hidden_size, num_layers,
+                          batch_first=True, bidirectional=bidirectional,
+                          dropout=dropout if num_layers > 1 else 0.0)
+        self.dropout = nn.Dropout(dropout)
+        self.directions = 2 if bidirectional else 1
+        self.fc = nn.Linear(hidden_size * self.directions, output_size)
+
+    def forward(self, x, lengths=None):
+        # x: (B, T_max, D_in)
+        out, _ = self.gru(x)  # out: (B, T_max, H*dirs)
+        B, T, _ = out.shape
+        # grab the true last time step for each sequence
+        if lengths is not None:
+            idx = torch.arange(B, device=out.device)
+            last = out[idx, lengths - 1]  # (B, H*dirs)
+        else:
+            last = out[:, -1, :]  # (B, H*dirs)
+
+        last = self.dropout(last)
+        return self.fc(last)
+
 class RNNModel(nn.Module):
     def __init__(self,
                  input_size: int,

@@ -35,7 +35,7 @@ if __name__ == '__main__':
 
     step_ahead=5
     # can be "JapaneseVowels", "CatsDogs", "FSDD", "SpokenArabicDigits", "SPEECHCOMMANDS", "MackeyGlass", "Sunspot_daily", "Lorenz", "Henon", "NARMA"
-    datasets = ["FSDD"]
+    datasets = ["JapaneseVowels", "CatsDogs", "FSDD"]
     for dataset_name in datasets:
         # score for prediction
         start_step = 500
@@ -177,7 +177,6 @@ if __name__ == '__main__':
                     X_pretrain_noisy.append(np.array(x_train_noisy, dtype=object)[indices].flatten())
                 X_pretrain_band_noisy.append(np.array(x_train_band_noisy, dtype=object)[indices])
 
-
             if not is_multivariate:
                 X_pretrain.append(np.array(x_train, dtype=object)[indices].flatten())
             X_pretrain_band.append(np.array(x_train_band, dtype=object)[indices])
@@ -188,7 +187,7 @@ if __name__ == '__main__':
             max_time_increment_possible = 500
 
         # Evaluating
-        from models.rnn import (LSTMModel, RNNModel, SequenceDataset, train, evaluate, pad_collate,
+        from models.rnn import (LSTMModel, RNNModel, GRUModel, SequenceDataset, train, evaluate, pad_collate,
                                 BucketBatchSampler, PrecomputedForecastDataset, make_sliding_windows)
         import torch.nn as nn
         from torch.utils.data import DataLoader
@@ -207,7 +206,7 @@ if __name__ == '__main__':
 
         # "random_ee", "random_ei", "diag_ee", "diag_ei", "desp", "hadsp", "ip_correct", "anti-oja_fast", "ip-anti-oja_fast",
         # "lstm_last", "rnn", "rnn-mean_hag"
-        for function_name in ["rnn-mean_hag"]:
+        for function_name in ["gru"]:
             def objective(trial):
                 # 1) HYPERPARAMETERS TO OPTIMIZE
                 num_layers = trial.suggest_int('num_layers', 1, 1)
@@ -217,7 +216,7 @@ if __name__ == '__main__':
                 batch_size = trial.suggest_categorical('batch_size', batch_size_pool)
                 epochs = trial.suggest_int('epochs', 5, 20)
 
-                if function_name in ["lstm", "rnn"]:
+                if function_name in ["lstm_last", "lstm", "rnn", "gru"]:
                     hidden_size = trial.suggest_int('hidden_size', 128, 512, step=32)
                     bidirectional = trial.suggest_categorical('bidirectional', [False, True])
 
@@ -283,6 +282,13 @@ if __name__ == '__main__':
                                         output_size=output_size,
                                         dropout=dropout,
                                         bidirectional=bidirectional).to(DEVICE)
+                    if function_name == "gru":
+                        model = GRUModel(input_size=input_size,
+                                      hidden_size=hidden_size,
+                                      num_layers=num_layers,
+                                      output_size=output_size,
+                                      dropout=dropout,
+                                      bidirectional=bidirectional).to(DEVICE)
                     elif function_name == "rnn":
                         model = RNNModel(input_size=input_size,
                                       hidden_size=hidden_size,
@@ -406,8 +412,9 @@ if __name__ == '__main__':
             print("Start optuna")
 
             sampler = TPESampler()
-            sampler_name = "cmaes" if isinstance(sampler, CmaEsSampler) else "tpe"
-            url = f"sqlite:///new_{sampler_name}_{camel_to_snake(dataset_name)}_db.sqlite3"
+            sampler_name = "cmaes" if isinstance(sampler, CmaEsSampler) else "new_tpe"
+            if dataset_name == "SPEECHCOMMANDS": sampler_name = "lstm_tpe"
+            url = f"sqlite:///{sampler_name}_{camel_to_snake(dataset_name)}_db.sqlite3"
             uri = (
                 f"{url}"
                 "?cache=shared"  # allow multiple connections to share page cache
