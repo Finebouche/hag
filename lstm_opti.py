@@ -422,7 +422,7 @@ if __name__ == '__main__':
             )
             storage = optuna.storages.RDBStorage(
                 url=uri,
-                heartbeat_interval=1.0,   # optional
+                heartbeat_interval=None,   # disable heartbeats
             )
             print(url)
             study_name = function_name + "_" + dataset_name + "_" + data_type + "_" + variate_type
