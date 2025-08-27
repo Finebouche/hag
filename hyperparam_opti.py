@@ -26,7 +26,7 @@ if __name__ == '__main__':
 
     step_ahead=5
     # can be  "JapaneseVowels", "CatsDogs", "FSDD", "SpokenArabicDigits", "SPEECHCOMMANDS", "MackeyGlass", "Sunspot_daily", "Lorenz", "Henon", "NARMA"
-    datasets = ["CatsDogs", "JapaneseVowels", "FSDD"]
+    datasets = ["FSDD"]
     for dataset_name in datasets:
         # score for prediction
         start_step = 500
@@ -189,13 +189,15 @@ if __name__ == '__main__':
 
         RESERVOIR_SIZE = 500
 
-        nb_jobs_per_trial = 10
+        nb_jobs_per_trial = 3
         variate_type = "multi"  # "multi" ou "uni"
         if variate_type == "uni" and is_multivariate:
             raise ValueError(f"Invalid variable type: {variate_type}")
 
+        random_projection_experiment = True
+
         # "random_ee", "random_ei", "diag_ee", "diag_ei", "desp", "hadsp", "ip_correct", "anti-oja_fast", "ip-anti-oja_fast", "lstm"
-        for function_name in ["mean_hag_marked"]:
+        for function_name in ["random_ee", "random_ei", "ip_correct", "anti-oja_fast", "ip-anti-oja_fast"]:
             def objective(trial):
                 # Suggest values for the parameters you want to optimize
                 # COMMON
@@ -206,7 +208,7 @@ if __name__ == '__main__':
                 input_scaling = trial.suggest_float('input_scaling', 0.01, 0.2, step=0.005)
                 bias_scaling = trial.suggest_float('bias_scaling', 0, 0.2, step=0.005)
                 leaky_rate = trial.suggest_float('leaky_rate', 1, 1)
-                input_connectivity = trial.suggest_float('input_connectivity', 1, 1)
+                input_connectivity = trial.suggest_float('input_connectivity', 0, 1) if random_projection_experiment else trial.suggest_float('input_connectivity', 1, 1)
 
                 # HADSP
                 if function_name in ("hadsp", "mean_hag_marked"):
@@ -271,10 +273,10 @@ if __name__ == '__main__':
                     # INITIALISATION AND UNSUPERVISED PRETRAINING
                     if function_name in ["random_ee", "diag_ee"]:
                         Win, W, bias = init_matrices(n, input_connectivity, connectivity, K, w_distribution=stats.uniform(loc=0, scale=1),
-                                                     use_block=use_block, seed=random.randint(0, 1000))
+                                                     use_block=use_block, seed=random.randint(0, 1000), random_projection_experiment=random_projection_experiment)
                     else:
                         Win, W, bias = init_matrices(n, input_connectivity, connectivity, K, w_distribution=stats.uniform(loc=-1, scale=2),
-                                                     use_block=use_block, seed=random.randint(0, 1000))
+                                                     use_block=use_block, seed=random.randint(0, 1000), random_projection_experiment=random_projection_experiment)
                     bias *= bias_scaling
                     Win *= input_scaling
 
@@ -356,7 +358,10 @@ if __name__ == '__main__':
 
             sampler = TPESampler()
             sampler_name = "cmaes" if isinstance(sampler, CmaEsSampler) else "tpe"
-            url = f"sqlite:///new_{sampler_name}_{camel_to_snake(dataset_name)}_db.sqlite3"
+            if random_projection_experiment:
+                url = f"sqlite:///rdn-projection_{sampler_name}_{camel_to_snake(dataset_name)}_db.sqlite3"
+            else:
+                url = f"sqlite:///new_{sampler_name}_{camel_to_snake(dataset_name)}.sqlite3"
             storage = optuna.storages.RDBStorage(url=url, engine_kwargs={"pool_size": 20, "connect_args": {"timeout": 10}})
             print(url)
             study_name = function_name + "_" + dataset_name + "_" + data_type + "_" + variate_type

@@ -11,7 +11,7 @@ def update_reservoir(W, Win, u, r, leaky_rate, bias, activation_function):
 
 
 def init_matrices(n, input_connectivity, connectivity, K, spectral_radius=1, w_distribution = stats.uniform(loc=-1, scale=2),
-                  win_distribution=stats.uniform(0, 1), use_block=False, seed=111):
+                  win_distribution=stats.uniform(0, 1), use_block=False, seed=111, random_projection_experiment=False):
     # K is the number of time a single input is repeated to the models
     # The distribution generation functions #
     # stats.norm(1, 0.5)
@@ -62,10 +62,29 @@ def init_matrices(n, input_connectivity, connectivity, K, spectral_radius=1, w_d
     # We want the Win matrix to explicitly map each input directly to a specific segment of neurons,
     # with each segment receiving the same input value duplicated K times.
     Win = np.zeros((n_neurons, common_size))
-    for i in range(common_size):
-        start_index = i * K
-        end_index = start_index + K
-        Win[start_index:end_index, i] = win_distribution.rvs(K)
+    if random_projection_experiment == False:
+        for i in range(common_size):
+            start_index = i * K
+            end_index = start_index + K
+            Win[start_index:end_index, i] = win_distribution.rvs(K)
+    else:
+        # RANDOM PROJECTION: sparse random connections from all inputs to all neurons
+        Win_sparse = sparse.random(
+            n_neurons, common_size,
+            density=input_connectivity,         # choose ~1/common_size for ~1 nonzero per row
+            random_state=seed,
+            data_rvs=win_distribution.rvs,
+            format="csr",
+        )
+
+        # (Optional but recommended) Guarantee at least one input per neuron
+        zero_rows = np.where(Win_sparse.getnnz(axis=1) == 0)[0]
+        if zero_rows.size > 0:
+            for r in zero_rows:
+                j = int(Generator(PCG64(seed + r)).integers(0, common_size))
+                Win_sparse[r, j] = win_distribution.rvs()
+
+        Win = Win_sparse.toarray()
 
     # Bias matrix
     bias = np.abs(bias_distribution.rvs(size=n_neurons))

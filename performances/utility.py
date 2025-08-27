@@ -20,12 +20,8 @@ def retrieve_best_model(function_name, dataset_name, is_multivariate, variate_ty
     # Build the study name
     study_name = function_name + "_" + dataset_name + "_" + data_type + "_" + variate_type
     # Build the URL
-    if prefix == "new_tpe":
-        url = f"sqlite:///new_tpe_{camel_to_snake(dataset_name)}_db.sqlite3"
-    elif prefix == "cmaes":
-        url = f"sqlite:///cmaes_{camel_to_snake(dataset_name)}_db.sqlite3"
-    elif prefix == "lstm_tpe":
-        url = f"sqlite:///lstm_tpe_{camel_to_snake(dataset_name)}_db.sqlite3"
+    if prefix in ["new_tpe", "cmaes", "lstm_tpe", "rdn-projection_tpe"]:
+        url = f"sqlite:///{prefix}_{camel_to_snake(dataset_name)}_db.sqlite3"
     else:
         raise ValueError(f"Unknown sampler_name: {prefix}")
 
