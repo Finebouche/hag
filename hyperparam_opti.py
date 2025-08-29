@@ -194,10 +194,10 @@ if __name__ == '__main__':
         if variate_type == "uni" and is_multivariate:
             raise ValueError(f"Invalid variable type: {variate_type}")
 
-        random_projection_experiment = True
+        random_projection_experiment = False
 
-        # "random_ee", "random_ei", "diag_ee", "diag_ei", "desp", "hadsp", "ip_correct", "anti-oja_fast", "ip-anti-oja_fast", "lstm"
-        for function_name in ["random_ee", "random_ei", "ip_correct", "anti-oja_fast", "ip-anti-oja_fast"]:
+        # "random_ee", "random_ei", "diag_ee", "diag_ei", "desp", "hadsp", "ip_correct", "anti-oja_fast", "ip-anti-oja_fast"
+        for function_name in ["random_ee", "random_ei", "hadsp", "desp", "ip_correct", "anti-oja_fast", "ip-anti-oja_fast"]:
             def objective(trial):
                 # Suggest values for the parameters you want to optimize
                 # COMMON
@@ -361,7 +361,7 @@ if __name__ == '__main__':
             if random_projection_experiment:
                 url = f"sqlite:///rdn-projection_{sampler_name}_{camel_to_snake(dataset_name)}_db.sqlite3"
             else:
-                url = f"sqlite:///new_{sampler_name}_{camel_to_snake(dataset_name)}.sqlite3"
+                url = f"sqlite:///new_{sampler_name}_{camel_to_snake(dataset_name)}_db.sqlite3"
             storage = optuna.storages.RDBStorage(url=url, engine_kwargs={"pool_size": 20, "connect_args": {"timeout": 10}})
             print(url)
             study_name = function_name + "_" + dataset_name + "_" + data_type + "_" + variate_type
@@ -373,7 +373,7 @@ if __name__ == '__main__':
             completed_trials = len([trial for trial in study.trials if trial.state == optuna.trial.TrialState.COMPLETE])
 
             # Parallelized
-            n_parallel_studies = 10
+            n_parallel_studies = 6
             trials_per_process = (N_TRIALS - completed_trials) // n_parallel_studies
             # Use joblib to parallelize the optimization
             def optimize_study(n_trials_per_process):

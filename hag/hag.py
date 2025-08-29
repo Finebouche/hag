@@ -176,7 +176,7 @@ def hag_step(W_e, states, delta_z, weight_increment, W_inhibitory=np.array([]), 
     # We add inhibitory connexion to drive delta_z down
     if min(W_inhibitory.shape) > 0:
         new_connexion_pairs = determine_connection_pairs(need_pruning, W_inhibitory, states, method,
-                                                         is_inter_matrix=True)
+                                                         mark_and_skip=False, is_inter_matrix=True)
         for connexion in new_connexion_pairs:
             W_inhibitory = change_connexion(W_inhibitory, connexion[0], connexion[1], weight_increment)
             total_add += 1
@@ -184,7 +184,7 @@ def hag_step(W_e, states, delta_z, weight_increment, W_inhibitory=np.array([]), 
     need_increase = neurons[delta_z <= -1]
     # We add an excitatory connexion to drive delta_z up
     new_connexion_pairs = determine_connection_pairs(need_increase, W_e, states, method, max_partners=max_partners,
-                                                     n_jobs=n_jobs)
+                                                     mark_and_skip=False, n_jobs=n_jobs)
     for connexion in new_connexion_pairs:
         W_e = change_connexion(W_e, connexion[0], connexion[1], weight_increment)
         total_add += 1

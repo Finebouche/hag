@@ -214,7 +214,7 @@ def load_aoen_dataset(dataset_name, seed=None):
     return X_train_raw, Y_train_raw, X_test_raw, Y_test, groups, meta_data
 
 
-def load_dataset_classification(name, visualize=True, seed=None):
+def load_dataset_classification(name, visualize=True, seed=1111):
     if name == "SpokenArabicDigits" or name == "CatsDogs" or name == "LSST":
         X_train, Y_train, X_test, Y_test, groups, meta_data = load_aoen_dataset(name, seed)
         sampling_rate = 10000
