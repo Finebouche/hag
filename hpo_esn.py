@@ -194,10 +194,10 @@ if __name__ == '__main__':
         if variate_type == "uni" and is_multivariate:
             raise ValueError(f"Invalid variable type: {variate_type}")
 
-        random_projection_experiment = False
+        random_projection_experiment = True
 
         # "random_ee", "random_ei", "diag_ee", "diag_ei", "desp", "hadsp", "ip_correct", "anti-oja_fast", "ip-anti-oja_fast"
-        for function_name in ["random_ee", "random_ei", "hadsp", "desp", "ip_correct", "anti-oja_fast", "ip-anti-oja_fast"]:
+        for function_name in  ["random_ee", "random_ei", "desp", "hadsp", "ip_correct", "anti-oja_fast", "ip-anti-oja_fast"]:
             def objective(trial):
                 # Suggest values for the parameters you want to optimize
                 # COMMON
@@ -373,22 +373,22 @@ if __name__ == '__main__':
             completed_trials = len([trial for trial in study.trials if trial.state == optuna.trial.TrialState.COMPLETE])
 
             # Parallelized
-            n_parallel_studies = 6
-            trials_per_process = (N_TRIALS - completed_trials) // n_parallel_studies
-            # Use joblib to parallelize the optimization
-            def optimize_study(n_trials_per_process):
-                study = optuna.create_study(storage=storage, sampler=sampler, study_name=study_name, direction=direction, load_if_exists=True)
-                study.optimize(objective, n_trials=n_trials_per_process - completed_trials)
-            Parallel(n_jobs=n_parallel_studies)(
-                delayed(optimize_study)(trials_per_process) for _ in range(n_parallel_studies)
-            )
+            # n_parallel_studies = 6
+            # trials_per_process = (N_TRIALS - completed_trials) // n_parallel_studies
+            # # Use joblib to parallelize the optimization
+            # def optimize_study(n_trials_per_process):
+            #     study = optuna.create_study(storage=storage, sampler=sampler, study_name=study_name, direction=direction, load_if_exists=True)
+            #     study.optimize(objective, n_trials=n_trials_per_process - completed_trials)
+            # Parallel(n_jobs=n_parallel_studies)(
+            #     delayed(optimize_study)(trials_per_process) for _ in range(n_parallel_studies)
+            # )
 
             # Not Parallelized
-            # while completed_trials < N_TRIALS:
-            #     # get the number of trials already done that have been completed
-            #     completed_trials = len([trial for trial in study.trials if trial.state == optuna.trial.TrialState.COMPLETE])
-            #     print(f"Completed trials: {completed_trials}/{N_TRIALS}")
-            #     try:
-            #         study.optimize(objective, n_trials=N_TRIALS-completed_trials)
-            #     except Exception as e:
-            #         print(f"Error during optimization: {e}, retrying...")
+            while completed_trials < N_TRIALS:
+                # get the number of trials already done that have been completed
+                completed_trials = len([trial for trial in study.trials if trial.state == optuna.trial.TrialState.COMPLETE])
+                print(f"Completed trials: {completed_trials}/{N_TRIALS}")
+                try:
+                    study.optimize(objective, n_trials=N_TRIALS-completed_trials)
+                except Exception as e:
+                    print(f"Error during optimization: {e}, retrying...")
