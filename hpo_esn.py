@@ -17,31 +17,45 @@ from sklearn.model_selection import StratifiedKFold, TimeSeriesSplit, Stratified
 from datasets.preprocessing import flexible_indexing
 
 # Preprocessing
-from datasets.multivariate_generation import generate_multivariate_dataset
+from datasets.spectral_decomposition import generate_multivariate_dataset
 from sklearn.preprocessing import MinMaxScaler
 from datasets.preprocessing import scale_data, add_noise
 
+# Pretraining
+from models.reservoir import init_matrices
+from hag.hag import run_algorithm
+
+# Evaluating
+from performances.esn_model_evaluation import train_model_for_classification, predict_model_for_classification, \
+    compute_score, init_readout
+from performances.esn_model_evaluation import train_model_for_prediction, init_reservoir, init_ip_reservoir, \
+    init_local_rule_reservoir, init_ip_local_rule_reservoir, init_readout
+
+# Hyperparameter optimization
+import optuna
+from optuna.samplers import TPESampler, CmaEsSampler
+import re
 
 if __name__ == '__main__':
 
     step_ahead=5
-    # can be  "JapaneseVowels", "CatsDogs", "FSDD", "SpokenArabicDigits", "SPEECHCOMMANDS", "MackeyGlass", "Sunspot_daily", "Lorenz", "Henon", "NARMA"
-    datasets = ["FSDD"]
-    for dataset_name in datasets:
+    # can be  "JapaneseVowels", "CatsDogs", "FSDD", "SpokenArabicDigits", "SPEECHCOMMANDS", "MackeyGlass", "Sunspot_daily", "Lorenz"
+    for dataset_name in ["JapaneseVowels", "CatsDogs", "FSDD"]:
         # score for prediction
-        start_step = 500
-        end_step = 1500
+        start_step, end_step = 500, 1500
         SLICE_RANGE = slice(start_step, end_step)
 
         print(f"Loading {dataset_name}")
 
         (is_instances_classification, is_multivariate, sampling_rate,
          X_train_raw, X_test_raw, Y_train_raw, Y_test,
-         use_spectral_representation, spectral_representation,
-         groups) = load_data(dataset_name, step_ahead, visualize=False)
+         use_spectral_representation, groups) = load_data(dataset_name, step_ahead, visualize=False)
+
+        spectral_representation = "mfcc" if is_instances_classification else "stft"
 
         # Define noise parameter
         noise_std = 0.001
+        data_type = "normal"  # "normal" ou "noisy"
 
         nb_splits = 3
         if is_instances_classification:
@@ -53,8 +67,6 @@ if __name__ == '__main__':
                           .split(X_train_raw, np.argmax(Y_train_raw, axis=1), groups))
         else:  # prediction
             splits = TimeSeriesSplit(n_splits=nb_splits).split(X_train_raw)
-
-        data_type = "normal"  # "normal" ou "noisy"
 
         X_pretrain = []
         X_pretrain_noisy = []
@@ -84,11 +96,6 @@ if __name__ == '__main__':
                 del x_train, x_val
 
             # PREPROCESSING
-            # if it has use_spectral_representation, then it is multivariate
-            if use_spectral_representation == True:
-                if is_multivariate == False:
-                    raise ValueError("Cannot use spectral representation if it's not multivariate !")
-
             hop = 50 if is_instances_classification else 1
             win_length = edge_cut = 100
             if not is_multivariate:
@@ -177,30 +184,17 @@ if __name__ == '__main__':
         else:
             max_time_increment_possible = 500
 
-        # Pretraining
-        from models.reservoir import init_matrices
-        from hag.hag import run_algorithm
-
-        # Evaluating
-        from performances.esn_model_evaluation import train_model_for_classification, predict_model_for_classification, \
-            compute_score, init_readout
-        from performances.esn_model_evaluation import train_model_for_prediction, init_reservoir, init_ip_reservoir, \
-            init_local_rule_reservoir, init_ip_local_rule_reservoir, init_readout
-
-        RESERVOIR_SIZE = 500
-
         nb_jobs_per_trial = 3
         variate_type = "multi"  # "multi" ou "uni"
         if variate_type == "uni" and is_multivariate:
             raise ValueError(f"Invalid variable type: {variate_type}")
 
-        random_projection_experiment = True
 
         # "random_ee", "random_ei", "diag_ee", "diag_ei", "desp", "hadsp", "ip_correct", "anti-oja_fast", "ip-anti-oja_fast"
         for function_name in  ["random_ee", "random_ei", "desp", "hadsp", "ip_correct", "anti-oja_fast", "ip-anti-oja_fast"]:
             def objective(trial):
-                # Suggest values for the parameters you want to optimize
                 # COMMON
+                RESERVOIR_SIZE = 500
                 ridge = trial.suggest_int('ridge', -12, 1)
                 RIDGE_COEF = 10 ** ridge
 
@@ -208,7 +202,7 @@ if __name__ == '__main__':
                 input_scaling = trial.suggest_float('input_scaling', 0.01, 0.2, step=0.005)
                 bias_scaling = trial.suggest_float('bias_scaling', 0, 0.2, step=0.005)
                 leaky_rate = trial.suggest_float('leaky_rate', 1, 1)
-                input_connectivity = trial.suggest_float('input_connectivity', 0, 1) if random_projection_experiment else trial.suggest_float('input_connectivity', 1, 1)
+                input_connectivity = trial.suggest_float('input_connectivity', 1, 1)
 
                 # HADSP
                 if function_name in ("hadsp", "mean_hag_marked"):
@@ -228,10 +222,12 @@ if __name__ == '__main__':
                 else:
                     raise ValueError(f"Invalid function name: {function_name}")
 
+                # IP
                 if function_name in ["ip_correct", "ip-anti-oja", "ip-anti-oja_fast"]:
                     mu = trial.suggest_float('mu', 0, 1)
                     sigma = trial.suggest_float('sigma', 0, 1)
                     learning_rate = trial.suggest_float('learning_rate', 1e-6, 1e-1, log=True)
+                # Anti-Oja
                 if function_name in ["anti-oja", "anti-oja_fast", "ip-anti-oja", "ip-anti-oja_fast"]:
                     # We often use a log-uniform distribution for learning rates:
                     oja_eta = trial.suggest_float('oja_eta', 1e-8, 1e-3, log=True)
@@ -273,10 +269,10 @@ if __name__ == '__main__':
                     # INITIALISATION AND UNSUPERVISED PRETRAINING
                     if function_name in ["random_ee", "diag_ee"]:
                         Win, W, bias = init_matrices(n, input_connectivity, connectivity, K, w_distribution=stats.uniform(loc=0, scale=1),
-                                                     use_block=use_block, seed=random.randint(0, 1000), random_projection_experiment=random_projection_experiment)
+                                                     use_block=use_block, seed=random.randint(0, 1000), random_projection_experiment=False)
                     else:
                         Win, W, bias = init_matrices(n, input_connectivity, connectivity, K, w_distribution=stats.uniform(loc=-1, scale=2),
-                                                     use_block=use_block, seed=random.randint(0, 1000), random_projection_experiment=random_projection_experiment)
+                                                     use_block=use_block, seed=random.randint(0, 1000), random_projection_experiment=False)
                     bias *= bias_scaling
                     Win *= input_scaling
 
@@ -345,11 +341,6 @@ if __name__ == '__main__':
 
                 return average_score
 
-
-            import optuna
-            from optuna.samplers import TPESampler, CmaEsSampler
-            import re
-
             def camel_to_snake(name):
                 str1 = re.sub('(.)([A-Z][a-z]+)', r'\1_\2', name)
                 return re.sub('([a-z0-9])([A-Z])', r'\1_\2', str1).lower()
@@ -358,10 +349,7 @@ if __name__ == '__main__':
 
             sampler = TPESampler()
             sampler_name = "cmaes" if isinstance(sampler, CmaEsSampler) else "tpe"
-            if random_projection_experiment:
-                url = f"sqlite:///rdn-projection_{sampler_name}_{camel_to_snake(dataset_name)}_db.sqlite3"
-            else:
-                url = f"sqlite:///new_{sampler_name}_{camel_to_snake(dataset_name)}_db.sqlite3"
+            url = f"sqlite:///new_{sampler_name}_{camel_to_snake(dataset_name)}_db.sqlite3"
             storage = optuna.storages.RDBStorage(url=url, engine_kwargs={"pool_size": 20, "connect_args": {"timeout": 10}})
             print(url)
             study_name = function_name + "_" + dataset_name + "_" + data_type + "_" + variate_type

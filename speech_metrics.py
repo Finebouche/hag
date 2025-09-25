@@ -11,7 +11,7 @@ from models.activation_functions import tanh
 activation_function = lambda x : tanh(x)
 
 # Preprocessing
-from datasets.multivariate_generation import generate_multivariate_dataset
+from datasets.spectral_decomposition import generate_multivariate_dataset
 from sklearn.preprocessing import MinMaxScaler
 from datasets.preprocessing import scale_data
 from datasets.load_data import load_data as load_dataset

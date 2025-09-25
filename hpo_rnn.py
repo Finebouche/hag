@@ -24,10 +24,15 @@ from sklearn.model_selection import StratifiedKFold, TimeSeriesSplit, Stratified
 from datasets.preprocessing import flexible_indexing
 
 # Preprocessing
-from datasets.multivariate_generation import generate_multivariate_dataset
+from datasets.spectral_decomposition import generate_multivariate_dataset
 from sklearn.preprocessing import MinMaxScaler
 from datasets.preprocessing import scale_data, add_noise
 
+# Evaluating
+from models.rnn import (LSTMModel, RNNModel, GRUModel, SequenceDataset, train, evaluate, pad_collate,
+                        BucketBatchSampler, PrecomputedForecastDataset, make_sliding_windows)
+import torch.nn as nn
+from torch.utils.data import DataLoader
 
 if __name__ == '__main__':
 
@@ -35,8 +40,7 @@ if __name__ == '__main__':
 
     step_ahead=5
     # can be "JapaneseVowels", "CatsDogs", "FSDD", "SpokenArabicDigits", "SPEECHCOMMANDS", "MackeyGlass", "Sunspot_daily", "Lorenz", "Henon", "NARMA"
-    datasets = ["JapaneseVowels", "CatsDogs", "FSDD"]
-    for dataset_name in datasets:
+    for dataset_name in ["JapaneseVowels", "CatsDogs", "FSDD"]:
         # score for prediction
         start_step = 500
         end_step = 1500
@@ -46,11 +50,13 @@ if __name__ == '__main__':
 
         (is_instances_classification, is_multivariate, sampling_rate,
          X_train_raw, X_test_raw, Y_train_raw, Y_test,
-         use_spectral_representation, spectral_representation,
-         groups) = load_data(dataset_name, step_ahead, visualize=False)
+         use_spectral_representation, groups) = load_data(dataset_name, step_ahead, visualize=False)
+
+        spectral_representation = "mfcc" if is_instances_classification else "stft"
 
         # Define noise parameter
         noise_std = 0.001
+        data_type = "normal"  # "normal" ou "noisy"
 
         nb_splits = 3
         if is_instances_classification:
@@ -62,8 +68,6 @@ if __name__ == '__main__':
                           .split(X_train_raw, np.argmax(Y_train_raw, axis=1), groups))
         else:  # prediction
             splits = TimeSeriesSplit(n_splits=nb_splits).split(X_train_raw)
-
-        data_type = "normal"  # "normal" ou "noisy"
 
         X_pretrain = []
         X_pretrain_noisy = []
@@ -93,11 +97,6 @@ if __name__ == '__main__':
                 del x_train, x_val
 
             # PREPROCESSING
-            # if it has use_spectral_representation, then it is multivariate
-            if use_spectral_representation == True:
-                if is_multivariate == False:
-                    raise ValueError("Cannot use spectral representation if it's not multivariate !")
-
             hop = 50 if is_instances_classification else 1
             win_length = edge_cut = 100
             if not is_multivariate:
@@ -186,13 +185,6 @@ if __name__ == '__main__':
         else:
             max_time_increment_possible = 500
 
-        # Evaluating
-        from models.rnn import (LSTMModel, RNNModel, GRUModel, SequenceDataset, train, evaluate, pad_collate,
-                                BucketBatchSampler, PrecomputedForecastDataset, make_sliding_windows)
-        import torch.nn as nn
-        from torch.utils.data import DataLoader
-
-        RESERVOIR_SIZE = 500
         avg_length = np.mean([len(x) for fold in X_train_band for x in fold])
         # min an max lengths
         min_length = min([len(x) for fold in X_train_band for x in fold])

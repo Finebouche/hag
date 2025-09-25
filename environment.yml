@@ -16,6 +16,7 @@ dependencies:
   - tensorflow
   - optuna
   - jupyterlab
+  - optuna
   - tqdm
   - dcor
   - pip

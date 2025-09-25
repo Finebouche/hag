@@ -66,7 +66,7 @@ from sklearn.model_selection import StratifiedKFold, TimeSeriesSplit, Stratified
 from datasets.preprocessing import flexible_indexing
 
 #Preprocessing
-from datasets.multivariate_generation import generate_multivariate_dataset
+from datasets.spectral_decomposition import generate_multivariate_dataset
 from sklearn.preprocessing import MinMaxScaler
 from datasets.preprocessing import scale_data
 from datasets.preprocessing import add_noise
