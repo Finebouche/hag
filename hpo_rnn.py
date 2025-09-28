@@ -99,22 +99,18 @@ if __name__ == '__main__':
             # PREPROCESSING
             hop = 50 if is_instances_classification else 1
             win_length = edge_cut = 100
-            if not is_multivariate:
-                x_train_band = generate_multivariate_dataset(
-                    x_train, is_instances_classification, spectral_representation, hop=hop, win_length=win_length
-                )
-                x_val_band = generate_multivariate_dataset(
-                    x_val, is_instances_classification, spectral_representation, hop=hop, win_length=win_length
-                )
-            elif is_multivariate and not use_spectral_representation:
-                x_train_band = generate_multivariate_dataset(
-                    x_train_band, is_instances_classification, spectral_representation, hop=hop, win_length=win_length
-                )
-                x_val_band = generate_multivariate_dataset(
-                    x_val_band, is_instances_classification, spectral_representation, hop=hop, win_length=win_length
-                )
-            else:
+            if is_multivariate and use_spectral_representation:
                 print("Data is already spectral, nothing to do")
+            else:
+                # choose the right source tensors
+                base_train, base_val = (x_train_band, x_val_band) if is_multivariate else (x_train, x_val)
+
+                x_train_band = generate_multivariate_dataset(
+                    base_train, is_instances_classification, spectral_representation, hop=hop, win_length=win_length
+                )
+                x_val_band = generate_multivariate_dataset(
+                    base_val, is_instances_classification, spectral_representation, hop=hop, win_length=win_length
+                )
 
             if not is_instances_classification:
                 x_train_band = x_train_band[edge_cut:-edge_cut]

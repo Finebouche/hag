@@ -18,6 +18,7 @@ from datasets.preprocessing import flexible_indexing
 
 # Preprocessing
 from datasets.spectral_decomposition import generate_multivariate_dataset
+from datasets.peak_centered_decomposition import process_instance_func, extract_peak_frequencies
 from sklearn.preprocessing import MinMaxScaler
 from datasets.preprocessing import scale_data, add_noise
 
@@ -88,6 +89,7 @@ if __name__ == '__main__':
         else:
             possible_spectral_representations = ["mfcc", "custom"] if is_instances_classification else ["stft", "mfcc", "custom"]
 
+        possible_spectral_representations = ["custom"]
         for spectral_representation in possible_spectral_representations:
             print(f"Spectral representation: {spectral_representation}")
             for i, (train_index, val_index) in enumerate(splits):
@@ -104,22 +106,37 @@ if __name__ == '__main__':
                 # PREPROCESSING
                 hop = 50 if is_instances_classification else 1
                 win_length = edge_cut = 100
-                if not is_multivariate:
-                    x_train_band = generate_multivariate_dataset(
-                        x_train, is_instances_classification, spectral_representation, hop=hop, win_length=win_length
-                    )
-                    x_val_band = generate_multivariate_dataset(
-                        x_val, is_instances_classification, spectral_representation, hop=hop, win_length=win_length
-                    )
-                elif is_multivariate and not use_spectral_representation:
-                    x_train_band = generate_multivariate_dataset(
-                        x_train_band, is_instances_classification, spectral_representation, hop=hop, win_length=win_length
-                    )
-                    x_val_band = generate_multivariate_dataset(
-                        x_val_band, is_instances_classification, spectral_representation, hop=hop, win_length=win_length
-                    )
-                else:
+
+                if is_multivariate and use_spectral_representation:
                     print("Data is already spectral, nothing to do")
+                else:
+                    # choose the right source tensors
+                    base_train, base_val = (x_train_band, x_val_band) if is_multivariate else (x_train, x_val)
+
+                    if spectral_representation in ["stft", "mfcc"]:
+                        x_train_band = generate_multivariate_dataset(
+                            base_train, is_instances_classification, spectral_representation, hop=hop, win_length=win_length
+                        )
+                        x_val_band = generate_multivariate_dataset(
+                            base_val, is_instances_classification, spectral_representation, hop=hop, win_length=win_length
+                        )
+                    elif spectral_representation == "custom":
+
+                        peaks = extract_peak_frequencies(
+                            input_data=base_train,
+                            is_instances_classification=is_instances_classification,
+                            sampling_rate=sampling_rate,
+                            threshold=1e-5,
+                            smooth=True,
+                            window_length=10,
+                            nperseg=1024,
+                            visualize=True,
+                        )
+                        x_train_band = process_instance_func(base_train, is_instances_classification, sampling_rate, peaks)
+                        x_val_band = process_instance_func(base_val, is_instances_classification, sampling_rate, peaks)
+                    elif spectral_representation == "none":
+                        x_train_band = base_train
+                        x_val_band = base_val
 
                 if not is_instances_classification:
                     x_train_band = x_train_band[edge_cut:-edge_cut]
@@ -196,6 +213,8 @@ if __name__ == '__main__':
                 raise ValueError(f"Invalid variable type: {variate_type}")
 
             for random_projection_experiment in [True, False]:
+                if random_projection_experiment and spectral_representation == "none":
+                    continue
 
                 # "random_ee", "random_ei", "diag_ee", "diag_ei", "desp", "hadsp", "ip_correct", "anti-oja_fast", "ip-anti-oja_fast"
                 for function_name in  ["random_ee", "random_ei", "desp", "hadsp", "ip_correct", "anti-oja_fast", "ip-anti-oja_fast"]:

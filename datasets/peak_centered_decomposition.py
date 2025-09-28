@@ -5,26 +5,38 @@ from scipy import signal
 import numpy as np
 from scipy.signal.windows import gaussian
 
+from matplotlib import pyplot as plt
+
+from scipy.signal import cheby2, sosfiltfilt
+
 # ----------------------------- Peaks ---------------------------------
 def extract_peak_frequencies(
         input_data: np.ndarray,
+        is_instances_classification: bool,
         sampling_rate: float,
-        threshold: float,
+        threshold: float = 1e-5,
         smooth: bool = True,
         window_length: int = 10,
         nperseg: int = 1024,
         visualize: bool = True,
     ):
+    # if is_instances_classification use the concatenated data to find peaks
+    if is_instances_classification:
+        input_concat = np.concatenate(input_data, axis=0)
+    else:
+        input_concat = input_data
+
     assert threshold < 1, "Threshold should be a fraction of the maximum power"
     if visualize:
         print("Frequency limit: ", np.round(sampling_rate / 2), "(Shannon sampling theorem)")
     filtered_peak_freqs = []
     max_power = 0
     max_frequency = 0
-    for i in range(input_data.shape[1]):
+    print(input_concat.shape)
+    for i in range(input_concat.shape[1]):
         # Estimate power spectral density using Welch's method
         # https://dsp.stackexchange.com/questions/81640/trying-to-understand-the-nperseg-effect-of-welch-method
-        f, Pxx_den = signal.welch(input_data[:, i], sampling_rate, nperseg=nperseg)
+        f, Pxx_den = signal.welch(input_concat[:, i], sampling_rate, nperseg=nperseg)
         # Smoothing the Power Spectral Density (Pxx_den) before peak detection helps in emphasizing
         # the more significant, broader peaks that are often of greater interest in signal processing tasks.
         if smooth:
@@ -65,54 +77,73 @@ def extract_peak_frequencies(
         plt.legend()  # Show legend with the threshold line
         plt.show()
 
-    if input_data.shape[1] == 1:
+    if input_concat.shape[1] == 1:
         return filtered_peak_freqs[0]
     else:
         return np.array(filtered_peak_freqs, dtype=object)
 
-from scipy.signal import cheby2, sosfiltfilt
 
 
 # -------------------------- Band edges --------------------------------
 def compute_band_edges(
     filtered_peak_freqs: Union[np.ndarray, Sequence[np.ndarray]],
-    fs: float,
-    min_bandwidth_hz: float = 1.0,
+    sampling_rate: float,
+    X: Union[np.ndarray, Sequence[np.ndarray]],
+    min_bandwidth_hz: float = 0.0,
     eps: float = 1e-6,
 ):
-    """Compute per-peak [low, high] from midpoints; enforce a minimum bandwidth."""
-    nyq = fs / 2.0
+    """
+    For each channel's peak list p, build bands by placing edges at the midpoints
+    between neighboring peaks (i.e., half the inter-peak distance).
+    Returns (lows, highs) as lists of np.ndarrays, one array per channel.
+    """
+    nyq = float(sampling_rate) / 2.0
 
-    # Normalize to list-of-arrays
+    # Normalize peaks to list-of-arrays
     if isinstance(filtered_peak_freqs, np.ndarray) and filtered_peak_freqs.dtype != object:
-        freq_lists = [filtered_peak_freqs]
+        per_ch = [np.asarray(filtered_peak_freqs, float)]
     else:
-        freq_lists = list(filtered_peak_freqs)
+        per_ch = [np.asarray(p, float) for p in list(filtered_peak_freqs)]
+
+    # Determine #channels from X, then broadcast single peak-set if needed
+    X_arr = np.asarray(X)
+    n_channels = 1 if X_arr.ndim == 1 else int(X_arr.shape[1])
+    if len(per_ch) == 1 and n_channels > 1:
+        per_ch = per_ch * n_channels
 
     lows, highs = [], []
-    for p in freq_lists:
+    for p in per_ch:
+        # clean & sort peaks strictly inside (0, nyq)
         p = np.asarray(p, float)
-        p = np.unique(p[(p > 0) & (p < nyq - eps)])
+        p = np.unique(p[(p > eps) & (p < nyq - eps)])
         if p.size == 0:
             lows.append(np.array([], float))
             highs.append(np.array([], float))
             continue
 
-        bounds = np.r_[0.0, p, nyq]
-        mids = (bounds[1:] + bounds[:-1]) / 2.0
-        low = np.clip(mids[:-1], eps, nyq - eps)
-        high = np.clip(mids[1:], eps, nyq - eps)
+        # half-distance bands around each peak
+        p.sort()
+        extended = np.r_[0.0, p, nyq]          # [0, f1, f2, ..., nyq]
+        halfspan = np.diff(extended) / 2.0     # length = len(p)+1
+        low = p - halfspan[:-1]
+        high = p + halfspan[1:]
 
-        # Enforce minimum bandwidth around the actual peak centers
-        bw = high - low
-        narrow = bw < min_bandwidth_hz
-        if np.any(narrow):
-            half = min_bandwidth_hz / 2.0
-            low[narrow] = np.maximum(p[narrow] - half, eps)
-            high[narrow] = np.minimum(p[narrow] + half, nyq - eps)
+        # enforce minimum bandwidth if requested
+        if min_bandwidth_hz > 0:
+            bw = high - low
+            narrow = bw < min_bandwidth_hz
+            if np.any(narrow):
+                half = min_bandwidth_hz / 2.0
+                low[narrow] = p[narrow] - half
+                high[narrow] = p[narrow] + half
 
+        # clip to (0, nyq) and ensure valid intervals
+        low = np.clip(low, eps, nyq - eps)
+        high = np.clip(high, eps, nyq - eps)
         valid = high > (low + eps)
-        lows.append(low[valid]); highs.append(high[valid])
+
+        lows.append(low[valid])
+        highs.append(high[valid])
 
     return lows, highs
 
@@ -135,7 +166,7 @@ def filter_instance_frequencies(
         X = X[:, None]
     n_samples, n_channels = X.shape
 
-    low_list, high_list = compute_band_edges(filtered_peak_freqs, sampling_rate, min_bandwidth_hz)
+    low_list, high_list = compute_band_edges(filtered_peak_freqs, sampling_rate, X)
 
     # Single-dimension peak list given for mono? Normalize to list-of-lists
     if n_channels == 1 and (isinstance(filtered_peak_freqs, np.ndarray) and filtered_peak_freqs.dtype != object):
@@ -173,117 +204,31 @@ def filter_instance_frequencies(
 # ------------------------ Peak-centered filter-bank decomposition --------------------------
 def process_instance_func(
     X: Union[np.ndarray, Sequence[np.ndarray]],
+    is_instances_classification,
     sampling_rate: float,
-    threshold: float = 0.5,
-    smooth: bool = True,
-    window_length: int = 10,
-    nperseg: int = 1024,
-    visualize: bool = False,
+    peaks: Union[np.ndarray, Sequence[np.ndarray]],
     filter_order: int = 6,
     min_bandwidth_hz: float = 1.0,
 ):
-    peaks = extract_peak_frequencies(
-        input_data=np.asarray(X), sampling_rate=sampling_rate, threshold=threshold,
-        smooth=smooth, window_length=window_length, nperseg=nperseg, visualize=visualize
-    )
-    return filter_instance_frequencies(
-        X, peaks, sampling_rate, order=filter_order, min_bandwidth_hz=min_bandwidth_hz
-    )
-
-
-if __name__ == "__main__":
-    import numpy as np
-    import matplotlib.pyplot as plt
-
-    # --- 1) Make a toy multi-channel signal -------------------------------
-    fs = 1000.0         # Hz
-    dur = 2.0           # seconds
-    t = np.arange(int(dur * fs)) / fs
-    rng = np.random.default_rng(0)
-
-    # Channel 1 has peaks ~50, 120, 220 Hz
-    x1 = (
-        1.0 * np.sin(2 * np.pi * 50 * t)
-        + 0.5 * np.sin(2 * np.pi * 120 * t)
-        + 0.3 * np.sin(2 * np.pi * 220 * t)
-        + 0.2 * rng.standard_normal(t.shape)
-    )
-
-    # Channel 2 has peaks ~80, 150 Hz
-    x2 = (
-        0.8 * np.sin(2 * np.pi * 80 * t)
-        + 0.6 * np.sin(2 * np.pi * 150 * t)
-        + 0.2 * rng.standard_normal(t.shape)
-    )
-
-    X = np.column_stack([x1, x2])  # (n_samples, n_channels)
-
-    # --- 2) Detect peaks, build band edges (optional: print them) ----------
-    peaks = extract_peak_frequencies(
-        input_data=X,
-        sampling_rate=fs,
-        threshold=0.4,        # relative power threshold for peak selection
-        smooth=True,
-        window_length=10,
-        nperseg=1024,
-        visualize=True,      # set True if you want the PSD plot
-    )
-
-    # Optional: inspect the computed band edges
-    low_list, high_list = compute_band_edges(peaks, fs, min_bandwidth_hz=2.0)
-    print("\nDetected peaks & band edges per channel:")
-    for ch, (p, lows, highs) in enumerate(zip(peaks, low_list, high_list)):
-        pairs = [f"[{l:.1f}, {h:.1f}]" for l, h in zip(lows, highs)]
-        print(f"  Ch{ch}: peaks ~ {np.round(p, 1)} Hz")
-        print(f"       bands: {', '.join(pairs)}")
-
-    # --- 3) Filter into n_component time series ----------------------------
-    Y = filter_instance_frequencies(
-        X=X,
-        filtered_peak_freqs=peaks,
-        sampling_rate=fs,
-        order=6,
-        stopband_atten_db=20.0,
-        min_bandwidth_hz=2.0,
-    )
-
-    print("\nShapes:")
-    print("  Input X:", X.shape)         # (n_samples, n_channels)
-    print("  Output Y:", Y.shape)        # (n_samples, total_components)
-
-    # --- 4) One-liner that does (2)+(3) if you prefer ----------------------
-    Y2 = process_instance_func(
-        X,
-        sampling_rate=fs,
-        threshold=0.4,
-        smooth=True,
-        window_length=10,
-        nperseg=1024,
-        visualize=False,
-        filter_order=6,
-        min_bandwidth_hz=2.0,
-    )
-    assert np.allclose(Y, Y2), "Sanity check: both paths should match."
-
-    # --- 5) (Optional) Quick plots -----------------------------------------
-    # Show Channel 1 and its first two extracted components (if present)
-    plt.figure(figsize=(10, 6))
-    plt.subplot(3, 1, 1)
-    plt.plot(t, X[:, 0])
-    plt.title("Original - Channel 1")
-    plt.xlabel("Time [s]"); plt.ylabel("Amplitude")
-
-    if Y.shape[1] >= 1:
-        plt.subplot(3, 1, 2)
-        plt.plot(t, Y[:, 0])
-        plt.title("Extracted Component 1")
-        plt.xlabel("Time [s]"); plt.ylabel("Amplitude")
-
-    if Y.shape[1] >= 2:
-        plt.subplot(3, 1, 3)
-        plt.plot(t, Y[:, 1])
-        plt.title("Extracted Component 2")
-        plt.xlabel("Time [s]"); plt.ylabel("Amplitude")
-
-    plt.tight_layout()
-    plt.show()
+    # Filter each instance
+    if is_instances_classification:
+        X_filtered = []
+        for instance in X:
+            Y_inst = filter_instance_frequencies(
+                X=instance,
+                filtered_peak_freqs=peaks,
+                sampling_rate=sampling_rate,
+                order=filter_order,
+                min_bandwidth_hz=min_bandwidth_hz,
+            )
+            X_filtered.append(Y_inst)
+        return X_filtered
+    else:
+        X_filtered = filter_instance_frequencies(
+            X=X,
+            filtered_peak_freqs=peaks,
+            sampling_rate=sampling_rate,
+            order=filter_order,
+            min_bandwidth_hz=min_bandwidth_hz,
+        )
+        return X_filtered
