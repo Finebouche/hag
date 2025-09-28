@@ -89,7 +89,6 @@ if __name__ == '__main__':
         else:
             possible_spectral_representations = ["mfcc", "custom"] if is_instances_classification else ["stft", "mfcc", "custom"]
 
-        possible_spectral_representations = ["custom"]
         for spectral_representation in possible_spectral_representations:
             print(f"Spectral representation: {spectral_representation}")
             for i, (train_index, val_index) in enumerate(splits):
