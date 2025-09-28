@@ -87,7 +87,7 @@ if __name__ == '__main__':
         if use_spectral_representation:
             possible_spectral_representations = ["mfcc"]
         else:
-            possible_spectral_representations = ["mfcc", "custom"] if is_instances_classification else ["stft", "mfcc", "custom"]
+            possible_spectral_representations = ["mfcc", "custom", "none"] if is_instances_classification else ["stft", "mfcc", "custom", "none"]
 
         for spectral_representation in possible_spectral_representations:
             print(f"Spectral representation: {spectral_representation}")
