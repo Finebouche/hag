@@ -40,7 +40,7 @@ import re
 if __name__ == '__main__':
     step_ahead=5
     # can be  "JapaneseVowels", "CatsDogs", "FSDD", "SpokenArabicDigits", "SPEECHCOMMANDS", "MackeyGlass", "Sunspot_daily", "Lorenz"
-    for dataset_name in ["CatsDogs"]:
+    for dataset_name in ["FSDD"]:
         # score for prediction
         start_step, end_step = 500, 1500
         SLICE_RANGE = slice(start_step, end_step)
@@ -390,23 +390,23 @@ if __name__ == '__main__':
                     print(f"Completed trials: {completed_trials}/{N_TRIALS}")
 
                     # Parallelized
-                    if not completed_trials >= N_TRIALS:
-                        n_parallel_studies = 6
-                        trials_per_process = (N_TRIALS - completed_trials) // n_parallel_studies
-                        # Use joblib to parallelize the optimization
-                        def optimize_study(n_trials_per_process):
-                            study = optuna.create_study(storage=storage, sampler=sampler, study_name=study_name, direction=direction, load_if_exists=True)
-                            study.optimize(objective, n_trials=n_trials_per_process - completed_trials)
-                        Parallel(n_jobs=n_parallel_studies)(
-                            delayed(optimize_study)(trials_per_process) for _ in range(n_parallel_studies)
-                        )
+                    # if not completed_trials >= N_TRIALS:
+                    #     n_parallel_studies = 6
+                    #     trials_per_process = (N_TRIALS - completed_trials) // n_parallel_studies
+                    #     # Use joblib to parallelize the optimization
+                    #     def optimize_study(n_trials_per_process):
+                    #         study = optuna.create_study(storage=storage, sampler=sampler, study_name=study_name, direction=direction, load_if_exists=True)
+                    #         study.optimize(objective, n_trials=n_trials_per_process - completed_trials)
+                    #     Parallel(n_jobs=n_parallel_studies)(
+                    #         delayed(optimize_study)(trials_per_process) for _ in range(n_parallel_studies)
+                    #     )
 
                     # Not Parallelized
-                    # while completed_trials < N_TRIALS:
-                    #     # get the number of trials already done that have been completed
-                    #     completed_trials = len([trial for trial in study.trials if trial.state == optuna.trial.TrialState.COMPLETE])
-                    #     print(f"Completed trials: {completed_trials}/{N_TRIALS}")
-                    #     try:
-                    #         study.optimize(objective, n_trials=N_TRIALS-completed_trials)
-                    #     except Exception as e:
-                    #         print(f"Error during optimization: {e}, retrying...")
+                    while completed_trials < N_TRIALS:
+                        # get the number of trials already done that have been completed
+                        completed_trials = len([trial for trial in study.trials if trial.state == optuna.trial.TrialState.COMPLETE])
+                        print(f"Completed trials: {completed_trials}/{N_TRIALS}")
+                        try:
+                            study.optimize(objective, n_trials=N_TRIALS-completed_trials)
+                        except Exception as e:
+                            print(f"Error during optimization: {e}, retrying...")
