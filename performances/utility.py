@@ -20,11 +20,14 @@ def retrieve_best_model(function_name, dataset_name, is_multivariate, variate_ty
     # Build the study name
     study_name = function_name + "_" + dataset_name + "_" + data_type + "_" + variate_type
     # Build the URL
-    if prefix in ["new_tpe", "cmaes", "lstm_tpe", "rdn-projection_tpe"]:
+    if prefix in ["new_tpe", "cmaes", "lstm_tpe",
+                  "rdn-proj_tpe_mfcc", "rdn-proj_tpe_custom", "rdn-proj_tpe_none",
+                  "mod-proj_tpe_mfcc", "mod-proj_tpe_custom", "mod-proj_tpe_none"]:
         url = f"sqlite:///{prefix}_{camel_to_snake(dataset_name)}_db.sqlite3"
     else:
         raise ValueError(f"Unknown sampler_name: {prefix}")
 
     # Load the study
+    print("Loading study from URL:", url)
     study = optuna.load_study(study_name=study_name, storage=url)
     return study

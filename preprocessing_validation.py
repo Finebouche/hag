@@ -212,7 +212,7 @@ if __name__ == '__main__':
                 raise ValueError(f"Invalid variable type: {variate_type}")
 
             for random_projection_experiment in [True, False]:
-                if random_projection_experiment and spectral_representation == "none":
+                if not random_projection_experiment and spectral_representation == "none":
                     continue
 
                 # "random_ee", "random_ei", "diag_ee", "diag_ei", "desp", "hadsp", "ip_correct", "anti-oja_fast", "ip-anti-oja_fast"
