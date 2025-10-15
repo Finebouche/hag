@@ -93,34 +93,31 @@ def run_algorithm(W, Win, bias, leaky_rate, activation_function, input_data, wei
     pbar = tqdm(total=len(input_data), desc="HAG algorithm")
     while (len(input_data) > max_increment and not use_full_instance) or (len(input_data) > 0 and use_full_instance):
         if use_full_instance:  # if is true, take the next instance of the instance array input_data
+            T_current = input_array.shape[0]
             input_array = input_data[0]
             input_data = input_data[1:]
-            inc = 1
-            state_inc = inc * input_array.shape[0]
-        else:
-            # randomly select the increment size
-            inc = np.random.choice(int_logspace)
-            input_array = input_data[:inc]
-            input_data = input_data[inc:]
-            state_inc = inc
+        else: # randomly select the increment size
+            T_current = np.random.choice(int_logspace)
+            input_array = input_data[:T_current]
+            input_data = input_data[T_current:]
 
         for input_value in input_array:
             neurons_state = update_reservoir(W, Win, input_value, neurons_state, leaky_rate, bias, activation_function)
             states_history.append(neurons_state)
 
         if algorithm_type in ("hadsp", "mean_hag_marked", "rnn-mean_hag"):
-            delta_z = compute_synaptic_change(states_history[-state_inc:], target, spread, average=average)
+            delta_z = compute_synaptic_change(states_history[-T_current:], target, spread, average=average)
         elif algorithm_type in ("desp", "var_hag_marked"):
-            delta_z = compute_variance(states_history[-state_inc:], target, spread, average=average)
+            delta_z = compute_variance(states_history[-T_current:], target, spread, average=average)
         else:
             raise ValueError("type must be one of 'hadsp', 'desp'")
 
-        W, _, nb_new_add, nb_new_prun = hag_step(W, states_history[-state_inc:], delta_z, weight_increment,
+        W, _, nb_new_add, nb_new_prun = hag_step(W, states_history[-T_current:], delta_z, weight_increment,
                                                  max_partners=max_partners, method=method, n_jobs=n_jobs)
 
         if algorithm_type in ("desp", "var_hag_marked"):
             # implement intrinsic homeostatic plasticity based on saturation of states
-            neurons_states = np.array(states_history[-state_inc:]).T
+            neurons_states = np.array(states_history[-T_current:]).T
             for neuron_states, i in zip(neurons_states, range(bias.size)):
                 if np.all(neuron_states >= intrinsic_saturation):
                     W[i, :] = W[i, :] * intrinsic_coef  # Now you can modify it directly
@@ -129,19 +126,19 @@ def run_algorithm(W, Win, bias, leaky_rate, activation_function, input_data, wei
             states_history = []
         else:
             W_history.append((np.copy(W)))
-            if use_full_instance:  # happened variance to variance_history for a number of inc
+            if use_full_instance:  # happened variance to variance_history for a number of T_current
                 delta_z_history.extend([delta_z] * 10)
             else:
-                delta_z_history.extend([delta_z] * inc)
+                delta_z_history.extend([delta_z] * T_current)
 
         if visualize:
             total_add += nb_new_add
             total_prun += nb_new_prun
             add.append(total_add)
             prun.append(total_prun)
-        step += inc
+        step += T_current
         steps.append(step)
-        pbar.update(inc)
+        pbar.update(T_current)
 
     pbar.close()
 
