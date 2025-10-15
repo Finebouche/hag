@@ -93,9 +93,9 @@ def run_algorithm(W, Win, bias, leaky_rate, activation_function, input_data, wei
     pbar = tqdm(total=len(input_data), desc="HAG algorithm")
     while (len(input_data) > max_increment and not use_full_instance) or (len(input_data) > 0 and use_full_instance):
         if use_full_instance:  # if is true, take the next instance of the instance array input_data
-            T_current = input_array.shape[0]
             input_array = input_data[0]
             input_data = input_data[1:]
+            T_current = input_array.shape[0]
         else: # randomly select the increment size
             T_current = np.random.choice(int_logspace)
             input_array = input_data[:T_current]
