@@ -38,16 +38,23 @@ HAG introduces an innovative, biologically-inspired approach to improve Reservoi
 ---
 ## 📚 Publications
 
+### **2025**
+
+- **[Reshaping reservoirs with unsupervised Hebbian adaptation](https://doi.org/10.1038/s41467-025-67137-1)**  
+  *Tanguy Cazalets, Joni Dambre*  
+  *Nature Communications*  
+  This paper introduces HAG.
+
 ### **2023**
 
 - **[A Bio-Inspired Model for Audio Processing](https://doi.org/10.1109/ijcnn54540.2023.10191230)**  
   *Tanguy Cazalets, Joni Dambre*  
-  *Presented at C1 Conference 2023*  
+  *Presented at RIVF 2023*  
   This paper introduces a biologically-inspired approach to audio processing, emphasizing homeostatic mechanisms and plasticity for efficient neural network performance.
 
 - **[A Homeostatic Activity-Dependent Structural Plasticity Algorithm for Richer Input Combination](https://doi.org/10.1109/rivf60135.2023.10471845)**  
   *Tanguy Cazalets, Joni Dambre*  
-  *Presented at P1 Conference 2023*  
+  *Presented at IJCNN 2023*  
   This work explores an innovative algorithm for structural plasticity, enhancing neural network adaptability to diverse input combinations.
 
 ---
