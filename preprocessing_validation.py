@@ -40,7 +40,7 @@ import re
 if __name__ == '__main__':
     step_ahead=5
     # can be  "JapaneseVowels", "CatsDogs", "FSDD", "SpokenArabicDigits", "SPEECHCOMMANDS", "MackeyGlass", "Sunspot_daily", "Lorenz"
-    for dataset_name in ["FSDD"]:
+    for dataset_name in ["JapaneseVowels", "CatsDogs", "FSDD"]:
         # score for prediction
         start_step, end_step = 500, 1500
         SLICE_RANGE = slice(start_step, end_step)
@@ -389,7 +389,7 @@ if __name__ == '__main__':
                     completed_trials = len([trial for trial in study.trials if trial.state == optuna.trial.TrialState.COMPLETE])
                     print(f"Completed trials: {completed_trials}/{N_TRIALS}")
 
-                    # Parallelized
+                    #Parallelized
                     # if not completed_trials >= N_TRIALS:
                     #     n_parallel_studies = 6
                     #     trials_per_process = (N_TRIALS - completed_trials) // n_parallel_studies
