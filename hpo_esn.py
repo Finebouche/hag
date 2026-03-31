@@ -187,7 +187,7 @@ if __name__ == '__main__':
 
 
         # "random_ee", "random_ei", "diag_ee", "diag_ei", "desp", "hadsp", "ip_correct", "anti-oja_fast", "ip-anti-oja_fast"
-        for function_name in  ["random_ee", "random_ei", "desp", "hadsp", "ip_correct", "anti-oja_fast", "ip-anti-oja_fast"]:
+        for function_name in  ["hsp", "short-hag"]:
             def objective(trial):
                 # COMMON
                 RESERVOIR_SIZE = 500
@@ -200,18 +200,16 @@ if __name__ == '__main__':
                 leaky_rate = trial.suggest_float('leaky_rate', 1, 1)
                 input_connectivity = trial.suggest_float('input_connectivity', 1, 1)
 
-                # HADSP
-                if function_name in ("hadsp", "mean_hag_marked"):
+                # MEAN-HAG, HSP
+                if function_name in ("hadsp", "mean_hag_marked", "hsp", "short-hag"):
                     target_rate = trial.suggest_float('target_rate', 0.5, 1, step=0.01)
                     rate_spread = trial.suggest_float('rate_spread', 0.01, 0.4, step=0.005)
-                    method = "pearson"
-                # DESP
+                # VARIANCE-HAG
                 elif function_name in ("desp", "var_hag_marked"):
                     variance_target = trial.suggest_float('variance_target', 0.001, 0.02, step=0.001)
                     variance_spread = trial.suggest_float('variance_spread', 0.001, 0.05, step=0.002)
                     intrinsic_saturation = trial.suggest_float('intrinsic_saturation', 0.8, 0.98, step=0.02)
                     intrinsic_coef = trial.suggest_float('intrinsic_coef', 0.8, 0.98, step=0.02)
-                    method = "pearson"
                 elif function_name in ["random_ee", "random_ei", "diag_ee", "diag_ei", "ip_correct", "anti-oja_fast", "ip-anti-oja_fast"]:
                     connectivity = trial.suggest_float('connectivity', 0, 1)
                     sr = trial.suggest_float('spectral_radius', 0.4, 1.6, step=0.01)
@@ -228,16 +226,17 @@ if __name__ == '__main__':
                     # We often use a log-uniform distribution for learning rates:
                     oja_eta = trial.suggest_float('oja_eta', 1e-8, 1e-3, log=True)
 
-                if function_name in ["hadsp", "desp", "mean_hag_marked", "var_hag_marked"]:
+                if function_name in ["hadsp", "desp", "mean_hag_marked", "var_hag_marked", "hsp", "short-hag"]:
                     connectivity = trial.suggest_float('connectivity', 0, 0)
                     weight_increment = trial.suggest_float('weight_increment', 0.001, 0.1, step=0.001)
                     max_partners = np.inf # trial.suggest_int('max_partners', 10, 20)
-                    if is_instances_classification:
-                        use_full_instance = trial.suggest_categorical('use_full_instance', [True, False])
-                    else:
-                        use_full_instance = False
-                    min_increment = trial.suggest_int('min_increment', 3, max_time_increment_possible)
-                    max_increment = trial.suggest_int('max_increment', min_increment, max_time_increment_possible*5)
+                    if function_name not in ["hsp", "short-hag"]:
+                        if is_instances_classification:
+                            use_full_instance = trial.suggest_categorical('use_full_instance', [True, False])
+                        else:
+                            use_full_instance = False
+                        min_increment = trial.suggest_int('min_increment', 3, max_time_increment_possible)
+                        max_increment = trial.suggest_int('max_increment', min_increment, max_time_increment_possible*5)
 
                 # CROSS-VALIDATION METHODS
                 total_score = 0
@@ -274,19 +273,34 @@ if __name__ == '__main__':
 
                     if function_name in ("hadsp", "mean_hag_marked"):
                         W, (_, _, _) = run_algorithm(W, Win, bias, leaky_rate, activation_function, pretrain_data,
-                                                     weight_increment, target_rate, rate_spread, function_name,
+                                                     weight_increment, target_rate, rate_spread, "mean_hag",
                                                      multiple_instances=is_instances_classification,
                                                      min_increment = min_increment, max_increment=max_increment, use_full_instance=use_full_instance,
-                                                     max_partners=max_partners, method=method,
+                                                     max_partners=max_partners, method="pearson",
                                                      n_jobs=nb_jobs_per_trial)
                     elif function_name in ("desp", "var_hag_marked"):
                         W, (_, _, _) = run_algorithm(W, Win, bias, leaky_rate, activation_function, pretrain_data,
-                                                     weight_increment, variance_target, variance_spread, function_name,
+                                                     weight_increment, variance_target, variance_spread, "var_hag",
                                                      multiple_instances=is_instances_classification,
                                                      min_increment = min_increment, max_increment=max_increment, use_full_instance=use_full_instance,
-                                                     max_partners=max_partners, method=method,
+                                                     max_partners=max_partners, method="pearson",
                                                      intrinsic_saturation=intrinsic_saturation, intrinsic_coef=intrinsic_coef,
                                                      n_jobs=nb_jobs_per_trial)
+                    elif function_name == "short-hag":
+                        W, (_, _, _) = run_algorithm(W, Win, bias, leaky_rate, activation_function, pretrain_data,
+                                                     weight_increment, target_rate, rate_spread, "mean_hag",
+                                                     multiple_instances=is_instances_classification,
+                                                     min_increment=1, max_increment=1, use_full_instance=False,
+                                                     max_partners=max_partners, method="pearson",
+                                                     n_jobs=nb_jobs_per_trial)
+                    elif function_name == "hsp":
+                        W, (_, _, _) = run_algorithm(W, Win, bias, leaky_rate, activation_function, pretrain_data,
+                                                     weight_increment,target_rate, rate_spread, "mean_hag",
+                                                     multiple_instances=is_instances_classification,
+                                                     min_increment=1, max_increment=1, use_full_instance=False,
+                                                     max_partners=max_partners, method="random",
+                                                     n_jobs=nb_jobs_per_trial)
+
                     elif function_name in ["random_ee", "random_ei", "diag_ee", "diag_ei", "ip_correct", "anti-oja_fast", "ip-anti-oja_fast"]:
                         eigen = sparse.linalg.eigs(W, k=1, which="LM", maxiter=W.shape[0] * 20, tol=0.1, return_eigenvectors=False)
                         W *= sr / max(abs(eigen))
@@ -323,8 +337,8 @@ if __name__ == '__main__':
                     # TRAINING and EVALUATION
                     if is_instances_classification:
                         mode = "sequence-to-vector"
-                        train_model_for_classification(reservoir, readout, train_data, Y_train[i], n_jobs=nb_jobs_per_trial, mode=mode)
-                        Y_pred = predict_model_for_classification(reservoir, readout, val_data, n_jobs=nb_jobs_per_trial, mode=mode)
+                        train_model_for_classification(reservoir, readout, train_data, Y_train[i], mode=mode)
+                        Y_pred = predict_model_for_classification(reservoir, readout, val_data, mode=mode)
                         score = compute_score(Y_pred, Y_val[i], is_instances_classification)
                     else:
                         esn = train_model_for_prediction(reservoir, readout, train_data, Y_train[i], warmup=start_step, n_jobs=nb_jobs_per_trial)
@@ -357,15 +371,15 @@ if __name__ == '__main__':
             completed_trials = len([trial for trial in study.trials if trial.state == optuna.trial.TrialState.COMPLETE])
 
             # Parallelized
-            # n_parallel_studies = 6
-            # trials_per_process = (N_TRIALS - completed_trials) // n_parallel_studies
-            # # Use joblib to parallelize the optimization
-            # def optimize_study(n_trials_per_process):
-            #     study = optuna.create_study(storage=storage, sampler=sampler, study_name=study_name, direction=direction, load_if_exists=True)
-            #     study.optimize(objective, n_trials=n_trials_per_process - completed_trials)
-            # Parallel(n_jobs=n_parallel_studies)(
-            #     delayed(optimize_study)(trials_per_process) for _ in range(n_parallel_studies)
-            # )
+            n_parallel_studies = 6
+            trials_per_process = (N_TRIALS - completed_trials) // n_parallel_studies
+            # Use joblib to parallelize the optimization
+            def optimize_study(n_trials_per_process):
+                study = optuna.create_study(storage=storage, sampler=sampler, study_name=study_name, direction=direction, load_if_exists=True)
+                study.optimize(objective, n_trials=n_trials_per_process - completed_trials)
+            Parallel(n_jobs=n_parallel_studies)(
+                delayed(optimize_study)(trials_per_process) for _ in range(n_parallel_studies)
+            )
 
             # Not Parallelized
             while completed_trials < N_TRIALS:

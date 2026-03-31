@@ -91,9 +91,8 @@ def init_reservoir(W, Win, bias, leaking_rate, activation_function):
                           W=csr_matrix(W),
                           Win=Win,
                           lr=leaking_rate,
-                          bias=csr_matrix(bias).T,
-                          activation=activation_function,
-                          equation='external')
+                          bias=bias.ravel(),
+                          activation=activation_function)
     return reservoir
 
 
@@ -117,43 +116,30 @@ def train_model_for_prediction(reservoir, readout, X_train, Y_train, n_jobs, war
     return esn
 
 
-def train_model_for_classification(reservoir, readout, X_train, Y_train, n_jobs, mode, warmup=2, hide_progress=False):
+def train_model_for_classification(reservoir, readout, X_train, Y_train, mode, warmup=2):
     if mode == "sequence-to-vector":
-        def compute_state(x):
-            import reservoirpy
-            reservoirpy.verbosity(level=0)
-
-            return reservoir.run(x, reset=True)[-1, np.newaxis].flatten()
-
-        states_to_train_on = Parallel(n_jobs=n_jobs)(
-            delayed(compute_state)(x) for x in tqdm(X_train, desc="Processing", dynamic_ncols=True, disable=hide_progress)
-        )
-
-        states_to_train_on = np.array(states_to_train_on)
+        # Run ALL sequences in one call (batched)
+        all_states = reservoir.run(X_train)
+        # Extract last state of each sequence
+        states_to_train_on = np.array([s[-1] for s in all_states])
         readout.fit(states_to_train_on, Y_train)
-
+        return readout
     elif mode == "sequence-to-sequence":
-        # make Y_train repeat_targets
-        # for each sequence in X_train, the corresponding target is Ytrain repeated as many times as the sequence length
-        Y_train = [np.array([Y_train[i]] * len(x)) for i, x in enumerate(X_train)]
+        # Repeat targets to match sequence lengths
+        Y_train_seq = [np.array([Y_train[i]] * len(x)) for i, x in enumerate(X_train)]
         esn = reservoir >> readout
-        esn.fit(X_train, Y_train, stateful=False, warmup=warmup)
+        esn.fit(X_train, Y_train_seq, stateful=False, warmup=warmup)
         return esn
     else:
         raise ValueError(f"Invalid mode: {mode}")
 
 
-def predict_model_for_classification(reservoir, readout, X_test, esn=None, n_jobs=1, mode="sequence-to-vector", hide_progress=False):
+def predict_model_for_classification(reservoir, readout, X_test, esn=None, mode="sequence-to-vector"):
     if mode == "sequence-to-vector":
-        def predict(x):
-            import reservoirpy
-            reservoirpy.verbosity(level=0)
-
-            states = reservoir.run(x, reset=True)[-1, np.newaxis].flatten() # read from the last state of the models
-            y = readout.run(states)
-            return y
-
-        Y_pred = Parallel(n_jobs=n_jobs)(delayed(predict)(x) for x in tqdm(X_test, desc="Evaluating", disable=hide_progress))
+        all_states = reservoir.run(X_test)
+        states_to_predict = np.vstack([s[-1] for s in all_states])
+        Y_pred = readout.run(states_to_predict)
+        Y_pred = [y for y in Y_pred]  # convert to list if needed
     elif mode == "sequence-to-sequence":
         Y_pred = esn.run(X_test, stateful=False)
     else:
@@ -178,3 +164,4 @@ def compute_score(Y_pred, Y_test, is_instances_classification, model_name="", ve
     if verbosity > 0:
         print(f"Accuracy for {model_name}: {score * 100:.3f} %")
     return score
+
