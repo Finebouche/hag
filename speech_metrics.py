@@ -123,15 +123,15 @@ def evaluate_dataset_on_test(study, function_name, pretrain_data, test_data, is_
         bias *= hyperparams['bias_scaling']
         Win *= hyperparams['input_scaling']
 
-        if function_name == "hadsp":
+        if function_name in ("hadsp", "mean_hag"):
             W, (_, _, _) = run_algorithm(W, Win, bias, hyperparams['leaky_rate'], activation_function, pretrain_data,
-                                     hyperparams['weight_increment'], hyperparams['target_rate'], hyperparams['rate_spread'], function_name,
+                                     hyperparams['weight_increment'], hyperparams['target_rate'], hyperparams['rate_spread'], "mean_hag",
                                      multiple_instances=is_instances_classification,
                                      min_increment = hyperparams['min_increment'], max_increment=hyperparams['max_increment'], use_full_instance=hyperparams['use_full_instance'],
                                      max_partners=max_partners, method="pearson", n_jobs=nb_jobs)
-        elif function_name == "desp":
+        elif function_name in ("desp", "var_hag"):
             W, (_, _, _) = run_algorithm(W, Win, bias, hyperparams['leaky_rate'], activation_function, pretrain_data,
-                                         hyperparams['weight_increment'], hyperparams['variance_target'], hyperparams['variance_spread'], function_name,
+                                         hyperparams['weight_increment'], hyperparams['variance_target'], hyperparams['variance_spread'], "var_hag",
                                          multiple_instances=is_instances_classification,
                                          min_increment = hyperparams['min_increment'], max_increment=hyperparams['max_increment'], use_full_instance = hyperparams['use_full_instance'],
                                          max_partners=max_partners, method = "pearson",

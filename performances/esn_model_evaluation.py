@@ -1,9 +1,7 @@
 import numpy as np
 
 from scipy.sparse import csr_matrix
-from joblib import Parallel, delayed
 from sklearn.metrics import accuracy_score
-from tqdm import tqdm
 from performances.losses import nrmse_multivariate
 from reservoirpy.nodes import Reservoir, IPReservoir, Ridge, RLS, LMS, NVAR, LocalPlasticityReservoir
 from models.intrinsicSynapticPlasticityReservoir import IPLocalPlasticityReservoir
