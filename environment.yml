@@ -8,6 +8,7 @@ dependencies:
   - matplotlib
   - seaborn
   - pandas
+  - svgpath2mpl
   - scikit-learn
   - librosa
   - aeon>=0.10
