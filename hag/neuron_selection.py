@@ -47,9 +47,12 @@ def determine_connection_pairs(neurons_needing_new_connection, connectivity_matr
             mi_for_available_neurons = compute_mutual_information(states, [available_for_neuron, [neuron]])
             mi_for_neuron = mi_for_available_neurons[neuron, available_for_neuron]
             neuron_to_choose_from = np.array(available_for_neuron)[np.isclose(mi_for_neuron, np.nanmax(mi_for_neuron))]
+        elif method == "hebbian":
+            correlations = states[neuron, 0] * states[available_for_neuron, 0]
+            neuron_to_choose_from = np.array(available_for_neuron)[correlations > 0]
         elif method == "pearson":
+            correlations = compute_pearson_corr(states[neuron, :], states[available_for_neuron, :])
             # Alternative : np.corrcoef(states[neuron, 1:], states[available_for_neuron, :-1])[0, 1:]
-            correlations = compute_pearson_corr(states[neuron, 1:], states[available_for_neuron, 1:])
             neuron_to_choose_from = np.array(available_for_neuron)[np.isclose(correlations, np.nanmax(correlations))]
         elif method == "random":
             neuron_to_choose_from = np.array(available_for_neuron)

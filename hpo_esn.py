@@ -286,13 +286,19 @@ if __name__ == '__main__':
                                                      max_partners=max_partners, method="pearson",
                                                      intrinsic_saturation=intrinsic_saturation, intrinsic_coef=intrinsic_coef,
                                                      n_jobs=nb_jobs_per_trial)
-                    elif function_name == "short-hag" or "hsp":
-                        method = "pearson" if function_name == "short-hag" else "random"
+                    elif function_name == "short-hag":
                         W, (_, _, _) = run_algorithm(W, Win, bias, leaky_rate, activation_function, pretrain_data,
                                                      weight_increment, target_rate, rate_spread, "mean_hag",
                                                      multiple_instances=is_instances_classification,
                                                      min_increment=1, max_increment=1, use_full_instance=False,
-                                                     max_partners=max_partners, method=method,
+                                                     max_partners=max_partners, method="hebbian",
+                                                     n_jobs=nb_jobs_per_trial)
+                    elif function_name == "hsp":
+                        W, (_, _, _) = run_algorithm(W, Win, bias, leaky_rate, activation_function, pretrain_data,
+                                                     weight_increment, target_rate, rate_spread, "mean_hag",
+                                                     multiple_instances=is_instances_classification,
+                                                     min_increment=100, max_increment=100, use_full_instance=False,
+                                                     max_partners=max_partners, method="random",
                                                      n_jobs=nb_jobs_per_trial)
                     elif function_name in ["random_ee", "random_ei", "diag_ee", "diag_ei", "ip_correct", "anti-oja_fast", "ip-anti-oja_fast"]:
                         eigen = sparse.linalg.eigs(W, k=1, which="LM", maxiter=W.shape[0] * 20, tol=0.1, return_eigenvectors=False)

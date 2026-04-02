@@ -196,10 +196,43 @@ def load_haart_dataset(train_path, test_path):
 
 
 def load_aoen_dataset(dataset_name, seed=None):
-    X_train_unprocessed, Y_train_raw, meta_data = load_classification(dataset_name, return_metadata=True,
-                                                                      load_equal_length=False, split="train")
-    X_test_unprocessed, Y_test_raw, meta_data = load_classification(dataset_name, return_metadata=True,
-                                                                    load_equal_length=False, split="test")
+    # Try loading, if dataset not in aeon registry, download manually
+    try:
+        X_train_unprocessed, Y_train_raw, meta_data = load_classification(dataset_name, return_metadata=True,
+                                                                          load_equal_length=False, split="train")
+        X_test_unprocessed, Y_test_raw, meta_data = load_classification(dataset_name, return_metadata=True,
+                                                                        load_equal_length=False, split="test")
+    except ValueError:
+        print(f"Dataset '{dataset_name}' not found in aeon registry. Downloading manually...")
+        dataset_dir = os.path.join("datasets", dataset_name)
+        os.makedirs(dataset_dir, exist_ok=True)
+
+        url = f"https://www.timeseriesclassification.com/aeon-toolkit/{dataset_name}.zip"
+        zip_path = os.path.join("datasets", f"{dataset_name}.zip")
+        urllib.request.urlretrieve(url, zip_path)
+
+        with zipfile.ZipFile(zip_path, 'r') as z:
+            z.extractall(dataset_dir)
+        os.remove(zip_path)
+
+        from aeon.datasets import load_from_ts_file
+
+        train_file = os.path.join(dataset_dir, dataset_name, f"{dataset_name}_TRAIN.ts")
+        test_file = os.path.join(dataset_dir, dataset_name, f"{dataset_name}_TEST.ts")
+
+        import glob
+
+        # After extraction, find the actual .ts files
+        train_files = glob.glob(os.path.join(dataset_dir, "**", f"{dataset_name}_TRAIN.ts"), recursive=True)
+        test_files = glob.glob(os.path.join(dataset_dir, "**", f"{dataset_name}_TEST.ts"), recursive=True)
+
+        if not train_files or not test_files:
+            raise FileNotFoundError(f"Could not find .ts files for {dataset_name} in {dataset_dir}")
+
+        X_train_unprocessed, Y_train_raw = load_from_ts_file(train_files[0])
+        X_test_unprocessed, Y_test_raw = load_from_ts_file(test_files[0])
+        meta_data = None  # metadata not available via manual downlo
+
     groups = None
 
     X_train_raw = []
