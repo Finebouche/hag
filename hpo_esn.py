@@ -370,15 +370,15 @@ if __name__ == '__main__':
             completed_trials = len([trial for trial in study.trials if trial.state == optuna.trial.TrialState.COMPLETE])
 
             # Parallelized
-            n_parallel_studies = 6
-            trials_per_process = (N_TRIALS - completed_trials) // n_parallel_studies
-            # Use joblib to parallelize the optimization
-            def optimize_study(n_trials_per_process):
-                study = optuna.create_study(storage=storage, sampler=sampler, study_name=study_name, direction=direction, load_if_exists=True)
-                study.optimize(objective, n_trials=n_trials_per_process - completed_trials)
-            Parallel(n_jobs=n_parallel_studies)(
-                delayed(optimize_study)(trials_per_process) for _ in range(n_parallel_studies)
-            )
+            # n_parallel_studies = 6
+            # trials_per_process = (N_TRIALS - completed_trials) // n_parallel_studies
+            # # Use joblib to parallelize the optimization
+            # def optimize_study(n_trials_per_process):
+            #     study = optuna.create_study(storage=storage, sampler=sampler, study_name=study_name, direction=direction, load_if_exists=True)
+            #     study.optimize(objective, n_trials=n_trials_per_process - completed_trials)
+            # Parallel(n_jobs=n_parallel_studies)(
+            #     delayed(optimize_study)(trials_per_process) for _ in range(n_parallel_studies)
+            # )
 
             # Not Parallelized
             while completed_trials < N_TRIALS:

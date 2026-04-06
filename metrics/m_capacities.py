@@ -1,24 +1,14 @@
-import sys
-
-if sys.version_info < (3, 8):
-    from typing_extensions import Literal, Optional, Union
-else:
-    from typing import Literal, Optional, Union
+from typing import Optional, Union
 
 from copy import deepcopy
 
 import numpy as np
-from scipy import linalg
-from scipy.sparse import issparse
-from scipy.sparse.linalg import eigs
-
 from reservoirpy.model import Model
-from reservoirpy.type import Weights
 from reservoirpy.utils.random import rand_generator
 
 
 def memory_capacity(
-    model: Model,
+        model: Model,
     k_max: int,
     as_list: bool = False,
     series: Optional[np.ndarray] = None,

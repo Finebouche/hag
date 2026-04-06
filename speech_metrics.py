@@ -18,7 +18,7 @@ from datasets.load_data import load_data as load_dataset
 
 # Evaluating
 from performances.esn_model_evaluation import init_reservoir, init_ip_reservoir, init_local_rule_reservoir, init_ip_local_rule_reservoir
-from analysis.richness import spectral_radius, pearson, squared_uncoupled_dynamics_alternative, distance_correlation
+from metrics.richness import spectral_radius, pearson, squared_uncoupled_dynamics_alternative, distance_correlation
 from models.reservoir import init_matrices
 from hag.hag import run_algorithm
 from performances.utility import retrieve_best_model

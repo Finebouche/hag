@@ -2,7 +2,9 @@ import matplotlib.pyplot as plt
 import pandas as pd
 from reservoirpy.datasets import to_forecasting
 from aeon.datasets import load_forecasting
+from pathlib import Path
 
+DATASETS_DIR = Path(__file__).resolve().parent
 
 def visualize_data(X_test, Y_test, figsize=(16, 5), colors_x=None, colors_y=None, legend_labels=None):
     """
@@ -101,43 +103,67 @@ def load_narma10_dataset(step_ahead=5, visualize=True):
     train_steps = 15000
     test_steps = 5000
     total_steps = train_steps + test_steps
-    # Generate the NARMA dataset (here using order=10 as an example)
-    rng = np.random.default_rng(seed=2341)
-    u = rng.uniform(0, 0.5, size=(total_steps + 10, 1))
-    y = narma(n_timesteps=total_steps, order=10, u=u)
+    order = 10
+
     sampling_rate = 1
 
-    X_train = u[:train_steps]
-    X_test = y[train_steps:total_steps]
-    Y_train = u[step_ahead:train_steps + step_ahead]
+    # reservoirpy expects u of shape (n_timesteps + order, 1)
+    rng = np.random.default_rng(seed=2341)
+    u = rng.uniform(0, 0.5, size=(total_steps + order, 1))
+
+    # narma returns (u, y)
+    u_used, y = narma(n_timesteps=total_steps, order=order, u=u)
+    y = np.asarray(y).reshape(-1, 1)
+
+    # forecasting setup: predict y shifted by step_ahead from input u
+    X_train = u_used[:train_steps]
+    X_test = u_used[train_steps:total_steps]
+
+    Y_train = y[step_ahead:train_steps + step_ahead]
     Y_test = y[train_steps + step_ahead:total_steps + step_ahead]
+
+    # align X and Y lengths
+    X_train = X_train[:len(Y_train)]
+    X_test = X_test[:len(Y_test)]
 
     if visualize:
         visualize_data(X_test, Y_test, figsize=(16, 5))
 
     return sampling_rate, X_train, X_test, Y_train, Y_test
-
 def load_sunspot_dataset(step_ahead=5, visualize=True):
-    #old way of loading sunspot dataset
-    sunspots = pd.read_csv('datasets/Sunspot/SN_ms_tot_V2.0.csv', sep=';', header=None)
-    sunspots = sunspots.values[:, 3].reshape(-1, 1)
+    sunspot_csv = DATASETS_DIR / "Sunspot" / "SN_ms_tot_V2.0.csv"
 
-    sunspots_d, meta = load_forecasting("sunspot_dataset_without_missing_values", return_metadata=True)
-    sunspots_d = sunspots_d.explode('series_value')["series_value"].values.reshape(-1, 1).astype(float)
+    if sunspot_csv.exists():
+        sunspots_d = pd.read_csv(sunspot_csv, sep=";", header=None)
+        sunspots_d = sunspots_d.values[:, 3].reshape(-1, 1).astype(float)
+    else:
+        sunspots_d, meta = load_forecasting(
+            "sunspot_dataset_without_missing_values",
+            return_metadata=True,
+        )
+        sunspots_d = (
+            sunspots_d.explode("series_value")["series_value"]
+            .values.reshape(-1, 1)
+            .astype(float)
+        )
 
-    dt = 1
-    sampling_rate = 1 / dt
+    sampling_rate = 1
 
     test_size = sunspots_d.shape[0] // 10
-    X_train, X_test, Y_train, Y_test = to_forecasting(sunspots_d, forecast=step_ahead, axis=0, test_size=test_size)
+    X_train, X_test, Y_train, Y_test = to_forecasting(
+        sunspots_d,
+        forecast=step_ahead,
+        axis=0,
+        test_size=test_size,
+    )
 
     if visualize:
         fig, ax = plt.subplots(figsize=(16, 5))
         ax.plot(range(test_size), X_test[:test_size])
         ax.plot(range(test_size), Y_test[:test_size], c="orange")
-        ax.spines['top'].set_visible(False)
-        ax.spines['right'].set_visible(False)
-        ax.tick_params(axis='both', labelsize=20)
+        ax.spines["top"].set_visible(False)
+        ax.spines["right"].set_visible(False)
+        ax.tick_params(axis="both", labelsize=20)
         plt.show()
 
     return sampling_rate, X_train, X_test, Y_train, Y_test

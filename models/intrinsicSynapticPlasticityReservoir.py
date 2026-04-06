@@ -137,19 +137,34 @@ class IPLocalPlasticityReservoir(LocalPlasticityReservoir):
     def _step(self, state: State, x: Timestep) -> State:
         W = self.W
         Win = self.Win
-        bias = self.bias
         f = self.activation
         lr = self.lr
-        s = state["out"]
 
-        # Leaky integration (pre-activation)
-        r = W @ s + Win @ x + bias
-        r = (1 - lr) * s + lr * r
+        s = np.asarray(state["out"]).ravel()
+        x = np.asarray(x).ravel()
 
-        # IP-adjusted activation
-        y = f(self.a * r + self.b)
+        ws = W @ s
+        wx = Win @ x
 
-        return {"internal": r, "out": y}
+        if hasattr(ws, "toarray"):
+            ws = ws.toarray().ravel()
+        else:
+            ws = np.asarray(ws).ravel()
+
+        if hasattr(wx, "toarray"):
+            wx = wx.toarray().ravel()
+        else:
+            wx = np.asarray(wx).ravel()
+
+        if hasattr(self.bias, "toarray"):
+            bias = self.bias.toarray().ravel()
+        else:
+            bias = np.asarray(self.bias).ravel()
+
+        next_state = ws + wx + bias
+        next_state = (1 - lr) * s + lr * next_state
+
+        return {"internal": next_state, "out": f(next_state)}
 
     # ------------------------------------------------------------------
     #  IP update
