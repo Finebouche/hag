@@ -27,7 +27,7 @@ from hag.hag import run_algorithm
 
 # Evaluating
 from performances.esn_model_evaluation import train_model_for_classification, predict_model_for_classification, \
-    compute_score, init_readout
+    compute_score
 from performances.esn_model_evaluation import train_model_for_prediction, init_reservoir, init_ip_reservoir, \
     init_local_rule_reservoir, init_ip_local_rule_reservoir, init_readout
 

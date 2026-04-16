@@ -16,7 +16,7 @@ oranges = color_palette("Oranges", 2)  # shades of orange
 greens = color_palette("Greens", 2)    # shades of green
 reds = color_palette("Reds", 2)    # shades of red
 greys = color_palette("Greys", 3)    # shades of greys
-
+purples = color_palette("Purples", 3)
 # -- Map each function to its color --
 function_colors = {
     'E-ESN':                greens[0],
@@ -34,6 +34,8 @@ function_colors = {
 #    'RNN-HAG':              greys[2],
 #    'diag EE':             reds[0],
 #    'diag EI':             reds[1],
+    'HSP':                 purples[0],
+    'short HAG':           purples[2],
 }
 
 # If you want a specific order for the bars, you can enforce it:
@@ -51,6 +53,8 @@ functions_order = [
     'GRU',
 #    'diag EE',
 #    'diag EI',
+    'HSP',
+    'short HAG'
 ]
 
 function_mapping = {
@@ -64,6 +68,8 @@ function_mapping = {
     'lstm_last':        'LSTM',
 #    'rnn':              'RNN',
     'gru':              'GRU',
+    "hsp":              "HSP",
+    "short-hag":        "short HAG",
 #    'rnn-mean_hag':     'RNN-HAG',
 #    'diag_ei':        'diag EI',
 #    'diag_ee':        'diag EE',
