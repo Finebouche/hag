@@ -1,0 +1,9 @@
+dataset,function_name,num_layers,dropout,learning_rate,batch_size,epochs,hidden_size,bidirectional
+MackeyGlass,gru,1,1.72845e-04,4.08524e-04,8,20,224,False
+Lorenz,gru,1,0.296,1.00879e-04,8,19,256,False
+Sunspot_daily,gru,1,0.07277,6.43770e-04,32,20,320,True
+CatsDogs,gru,1,0.02875,1.79029e-04,8,18,480,False
+JapaneseVowels,gru,1,0.38307,0.00305,8,20,160,True
+FSDD,gru,1,0.36602,0.0036,8,19,352,False
+SpokenArabicDigits,gru,1,0.18092,0.00185,8,19,224,False
+SPEECHCOMMANDS,gru,1,0.46704,8.45589e-04,32,18,512,True

@@ -13,7 +13,7 @@ def retrieve_best_model(
     variate_type="multi",
     data_type="normal",
     prefix="new_tpe",
-    db_dir=".",
+    db_dir="./hpo",
 ):
     if function_name not in  [
         "desp", "hadsp", "random_ee", "random_ei", "diag_ee", "diag_ei",
