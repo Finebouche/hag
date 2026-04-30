@@ -63,5 +63,4 @@ def plot_classes_distribution(y_train_encoded, y_test_encoded, val=False):
     plt.xlabel('Classes')
     plt.ylabel('Frequency')
 
-    # Display the plots
     plt.tight_layout()

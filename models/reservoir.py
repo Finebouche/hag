@@ -2,7 +2,7 @@ from scipy import sparse, stats
 import numpy as np
 from numpy.random import Generator, PCG64
 from scipy.sparse import block_diag
-from math import ceil
+
 
 def update_reservoir(W, Win, u, r, leaky_rate, bias, activation_function):
     u = u.astype(np.float64)
@@ -10,7 +10,7 @@ def update_reservoir(W, Win, u, r, leaky_rate, bias, activation_function):
     return activation_function(pre_s)
 
 
-def init_matrices(n, input_connectivity, connectivity, K, spectral_radius=1, w_distribution = stats.uniform(loc=-1, scale=2),
+def init_matrices(n, input_connectivity, connectivity, K, spectral_radius=1, w_distribution=stats.uniform(loc=-1, scale=2),
                   win_distribution=stats.uniform(0, 1), use_block=False, seed=111, random_projection_experiment=False):
     # K is the number of time a single input is repeated to the models
     # The distribution generation functions #
@@ -31,7 +31,7 @@ def init_matrices(n, input_connectivity, connectivity, K, spectral_radius=1, w_d
         n_neurons = n[0]
 
     # The generation of the matrices
-    if type(n) == int:
+    if isinstance(n, int):
         n = (n, n)
     common_size = num_block = n_neurons // K
 
@@ -62,7 +62,7 @@ def init_matrices(n, input_connectivity, connectivity, K, spectral_radius=1, w_d
     # We want the Win matrix to explicitly map each input directly to a specific segment of neurons,
     # with each segment receiving the same input value duplicated K times.
     Win = np.zeros((n_neurons, common_size))
-    if random_projection_experiment == False:
+    if not random_projection_experiment:
         for i in range(common_size):
             start_index = i * K
             end_index = start_index + K

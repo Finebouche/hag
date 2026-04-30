@@ -32,7 +32,7 @@ def extract_peak_frequencies(
     filtered_peak_freqs = []
     max_power = 0
     max_frequency = 0
-    print(input_concat.shape)
+
     for i in range(input_concat.shape[1]):
         # Estimate power spectral density using Welch's method
         # https://dsp.stackexchange.com/questions/81640/trying-to-understand-the-nperseg-effect-of-welch-method

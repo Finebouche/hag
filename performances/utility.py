@@ -2,6 +2,18 @@ import re
 import optuna
 from pathlib import Path
 
+VALID_FUNCTION_NAMES = {
+    "desp", "hadsp", "random_ee", "random_ei", "diag_ee", "diag_ei",
+    "ip_correct", "anti-oja_fast", "ip-anti-oja_fast",
+    "lstm_last", "rnn", "rnn-mean_hag", "gru", "short-hag", "hsp",
+}
+VALID_PREFIXES = {
+    "new_tpe", "cmaes", "lstm_tpe",
+    "rdn-proj_tpe_mfcc", "rdn-proj_tpe_custom", "rdn-proj_tpe_none", "rdn-proj_tpe_stft",
+    "mod-proj_tpe_mfcc", "mod-proj_tpe_custom", "mod-proj_tpe_none", "mod-proj_tpe_stft",
+}
+
+
 def camel_to_snake(name):
     str1 = re.sub('(.)([A-Z][a-z]+)', r'\1_\2', name)
     return re.sub('([a-z0-9])([A-Z])', r'\1_\2', str1).lower()
@@ -14,12 +26,9 @@ def retrieve_best_model(
     data_type="normal",
     prefix="new_tpe",
     db_dir="./hpo",
+    verbosity=1,
 ):
-    if function_name not in  [
-        "desp", "hadsp", "random_ee", "random_ei", "diag_ee", "diag_ei",
-        "ip_correct", "anti-oja_fast", "ip-anti-oja_fast",
-        "lstm_last", "rnn", "rnn-mean_hag", "gru", "short-hag", "hsp"
-    ]:
+    if function_name not in VALID_FUNCTION_NAMES:
         raise ValueError(f"Invalid function name: {function_name}")
     if variate_type not in ["multi", "uni"]:
         raise ValueError(f"Invalid variate type: {variate_type}")
@@ -27,11 +36,7 @@ def retrieve_best_model(
         raise ValueError(f"Invalid data type: {data_type}")
     if variate_type == "uni" and is_multivariate:
         raise ValueError(f"Invalid variable type: {variate_type}")
-    if prefix not in [
-        "new_tpe", "cmaes", "lstm_tpe",
-        "rdn-proj_tpe_mfcc", "rdn-proj_tpe_custom", "rdn-proj_tpe_none", "rdn-proj_tpe_stft",
-        "mod-proj_tpe_mfcc", "mod-proj_tpe_custom", "mod-proj_tpe_none", "mod-proj_tpe_stft",
-    ]:
+    if prefix not in VALID_PREFIXES:
         raise ValueError(f"Unknown prefix: {prefix}")
 
     study_name = f"{function_name}_{dataset_name}_{data_type}_{variate_type}"
@@ -39,6 +44,7 @@ def retrieve_best_model(
     db_path = Path(db_dir) / f"{prefix}_{camel_to_snake(dataset_name)}_db.sqlite3"
     url = f"sqlite:///{db_path.resolve()}"
 
-    print("Loading study from URL:", url)
+    if verbosity > 0:
+        print("Loading study from URL:", url)
     study = optuna.load_study(study_name=study_name, storage=url)
     return study
