@@ -11,10 +11,9 @@ def init_readout(ridge_coef=None, rls=False, lms=False):
     """Select the proper readout according to flags."""
     if rls:
         return RLS()
-    elif lms:
+    if lms:
         return LMS()
-    else:
-        return Ridge(ridge=ridge_coef)
+    return Ridge(ridge=ridge_coef)
 
 
 def init_nvar_model(delay, order, strides=1):
@@ -84,17 +83,7 @@ def init_ip_local_rule_reservoir(W, Win, bias, mu, sigma, learning_rate, local_r
     )
     return ip_local_rule_reservoir
 
-def init_reservoir(W, Win, bias, leaking_rate, activation_function):
-    reservoir = Reservoir(units=bias.size,
-                          W=csr_matrix(W),
-                          Win=Win,
-                          lr=leaking_rate,
-                          bias=bias.ravel(),
-                          activation=activation_function)
-    return reservoir
-
-
-def train_model_for_prediction(reservoir, readout, X_train, Y_train, n_jobs, warmup=2, rls=False, lms=False):
+def train_model_for_prediction(reservoir, readout, X_train, Y_train, n_jobs, warmup=2, rls=False, lms=False, verbosity=0):
     # IMPORTANT: name trainable nodes to satisfy reservoirpy's check_unnamed_trainable
     reservoir.name = "reservoir"
     readout.name = "readout"
@@ -108,7 +97,8 @@ def train_model_for_prediction(reservoir, readout, X_train, Y_train, n_jobs, war
 
         esn.train(X_train[warmup:], Y_train[warmup:])
     else:
-        print(X_train.shape)
+        if verbosity > 0:
+            print(X_train.shape)
         esn.fit(X_train, Y_train, warmup=warmup)
 
     return esn
@@ -162,4 +152,3 @@ def compute_score(Y_pred, Y_test, is_instances_classification, model_name="", ve
     if verbosity > 0:
         print(f"Accuracy for {model_name}: {score * 100:.3f} %")
     return score
-
