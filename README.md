@@ -102,6 +102,20 @@ Install HAG using one of the following methods:
 
 ```sh
 ❯ conda env create -f environment.yml
+❯ conda activate hag_env
+❯ pip install -e .
+```
+
+**Using `pip`**
+
+```sh
+❯ python -m pip install -e .
+```
+
+Notebook dependencies can be installed with:
+
+```sh
+❯ python -m pip install -e ".[notebooks]"
 ```
 
 

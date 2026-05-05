@@ -1,0 +1,73 @@
+[build-system]
+requires = ["setuptools>=69", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "hag"
+version = "0.1.0"
+description = "Hebbian adaptive growth experiments for reservoir computing."
+readme = "README.md"
+requires-python = ">=3.12"
+license = { text = "MIT" }
+authors = [
+  { name = "Tanguy Cazalets" },
+]
+dependencies = [
+  "aeon>=0.10",
+  "cmaes",
+  "dcor",
+  "imageio",
+  "joblib",
+  "librosa",
+  "matplotlib",
+  "networkx",
+  "numpy",
+  "optuna",
+  "pandas",
+  "reservoirpy",
+  "scikit-learn",
+  "scipy",
+  "seaborn",
+  "svgpath2mpl",
+  "tensorflow",
+  "torch",
+  "torchaudio",
+  "tqdm",
+]
+
+[project.optional-dependencies]
+notebooks = [
+  "jupyterlab",
+  "jupyterlab-execute-time",
+  "jupyterlab-optuna",
+]
+
+[project.urls]
+Homepage = "https://github.com/Finebouche/HAG"
+Repository = "https://github.com/Finebouche/HAG"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = [
+  "analysis",
+  "analysis.*",
+  "datasets",
+  "datasets.*",
+  "hag",
+  "hag.*",
+  "hpo",
+  "hpo.*",
+  "metrics",
+  "metrics.*",
+  "models",
+  "models.*",
+  "performances",
+  "performances.*",
+]
+exclude = [
+  "outputs",
+  "outputs.*",
+]
+
+[tool.setuptools.package-data]
+metrics = ["icons/*.svg"]
