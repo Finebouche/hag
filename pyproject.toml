@@ -49,20 +49,8 @@ Repository = "https://github.com/Finebouche/HAG"
 [tool.setuptools.packages.find]
 where = ["."]
 include = [
-  "analysis",
-  "analysis.*",
-  "datasets",
-  "datasets.*",
   "hag",
   "hag.*",
-  "hpo",
-  "hpo.*",
-  "metrics",
-  "metrics.*",
-  "models",
-  "models.*",
-  "performances",
-  "performances.*",
 ]
 exclude = [
   "outputs",
@@ -70,4 +58,4 @@ exclude = [
 ]
 
 [tool.setuptools.package-data]
-metrics = ["icons/*.svg"]
+"hag.metrics" = ["icons/*.svg"]

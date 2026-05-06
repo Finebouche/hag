@@ -1,6 +1,8 @@
 from joblib import Parallel, delayed
 from tqdm import tqdm
 import numpy as np
+import os
+from pathlib import Path
 from scipy import stats
 from numpy import random
 from matplotlib import pyplot as plt
@@ -15,9 +17,11 @@ from sklearn.preprocessing import LabelEncoder, OneHotEncoder
 print("Loading Speechcommands")
 
 dataset_name = "SPEECHCOMMANDS"
+data_root = Path(os.environ.get("HAG_DATA_DIR", "data")).expanduser()
+data_root.mkdir(parents=True, exist_ok=True)
 
-dataset_train = SPEECHCOMMANDS(root="datasets/", download=True, subset="training")
-dataset_val = SPEECHCOMMANDS(root="datasets/", download=True, subset="validation")
+dataset_train = SPEECHCOMMANDS(root=str(data_root), download=True, subset="training")
+dataset_val = SPEECHCOMMANDS(root=str(data_root), download=True, subset="validation")
 
 sampling_rate = dataset_train[0][1]
 
@@ -199,7 +203,7 @@ else:
 
 #Pretraining
 from hag.models.reservoir import init_matrices
-from connexion_generation.hag import run_algorithm
+from hag.hag.hag import run_algorithm
 from scipy import sparse
 
 # Evaluating

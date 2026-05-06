@@ -12,4 +12,9 @@ build/
 dist/
 
 # Datasets
-/hag/datasets/*/*
+/data/
+/hag/datasets/CatsDogs/
+/hag/datasets/HAART/
+/hag/datasets/SpeechCommands/
+/hag/datasets/Sunspot/
+/hag/datasets/fsdd/free-spoken-digit-dataset-master/

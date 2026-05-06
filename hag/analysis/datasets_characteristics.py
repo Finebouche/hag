@@ -1,5 +1,5 @@
 from hag.datasets.load_data import load_data as load_dataset
-from commons import load_data as load_processed_data
+from hag.analysis.commons import load_data as load_processed_data
 import math
 import pandas as pd
 
