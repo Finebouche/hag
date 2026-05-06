@@ -12,4 +12,4 @@ build/
 dist/
 
 # Datasets
-/datasets/*/*
+/hag/datasets/*/*

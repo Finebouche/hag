@@ -1,4 +1,4 @@
-from models.activation_functions import tanh, heaviside, sigmoid
+from hag.models.activation_functions import tanh
 
 activation_function = lambda x : tanh(x)
 
@@ -83,11 +83,11 @@ dataset_label_map = {"JapaneseVowels": "Japanese Vowels", "CatsDogs": "Cats vs D
 # DATALOADING
 #
 ######
-from datasets.spectral_decomposition import generate_multivariate_dataset
+from hag.datasets.spectral_decomposition import generate_multivariate_dataset
 from sklearn.preprocessing import MinMaxScaler
-from datasets.preprocessing import scale_data
-from datasets.load_data import load_data as load_dataset
-from datasets.peak_centered_decomposition import process_instance_func, extract_peak_frequencies
+from hag.datasets.preprocessing import scale_data
+from hag.datasets.load_data import load_data as load_dataset
+from hag.datasets.peak_centered_decomposition import process_instance_func, extract_peak_frequencies
 import numpy as np
 
 def load_data(dataset_name, spectral_representation, data_type="normal", noise_std=0.001, step_ahead=5, visualize=False):
@@ -175,9 +175,9 @@ def load_data(dataset_name, spectral_representation, data_type="normal", noise_s
 ######
 
 # Evaluating
-from performances.esn_model_evaluation import train_model_for_classification, predict_model_for_classification
-from performances.esn_model_evaluation import train_model_for_prediction, init_reservoir, init_ip_reservoir, init_local_rule_reservoir, init_ip_local_rule_reservoir, init_readout
-from metrics.richness import spectral_radius, pearson, squared_uncoupled_dynamics_alternative, distance_correlation
+from hag.performances.esn_model_evaluation import train_model_for_classification, predict_model_for_classification
+from hag.performances.esn_model_evaluation import train_model_for_prediction, init_reservoir, init_ip_reservoir, init_local_rule_reservoir, init_ip_local_rule_reservoir, init_readout
+from hag.metrics.richness import spectral_radius, pearson, squared_uncoupled_dynamics_alternative, distance_correlation
 
 
 nb_jobs = 10
@@ -332,8 +332,8 @@ def evaluate_dataset_on_test(study, dataset_name, function_name, pretrain_data, 
 import torch
 from torch.utils.data import DataLoader
 
-from performances.esn_model_evaluation import compute_score
-from models.rnn import (
+from hag.performances.esn_model_evaluation import compute_score
+from hag.models.rnn import (
     LSTMModel, RNNModel, GRUModel,
     SequenceDataset, PrecomputedForecastDataset, make_sliding_windows,
     pad_collate, BucketBatchSampler,
@@ -342,9 +342,9 @@ from models.rnn import (
 )
 
 # new imports for HAG branch
-from performances.utility import retrieve_best_model
-from hag.hag import run_algorithm
-from models.reservoir import init_matrices
+from hag.performances.utility import retrieve_best_model
+from hag.hag.hag import run_algorithm
+from hag.models.reservoir import init_matrices
 import math
 from scipy import sparse, stats
 from numpy import random
@@ -501,7 +501,7 @@ def evaluate_dataset_on_test_rnn(
             )
 
             # 4) Readout training
-            from performances.esn_model_evaluation import train_model_for_classification, train_model_for_prediction, \
+            from hag.performances.esn_model_evaluation import train_model_for_classification, train_model_for_prediction, \
                 init_readout, init_reservoir
             reservoir = init_reservoir(W, Win, bias, hyper['leaky_rate'], activation_function)
             RIDGE_COEF = 10 ** hyper['ridge']

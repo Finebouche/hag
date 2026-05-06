@@ -1,12 +1,12 @@
 
-from sklearn.metrics import accuracy_score, mean_squared_error
+from sklearn.metrics import accuracy_score
 import math
 import numpy as np
 import torch
 import torch.nn as nn
 from torch.utils.data import Dataset, Sampler
 from torch.nn.utils.rnn import pad_sequence
-from performances.losses import nrmse_multivariate
+from hag.performances.losses import nrmse_multivariate
 
 # Select device: Apple GPU via MPS if available, else fallback
 if torch.backends.mps.is_available():

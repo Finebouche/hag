@@ -1,14 +1,14 @@
 from joblib import Parallel, delayed
 from tqdm import tqdm
 import numpy as np
-from scipy import sparse, stats
+from scipy import stats
 from numpy import random
 from matplotlib import pyplot as plt
 
 SEED = 923984
 
 # load dataset using torchaudio
-from torchaudio.datasets import VoxCeleb1Identification, SPEECHCOMMANDS
+from torchaudio.datasets import SPEECHCOMMANDS
 from torch.utils.data import ConcatDataset
 from sklearn.preprocessing import LabelEncoder, OneHotEncoder
 
@@ -50,7 +50,7 @@ ohe = OneHotEncoder(sparse_output=False)
 Y_train_raw = ohe.fit_transform(Y_train_raw.reshape(-1, 1))
 
 
-from models.activation_functions import tanh, heaviside, sigmoid
+from hag.models.activation_functions import tanh
 
 # the activation function choosen for the rest of the experiment
 # activation_function = lambda x : sigmoid(2*(x-0.5))tanh(x)
@@ -63,13 +63,13 @@ import math
 
 # Cross validation
 from sklearn.model_selection import StratifiedKFold, TimeSeriesSplit, StratifiedGroupKFold
-from datasets.preprocessing import flexible_indexing
+from hag.datasets.preprocessing import flexible_indexing
 
 #Preprocessing
-from datasets.spectral_decomposition import generate_multivariate_dataset
+from hag.datasets.spectral_decomposition import generate_multivariate_dataset
 from sklearn.preprocessing import MinMaxScaler
-from datasets.preprocessing import scale_data
-from datasets.preprocessing import add_noise
+from hag.datasets.preprocessing import scale_data
+from hag.datasets.preprocessing import add_noise
 
 # Define noise parameter
 noise_std = 0.001
@@ -198,14 +198,14 @@ else:
     max_time_increment_possible = 500
 
 #Pretraining
-from models.reservoir import init_matrices
+from hag.models.reservoir import init_matrices
 from connexion_generation.hag import run_algorithm
 from scipy import sparse
 
 # Evaluating
-from performances.esn_model_evaluation import train_model_for_classification, predict_model_for_classification, compute_score
-from performances.esn_model_evaluation import (train_model_for_prediction, init_reservoir, init_ip_reservoir,
-                                               init_local_rule_reservoir, init_ip_local_rule_reservoir, init_readout)
+from hag.performances.esn_model_evaluation import train_model_for_classification, predict_model_for_classification, compute_score
+from hag.performances.esn_model_evaluation import (train_model_for_prediction, init_reservoir, init_ip_reservoir,
+                                                   init_local_rule_reservoir, init_ip_local_rule_reservoir, init_readout)
 
 
 # score for prediction

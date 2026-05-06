@@ -1,34 +1,33 @@
 import numpy as np
 from scipy import sparse, stats
 from numpy import random
-from joblib import Parallel, delayed
 import math
 
 SEED = 923984
 
-from datasets.load_data import load_data
-from models.activation_functions import tanh
+from hag.datasets.load_data import load_data
+from hag.models.activation_functions import tanh
 
 # the activation function chosen for the rest of the experiment
 activation_function = lambda x : tanh(x)
 
 # Cross validation
 from sklearn.model_selection import StratifiedKFold, TimeSeriesSplit, StratifiedGroupKFold
-from datasets.preprocessing import flexible_indexing
+from hag.datasets.preprocessing import flexible_indexing
 
 # Preprocessing
-from datasets.spectral_decomposition import generate_multivariate_dataset
+from hag.datasets.spectral_decomposition import generate_multivariate_dataset
 from sklearn.preprocessing import MinMaxScaler
-from datasets.preprocessing import scale_data, add_noise
+from hag.datasets.preprocessing import scale_data, add_noise
 
 # Pretraining
-from models.reservoir import init_matrices
-from hag.hag import run_algorithm
+from hag.models.reservoir import init_matrices
+from hag.hag.hag import run_algorithm
 
 # Evaluating
-from performances.esn_model_evaluation import train_model_for_classification, predict_model_for_classification, \
+from hag.performances.esn_model_evaluation import train_model_for_classification, predict_model_for_classification, \
     compute_score
-from performances.esn_model_evaluation import train_model_for_prediction, init_reservoir, init_ip_reservoir, \
+from hag.performances.esn_model_evaluation import train_model_for_prediction, init_reservoir, init_ip_reservoir, \
     init_local_rule_reservoir, init_ip_local_rule_reservoir, init_readout
 
 # Hyperparameter optimization

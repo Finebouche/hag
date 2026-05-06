@@ -1,4 +1,4 @@
-from datasets.load_data import load_data as load_dataset
+from hag.datasets.load_data import load_data as load_dataset
 from commons import load_data as load_processed_data
 import math
 import pandas as pd
@@ -120,7 +120,7 @@ for dataset in datasets:
     results.append(characteristics)
 
 df = pd.DataFrame(results)
-csv_filename = "../outputs/dataset_characteristics.csv"
+csv_filename = "../../outputs/dataset_characteristics.csv"
 df.to_csv(csv_filename, index=False)
 
 print(f"Dataset characteristics saved to {csv_filename}")

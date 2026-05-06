@@ -1,5 +1,5 @@
 import numpy as np
-from hag.correlation_utility import compute_mutual_information, compute_pearson_corr
+from hag.hag.correlation_utility import compute_mutual_information, compute_pearson_corr
 from joblib import Parallel, delayed
 
 

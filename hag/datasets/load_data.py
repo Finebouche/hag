@@ -1,5 +1,5 @@
-from datasets.load_classification import load_dataset_classification
-from datasets.load_forecasting import load_dataset_forecasting
+from hag.datasets.load_classification import load_dataset_classification
+from hag.datasets.load_forecasting import load_dataset_forecasting
 
 FORECASTING_DATASETS = {"Lorenz", "MackeyGlass", "Sunspot_daily", "NARMA", "Henon"}
 CLASSIFICATION_DATASETS = {"CatsDogs", "FSDD", "JapaneseVowels", "SPEECHCOMMANDS", "SpokenArabicDigits"}

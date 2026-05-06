@@ -13,25 +13,24 @@ nb_jobs = 2
 
 print(f"Using device: {DEVICE}")
 
-from datasets.load_data import load_data
-from models.activation_functions import tanh
+from hag.datasets.load_data import load_data
+from hag.models.activation_functions import tanh
 
 # the activation function chosen for the rest of the experiment
 activation_function = lambda x : tanh(x)
 
 # Cross validation
 from sklearn.model_selection import StratifiedKFold, TimeSeriesSplit, StratifiedGroupKFold
-from datasets.preprocessing import flexible_indexing
+from hag.datasets.preprocessing import flexible_indexing
 
 # Preprocessing
-from datasets.spectral_decomposition import generate_multivariate_dataset
+from hag.datasets.spectral_decomposition import generate_multivariate_dataset
 from sklearn.preprocessing import MinMaxScaler
-from datasets.preprocessing import scale_data, add_noise
+from hag.datasets.preprocessing import scale_data, add_noise
 
 # Evaluating
-from models.rnn import (LSTMModel, RNNModel, GRUModel, SequenceDataset, train, evaluate, pad_collate,
-                        BucketBatchSampler, PrecomputedForecastDataset, make_sliding_windows)
-import torch.nn as nn
+from hag.models.rnn import (LSTMModel, RNNModel, GRUModel, SequenceDataset, train, evaluate, pad_collate,
+                            BucketBatchSampler, PrecomputedForecastDataset, make_sliding_windows)
 from torch.utils.data import DataLoader
 
 if __name__ == '__main__':

@@ -2,9 +2,9 @@ import numpy as np
 
 from scipy.sparse import csr_matrix
 from sklearn.metrics import accuracy_score
-from performances.losses import nrmse_multivariate
+from hag.performances.losses import nrmse_multivariate
 from reservoirpy.nodes import Reservoir, IPReservoir, Ridge, RLS, LMS, NVAR, LocalPlasticityReservoir
-from models.intrinsicSynapticPlasticityReservoir import IPLocalPlasticityReservoir
+from hag.models.intrinsicSynapticPlasticityReservoir import IPLocalPlasticityReservoir
 from reservoirpy import ESN
 
 def init_readout(ridge_coef=None, rls=False, lms=False):

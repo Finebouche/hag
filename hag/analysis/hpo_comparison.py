@@ -6,20 +6,20 @@ import pandas as pd
 from matplotlib import pyplot as plt
 from matplotlib.patches import Patch
 
-from analysis.commons import (
+from hag.analysis.commons import (
     evaluate_dataset_on_test,
     function_mapping,
     functions_order,
     function_colors,
     load_data,
 )
-from performances.utility import retrieve_best_model
+from hag.performances.utility import retrieve_best_model
 
 
 columns = ["Dataset", "Function", "Sampler", "Average Score", "Standard Deviation", "Date"]
 variate_type = "multi"
-file_name = "../outputs/hpo_strategy.csv"
-figures_path = "../outputs/figures/hpo_comparaison.pdf"
+file_name = "../../outputs/hpo_strategy.csv"
+figures_path = "../../outputs/figures/hpo_comparaison.pdf"
 
 DATASETS = ["JapaneseVowels"]
 SAMPLERS = ["cmaes", "tpe"]
@@ -111,7 +111,7 @@ for dataset_name in DATASETS:
                 variate_type=variate_type,
                 data_type="normal",
                 prefix=sampler_name,
-                db_dir="../",
+                db_dir="../../",
             )
 
             scores = evaluate_dataset_on_test(

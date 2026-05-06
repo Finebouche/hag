@@ -9,19 +9,19 @@ import numpy as np
 import pandas as pd
 from pandas.errors import EmptyDataError
 
-from analysis.commons import (
+from hag.analysis.commons import (
     dataset_label_map,
     evaluate_dataset_on_test,
     function_mapping,
     functions_order,
     load_data,
 )
-from performances.utility import retrieve_best_model
+from hag.performances.utility import retrieve_best_model
 
 
 # ====================== CONFIG ======================
-OUTFILE = Path("../outputs/input_strategy.csv")
-IMG_DIR = Path("../outputs/figures")
+OUTFILE = Path("../../outputs/input_strategy.csv")
+IMG_DIR = Path("../../outputs/figures")
 
 DATASETS = ["CatsDogs", "FSDD", "JapaneseVowels"]
 DATA_TYPE = "normal"   # or "noisy"
@@ -248,7 +248,7 @@ def evaluate_one_configuration(
         variate_type="multi",
         data_type=DATA_TYPE,
         prefix=prefix,
-        db_dir="../",  # or any folder you want
+        db_dir="../../",  # or any folder you want
     )
     if study is None:
         print(f"No study found for {dataset_name} | {representation} | {function_name} | {mapping_label}")

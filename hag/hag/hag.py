@@ -1,6 +1,6 @@
 import numpy as np
-from hag.neuron_selection import determine_connection_pairs, determine_pruning_pairs
-from models.reservoir import update_reservoir
+from hag.hag.neuron_selection import determine_connection_pairs, determine_pruning_pairs
+from hag.models.reservoir import update_reservoir
 import matplotlib.pyplot as plt
 from tqdm import tqdm
 

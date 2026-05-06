@@ -7,21 +7,21 @@ from numpy import random
 
 SEED = 923984
 
-from models.activation_functions import tanh
+from hag.models.activation_functions import tanh
 activation_function = lambda x : tanh(x)
 
 # Preprocessing
-from datasets.spectral_decomposition import generate_multivariate_dataset
+from hag.datasets.spectral_decomposition import generate_multivariate_dataset
 from sklearn.preprocessing import MinMaxScaler
-from datasets.preprocessing import scale_data
-from datasets.load_data import load_data as load_dataset
+from hag.datasets.preprocessing import scale_data
+from hag.datasets.load_data import load_data as load_dataset
 
 # Evaluating
-from performances.esn_model_evaluation import init_reservoir, init_ip_reservoir, init_local_rule_reservoir, init_ip_local_rule_reservoir
-from metrics.richness import spectral_radius, pearson, squared_uncoupled_dynamics_alternative, distance_correlation
-from models.reservoir import init_matrices
-from hag.hag import run_algorithm
-from performances.utility import retrieve_best_model
+from hag.performances.esn_model_evaluation import init_reservoir, init_ip_reservoir, init_local_rule_reservoir, init_ip_local_rule_reservoir
+from hag.metrics.richness import spectral_radius, pearson, squared_uncoupled_dynamics_alternative, distance_correlation
+from hag.models.reservoir import init_matrices
+from hag.hag.hag import run_algorithm
+from hag.performances.utility import retrieve_best_model
 
 nb_jobs = 10
 
@@ -247,7 +247,7 @@ for function_name in ["ip-anti-oja_fast"]:  # "random_ee", "random_ei", "ip_corr
 
 # Display the DataFrame
 print(new_results)
-file_name = "../outputs/metrics.csv"
+file_name = "../../outputs/metrics.csv"
 
 orig = pd.read_csv(file_name).set_index(["dataset", "function_name"])
 corr_df = (
