@@ -60,9 +60,12 @@ def determine_connection_pairs(neurons_needing_new_connection, connectivity_matr
             raise ValueError("Invalid method. Must be one of 'mi', 'pearson', 'random'.")
 
         if neuron_to_choose_from.size == 0:
-            raise ValueError("No neuron_to_choose_from found for neuron in adding, this should not happen as"
-                             f'list(neurons_needing_new_connection) is : {neurons_needing_new_connection}.')
-
+            raise ValueError(
+                "No candidate neuron survived connection selection. "
+                f"neuron={neuron}, method={method}, "
+                f"available_count={len(available_for_neuron)}, "
+                f"neurons_needing_count={len(neurons_needing_new_connection)}"
+            )
         incoming_neuron = np.random.choice(neuron_to_choose_from)
         return neuron, incoming_neuron
 
