@@ -9,10 +9,9 @@ def update_reservoir(W, Win, u, r, leaky_rate, bias, activation_function):
     pre_s = (1 - leaky_rate) * r.flatten() + leaky_rate * (W @ r.flatten()) + (Win @ u.flatten()) + bias
     return activation_function(pre_s)
 
-
-def init_matrices(n, input_connectivity, connectivity, K, spectral_radius=1, w_distribution=stats.uniform(loc=-1, scale=2),
+def init_matrices(n_neurons, input_connectivity, connectivity, K, spectral_radius=1, w_distribution=stats.uniform(loc=-1, scale=2),
                   win_distribution=stats.uniform(0, 1), use_block=False, seed=111, random_projection_experiment=False):
-    # K is the number of time a single input is repeated to the models
+    # K is the number of times a single input is repeated to the models
     # The distribution generation functions #
     # stats.norm(1, 0.5)
     # stats.uniform(-1, 1)
@@ -25,15 +24,20 @@ def init_matrices(n, input_connectivity, connectivity, K, spectral_radius=1, w_d
     bias_distribution = stats.norm(0.1, 0.1)
     bias_distribution.random_state = numpy_randomGen
 
-    if isinstance(n, int):
-        n_neurons = n
+    if isinstance(n_neurons, int):
+        reservoir_size = n_neurons
+        W_shape = (n_neurons, n_neurons)
     else:
-        n_neurons = n[0]
+        reservoir_size = n_neurons[0]
+        W_shape = n_neurons
 
-    # The generation of the matrices
-    if isinstance(n, int):
-        n = (n, n)
-    common_size = num_block = n_neurons // K
+    if reservoir_size <= 0:
+        raise ValueError(f"n_neurons must be positive, got {reservoir_size}")
+
+    if K <= 0:
+        raise ValueError(f"K must be positive, got {K}")
+
+    common_size = num_block = reservoir_size // K
 
     # Reservoir matrix
     if use_block:
@@ -45,10 +49,10 @@ def init_matrices(n, input_connectivity, connectivity, K, spectral_radius=1, w_d
             blocks.append(block)
         W = block_diag(blocks)
     else:
-        W = sparse.random(n_neurons, n[1], density=connectivity, random_state=seed, data_rvs=w_distribution.rvs)
+        W = sparse.random(reservoir_size, W_shape[1], density=connectivity, random_state=seed, data_rvs=w_distribution.rvs)
 
     # We set the diagonal to zero only for a square matrix
-    if n_neurons == n[1] and n_neurons > 0:
+    if reservoir_size == W_shape[1] and reservoir_size > 0:
         W.setdiag(0)
         W.eliminate_zeros()
         # Set the spectral radius
@@ -61,7 +65,7 @@ def init_matrices(n, input_connectivity, connectivity, K, spectral_radius=1, w_d
     # Input matrix
     # We want the Win matrix to explicitly map each input directly to a specific segment of neurons,
     # with each segment receiving the same input value duplicated K times.
-    Win = np.zeros((n_neurons, common_size))
+    Win = np.zeros((reservoir_size, common_size))
     if not random_projection_experiment:
         for i in range(common_size):
             start_index = i * K
@@ -70,7 +74,7 @@ def init_matrices(n, input_connectivity, connectivity, K, spectral_radius=1, w_d
     else:
         # RANDOM PROJECTION: sparse random connections from all inputs to all neurons
         Win_sparse = sparse.random(
-            n_neurons, common_size,
+            reservoir_size, common_size,
             density=input_connectivity,         # choose ~1/common_size for ~1 nonzero per row
             random_state=seed,
             data_rvs=win_distribution.rvs,
@@ -87,6 +91,6 @@ def init_matrices(n, input_connectivity, connectivity, K, spectral_radius=1, w_d
         Win = Win_sparse.toarray()
 
     # Bias matrix
-    bias = np.abs(bias_distribution.rvs(size=n_neurons))
+    bias = np.abs(bias_distribution.rvs(size=reservoir_size))
 
     return Win, W.toarray(), bias.flatten()
