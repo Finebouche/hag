@@ -220,6 +220,24 @@ def load_haart_dataset(train_path: Path, test_path: Path):
 
 
 def load_aoen_dataset(dataset_name, seed=None):
+    dataset_dir = DATASETS_DIR / dataset_name
+
+    def _load_local_ts_files():
+        from aeon.datasets import load_from_ts_file
+
+        train_files = glob.glob(str(dataset_dir / "**" / f"{dataset_name}_TRAIN.ts"), recursive=True)
+        test_files = glob.glob(str(dataset_dir / "**" / f"{dataset_name}_TEST.ts"), recursive=True)
+
+        if not train_files or not test_files:
+            raise FileNotFoundError(
+                f"Could not find .ts files for {dataset_name} in {dataset_dir}"
+            )
+
+        X_train_unprocessed, Y_train_raw = load_from_ts_file(train_files[0])
+        X_test_unprocessed, Y_test_raw = load_from_ts_file(test_files[0])
+
+        return X_train_unprocessed, Y_train_raw, X_test_unprocessed, Y_test_raw, None
+
     try:
         X_train_unprocessed, Y_train_raw, meta_data = load_classification(
             dataset_name,
@@ -235,32 +253,33 @@ def load_aoen_dataset(dataset_name, seed=None):
             load_no_missing=True,
             split="test",
         )
-    except ValueError:
-        print(f"Dataset '{dataset_name}' not found in aeon registry. Downloading manually...")
-        dataset_dir = DATASETS_DIR / dataset_name
-        dataset_dir.mkdir(parents=True, exist_ok=True)
 
-        zip_path = DATASETS_DIR / f"{dataset_name}.zip"
-        url = f"https://www.timeseriesclassification.com/aeon-toolkit/{dataset_name}.zip"
-        urllib.request.urlretrieve(url, str(zip_path))
+    except (ValueError, OSError) as exc:
+        print(f"Aeon direct loading failed for '{dataset_name}': {exc}")
 
-        with zipfile.ZipFile(zip_path, 'r') as z:
-            z.extractall(dataset_dir)
-        zip_path.unlink(missing_ok=True)
+        if dataset_dir.exists():
+            print(f"Dataset '{dataset_name}' found locally at {dataset_dir}. Loading local .ts files...")
+            X_train_unprocessed, Y_train_raw, X_test_unprocessed, Y_test_raw, meta_data = _load_local_ts_files()
 
-        from aeon.datasets import load_from_ts_file
+        else:
+            print(f"Dataset '{dataset_name}' not found locally. Downloading manually...")
 
-        train_files = glob.glob(str(dataset_dir / "**" / f"{dataset_name}_TRAIN.ts"), recursive=True)
-        test_files = glob.glob(str(dataset_dir / "**" / f"{dataset_name}_TEST.ts"), recursive=True)
+            dataset_dir.mkdir(parents=True, exist_ok=True)
 
-        if not train_files or not test_files:
-            raise FileNotFoundError(f"Could not find .ts files for {dataset_name} in {dataset_dir}")
+            zip_path = DATASETS_DIR / f"{dataset_name}.zip"
+            url = f"https://www.timeseriesclassification.com/aeon-toolkit/{dataset_name}.zip"
 
-        X_train_unprocessed, Y_train_raw = load_from_ts_file(train_files[0])
-        X_test_unprocessed, Y_test_raw = load_from_ts_file(test_files[0])
-        meta_data = None
+            urllib.request.urlretrieve(url, str(zip_path))
+
+            with zipfile.ZipFile(zip_path, "r") as z:
+                z.extractall(dataset_dir)
+
+            zip_path.unlink(missing_ok=True)
+
+            X_train_unprocessed, Y_train_raw, X_test_unprocessed, Y_test_raw, meta_data = _load_local_ts_files()
 
     groups = None
+
     X_train_raw = [x.T for x in X_train_unprocessed]
     X_test_raw = [x.T for x in X_test_unprocessed]
 
@@ -269,8 +288,8 @@ def load_aoen_dataset(dataset_name, seed=None):
     Y_test = le.transform(Y_test_raw).reshape(-1, 1)
 
     ohe = OneHotEncoder(sparse_output=False)
-    Y_train_raw = ohe.fit_transform(Y_train_raw.reshape(-1, 1))
-    Y_test = ohe.transform(Y_test.reshape(-1, 1))
+    Y_train_raw = ohe.fit_transform(Y_train_raw)
+    Y_test = ohe.transform(Y_test)
 
     return X_train_raw, Y_train_raw, X_test_raw, Y_test, groups, meta_data
 
