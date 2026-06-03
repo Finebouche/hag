@@ -34,8 +34,8 @@ function_colors = {
 #    'RNN-HAG':              greys[2],
 #    'diag EE':             reds[0],
 #    'diag EI':             reds[1],
-    'HSP':                 purples[0],
-    'short HAG':           purples[2],
+#    'HSP':                 purples[0],
+#    'short HAG':           purples[2],
 }
 
 # If you want a specific order for the bars, you can enforce it:
@@ -53,8 +53,8 @@ functions_order = [
     'GRU',
 #    'diag EE',
 #    'diag EI',
-    'HSP',
-    'short HAG'
+#    'HSP',
+#    'short HAG'
 ]
 
 function_mapping = {
@@ -68,8 +68,8 @@ function_mapping = {
     'lstm_last':        'LSTM',
 #    'rnn':              'RNN',
     'gru':              'GRU',
-    "hsp":              "HSP",
-    "short-hag":        "short HAG",
+#    "hsp":              "HSP",
+#    "short-hag":        "short HAG",
 #    'rnn-mean_hag':     'RNN-HAG',
 #    'diag_ei':        'diag EI',
 #    'diag_ee':        'diag EE',
@@ -342,7 +342,7 @@ from hag.models.rnn import (
 )
 
 # new imports for HAG branch
-from hag.performances.utility import retrieve_best_model
+from hag.hpo.utility import retrieve_best_model
 from hag.hag.hag import run_algorithm
 from hag.models.reservoir import init_matrices
 import math

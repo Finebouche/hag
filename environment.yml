@@ -19,6 +19,8 @@ dependencies:
   - optuna
   - tqdm
   - dcor
+  - graph-tool
+  - imageio
   - pip
   - pip:
     - reservoirpy

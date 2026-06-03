@@ -2,17 +2,14 @@
 
 __version__ = "0.1.0"
 
+from .hag import (
+    hag_step,
+    run_algorithm,
+    compute_synaptic_change,
+)
+
 __all__ = [
-    "compute_synaptic_change",
-    "compute_variance",
     "hag_step",
     "run_algorithm",
+    "compute_synaptic_change",
 ]
-
-
-def __getattr__(name):
-    if name in __all__:
-        from hag.hag import hag as _hag
-
-        return getattr(_hag, name)
-    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")

@@ -21,18 +21,18 @@ def init_nvar_model(delay, order, strides=1):
     return nvar_reservoir
 
 
-def init_ip_reservoir(W, Win, bias, mu, sigma, learning_rate, leaking_rate, activation_function):
+def init_ip_reservoir(W, Win, bias, mu, sigma, learning_rate, leaking_rate):
     bias = np.asarray(bias).ravel()   # (units,)
     ip_reservoir = IPReservoir(
         units=bias.size,
         mu=mu,
         sigma=sigma,
         learning_rate=learning_rate,
-        W=csr_matrix(W),
+        W=np.asarray(W, dtype=np.float64),
         Win=Win,
         lr=leaking_rate,
         bias=bias,                    # <- dense 1D
-        activation=activation_function,
+        activation="tanh",
     )
     return ip_reservoir
 
@@ -41,7 +41,7 @@ def init_reservoir(W, Win, bias, leaking_rate, activation_function):
     bias = np.asarray(bias).ravel()   # (units,)
     reservoir = Reservoir(
         units=bias.size,
-        W=csr_matrix(W),
+        W=np.asarray(W, dtype=np.float64),
         Win=Win,
         lr=leaking_rate,
         bias=bias,                    # <- dense 1D
@@ -51,21 +51,23 @@ def init_reservoir(W, Win, bias, leaking_rate, activation_function):
 
 
 def init_local_rule_reservoir(W, Win, bias, local_rule, eta, synapse_normalization, bcm_theta, leaking_rate, activation_function):
+    bias = np.asarray(bias).ravel()  # (units,)
     local_rule_reservoir = LocalPlasticityReservoir(
         units=bias.size,
         local_rule=local_rule,
         eta=eta,
         synapse_normalization=synapse_normalization,
         bcm_theta=bcm_theta,
-        W=csr_matrix(W),
+        W=np.asarray(W, dtype=np.float64),
         Win=Win,
         lr=leaking_rate,
-        bias=csr_matrix(bias).T,
+        bias=bias,
         activation=activation_function,
     )
     return local_rule_reservoir
 
-def init_ip_local_rule_reservoir(W, Win, bias, mu, sigma, learning_rate, local_rule, eta, synapse_normalization, bcm_theta, leaking_rate, activation_function):
+def init_ip_local_rule_reservoir(W, Win, bias, mu, sigma, learning_rate, local_rule, eta, synapse_normalization, bcm_theta, leaking_rate):
+    bias = np.asarray(bias).ravel()  # (units,)
     ip_local_rule_reservoir = IPLocalPlasticityReservoir(
         units=bias.size,
         local_rule=local_rule,
@@ -75,10 +77,10 @@ def init_ip_local_rule_reservoir(W, Win, bias, mu, sigma, learning_rate, local_r
         mu=mu,
         sigma=sigma,
         ip_learning_rate = learning_rate,  # IP learning rate
-        W=csr_matrix(W),
+        W=np.asarray(W, dtype=np.float64),
         Win=Win,
         lr=leaking_rate,
-        bias=csr_matrix(bias).T,
+        bias=bias,
         activation="tanh",
     )
     return ip_local_rule_reservoir

@@ -16,7 +16,7 @@ from hag.analysis.commons import (
     functions_order,
     load_data,
 )
-from hag.performances.utility import retrieve_best_model
+from hag.hpo.utility import retrieve_best_model
 
 
 # ====================== CONFIG ======================

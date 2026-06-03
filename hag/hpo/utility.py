@@ -25,7 +25,7 @@ def retrieve_best_model(
     variate_type="multi",
     data_type="normal",
     prefix="new_tpe",
-    db_dir="./hpo",
+    db_dir: str | Path | None = None,
     verbosity=1,
 ):
     if function_name not in VALID_FUNCTION_NAMES:
@@ -41,7 +41,25 @@ def retrieve_best_model(
 
     study_name = f"{function_name}_{dataset_name}_{data_type}_{variate_type}"
 
-    db_path = Path(db_dir) / f"{prefix}_{camel_to_snake(dataset_name)}_db.sqlite3"
+    # If db_dir is not provided, use the folder containing this utility.py file.
+    if db_dir is None:
+        db_dir = Path(__file__).resolve().parent
+    else:
+        db_dir = Path(db_dir).expanduser().resolve()
+    db_filename = f"{prefix}_{camel_to_snake(dataset_name)}_db.sqlite3"
+    db_path = db_dir / db_filename
+
+    if not db_path.exists():
+        available_dbs = sorted(p.name for p in db_dir.glob("*.sqlite3")) if db_dir.exists() else []
+        raise FileNotFoundError(
+            f"Optuna database not found:\n"
+            f"  {db_path}\n\n"
+            f"db_dir exists: {db_dir.exists()}\n"
+            f"Expected filename: {db_filename}\n"
+            f"Available .sqlite3 files in db_dir:\n"
+            f"  {available_dbs}"
+        )
+
     url = f"sqlite:///{db_path.resolve()}"
 
     if verbosity > 0:

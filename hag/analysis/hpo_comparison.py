@@ -13,7 +13,7 @@ from hag.analysis.commons import (
     function_colors,
     load_data,
 )
-from hag.performances.utility import retrieve_best_model
+from hag.hpo.utility import retrieve_best_model
 
 
 columns = ["Dataset", "Function", "Sampler", "Average Score", "Standard Deviation", "Date"]

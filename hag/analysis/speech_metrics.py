@@ -21,7 +21,7 @@ from hag.performances.esn_model_evaluation import init_reservoir, init_ip_reserv
 from hag.metrics.richness import spectral_radius, pearson, squared_uncoupled_dynamics_alternative, distance_correlation
 from hag.models.reservoir import init_matrices
 from hag.hag.hag import run_algorithm
-from hag.performances.utility import retrieve_best_model
+from hag.hpo.utility import retrieve_best_model
 
 nb_jobs = 10
 

@@ -311,9 +311,7 @@ if __name__ == '__main__':
                     else:
                         unsupervised_pretrain = pretrain_data.astype(float)
                     if function_name == "ip_correct":
-                        reservoir = init_ip_reservoir(W, Win, bias, mu=mu, sigma=sigma, learning_rate=learning_rate,
-                                                      leaking_rate=leaky_rate, activation_function=activation_function
-                                                      )
+                        reservoir = init_ip_reservoir(W, Win, bias, mu=mu, sigma=sigma, learning_rate=learning_rate, leaking_rate=leaky_rate)
                         _ = reservoir.fit(unsupervised_pretrain, warmup=100)
                     elif function_name == "anti-oja_fast":
                         reservoir = init_local_rule_reservoir(W, Win, bias, local_rule="anti-oja", eta=oja_eta,
@@ -325,7 +323,7 @@ if __name__ == '__main__':
                         reservoir = init_ip_local_rule_reservoir(W, Win, bias, local_rule="anti-oja", eta=oja_eta,
                                                                   synapse_normalization=False, bcm_theta=None,
                                                                   mu=mu, sigma=sigma, learning_rate=learning_rate,
-                                                                  leaking_rate=leaky_rate, activation_function=activation_function,
+                                                                  leaking_rate=leaky_rate
                                                                   )
                         _ = reservoir.fit(unsupervised_pretrain, warmup=100)
                     else:
