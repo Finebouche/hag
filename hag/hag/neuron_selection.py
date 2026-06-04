@@ -51,7 +51,7 @@ def determine_connection_pairs(neurons_needing_new_connection, connectivity_matr
             correlations = states[neuron, 0] * states[available_for_neuron, 0]
             neuron_to_choose_from = np.array(available_for_neuron)[correlations > 0]
         elif method == "pearson":
-            correlations = compute_pearson_corr(states[neuron, :], states[available_for_neuron, :])
+            correlations = compute_pearson_corr(states[neuron, 1:], states[available_for_neuron, 1:])
             # Alternative : np.corrcoef(states[neuron, 1:], states[available_for_neuron, :-1])[0, 1:]
             neuron_to_choose_from = np.array(available_for_neuron)[np.isclose(correlations, np.nanmax(correlations))]
         elif method == "random":
