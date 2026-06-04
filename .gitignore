@@ -17,4 +17,5 @@ dist/
 /hag/datasets/HAART/
 /hag/datasets/SpeechCommands/
 /hag/datasets/Sunspot/
-/hag/datasets/fsdd/free-spoken-digit-dataset-master/
+/hag/datasets/SpokenArabicDigits
+/hag/datasets/fsdd/
