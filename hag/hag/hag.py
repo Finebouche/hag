@@ -96,10 +96,12 @@ def run_algorithm(W, Win, bias, leaky_rate, activation_function, input_data, wei
             input_array = input_data[0]
             input_data = input_data[1:]
             T_current = input_array.shape[0]
+            inc = 1
         else: # randomly select the increment size
             T_current = np.random.choice(int_logspace)
             input_array = input_data[:T_current]
             input_data = input_data[T_current:]
+            inc = T_current
 
         for input_value in input_array:
             neurons_state = update_reservoir(W, Win, input_value, neurons_state, leaky_rate, bias, activation_function)
@@ -126,19 +128,19 @@ def run_algorithm(W, Win, bias, leaky_rate, activation_function, input_data, wei
             states_history = []
         else:
             W_history.append((np.copy(W)))
-            if use_full_instance:  # happened variance to variance_history for a number of T_current
+            if use_full_instance:  # happened variance to variance_history for a number of inc
                 delta_z_history.extend([delta_z] * 10)
             else:
-                delta_z_history.extend([delta_z] * T_current)
+                delta_z_history.extend([delta_z] * inc)
 
         if visualize:
             total_add += nb_new_add
             total_prun += nb_new_prun
             add.append(total_add)
             prun.append(total_prun)
-        step += T_current
+        step += inc
         steps.append(step)
-        pbar.update(T_current)
+        pbar.update(inc)
 
     pbar.close()
 
