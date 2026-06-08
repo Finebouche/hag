@@ -2,6 +2,8 @@ import numpy as np
 from scipy import sparse, stats
 from numpy import random
 import math
+from joblib import Parallel, delayed
+import traceback
 
 SEED = 923984
 
@@ -25,8 +27,7 @@ from hag.models.reservoir import init_matrices
 from hag.hag.hag import run_algorithm
 
 # Evaluating
-from hag.performances.esn_model_evaluation import train_model_for_classification, predict_model_for_classification, \
-    compute_score
+from hag.performances.esn_model_evaluation import train_model_for_classification, predict_model_for_classification, compute_score
 from hag.performances.esn_model_evaluation import train_model_for_prediction, init_reservoir, init_ip_reservoir, \
     init_local_rule_reservoir, init_ip_local_rule_reservoir, init_readout
 
@@ -39,7 +40,7 @@ if __name__ == '__main__':
 
     step_ahead=5
     # can be  "JapaneseVowels", "CatsDogs", "FSDD", "SpokenArabicDigits", "SPEECHCOMMANDS", "MackeyGlass", "Sunspot_daily", "Lorenz"
-    for dataset_name in ["JapaneseVowels", "CatsDogs", "FSDD"]:
+    for dataset_name in ["SpokenArabicDigits"]:
         # score for prediction
         start_step, end_step = 500, 1500
         SLICE_RANGE = slice(start_step, end_step)
@@ -179,14 +180,14 @@ if __name__ == '__main__':
         else:
             max_time_increment_possible = 500
 
-        nb_jobs_per_trial = 3
+        nb_jobs_per_trial = 6
         variate_type = "multi"  # "multi" ou "uni"
         if variate_type == "uni" and is_multivariate:
             raise ValueError(f"Invalid variable type: {variate_type}")
 
 
         # "random_ee", "random_ei", "diag_ee", "diag_ei", "desp", "hadsp", "ip_correct", "anti-oja_fast", "ip-anti-oja_fast"
-        for function_name in  ["hsp", "short-hag"]:
+        for function_name in  ["random_ee", "random_ei", "var_hag", "mean_hag", "ip_correct", "anti-oja_fast", "ip-anti-oja_fast"]:
             def objective(trial):
                 # COMMON
                 RESERVOIR_SIZE = 500
@@ -338,7 +339,7 @@ if __name__ == '__main__':
                         score = compute_score(Y_pred, Y_val[i], is_instances_classification)
                     else:
                         esn = train_model_for_prediction(reservoir, readout, train_data, Y_train[i], warmup=start_step, n_jobs=nb_jobs_per_trial)
-                        Y_pred = esn.run(val_data, reset=False)
+                        Y_pred = esn.run(val_data)
                         score = compute_score(Y_pred[SLICE_RANGE], Y_val[i][SLICE_RANGE], is_instances_classification)
 
                     total_score += score
@@ -355,7 +356,7 @@ if __name__ == '__main__':
 
             sampler = TPESampler()
             sampler_name = "cmaes" if isinstance(sampler, CmaEsSampler) else "tpe"
-            url = f"sqlite:///new_{sampler_name}_{camel_to_snake(dataset_name)}_db.sqlite3"
+            url = f"sqlite:///{sampler_name}_{camel_to_snake(dataset_name)}_db.sqlite3"
             storage = optuna.storages.RDBStorage(url=url, engine_kwargs={"pool_size": 20, "connect_args": {"timeout": 10}})
             print(url)
             study_name = function_name + "_" + dataset_name + "_" + data_type + "_" + variate_type
@@ -367,15 +368,24 @@ if __name__ == '__main__':
             completed_trials = len([trial for trial in study.trials if trial.state == optuna.trial.TrialState.COMPLETE])
 
             # Parallelized
-            # n_parallel_studies = 6
-            # trials_per_process = (N_TRIALS - completed_trials) // n_parallel_studies
-            # # Use joblib to parallelize the optimization
-            # def optimize_study(n_trials_per_process):
-            #     study = optuna.create_study(storage=storage, sampler=sampler, study_name=study_name, direction=direction, load_if_exists=True)
-            #     study.optimize(objective, n_trials=n_trials_per_process - completed_trials)
-            # Parallel(n_jobs=n_parallel_studies)(
-            #     delayed(optimize_study)(trials_per_process) for _ in range(n_parallel_studies)
-            # )
+            n_parallel_studies = 8
+            trials_per_process = (N_TRIALS - completed_trials) // n_parallel_studies
+            # Use joblib to parallelize the optimization
+            def optimize_study(n_trials_per_process):
+                try:
+                    study = optuna.create_study(storage=storage, sampler=sampler, study_name=study_name, direction=direction, load_if_exists=True)
+                    study.optimize(objective, n_trials=n_trials_per_process - completed_trials)
+                except Exception as e:
+                    print(f"Worker failed but continuing: {e}")
+                    print(traceback.format_exc())
+                    return None
+            #
+            #
+            # print(f"Completed trials: {completed_trials}/{N_TRIALS}")
+            # if completed_trials < N_TRIALS:
+            #     Parallel(n_jobs=n_parallel_studies)(
+            #         delayed(optimize_study)(trials_per_process) for _ in range(n_parallel_studies)
+            #     )
 
             # Not Parallelized
             while completed_trials < N_TRIALS:

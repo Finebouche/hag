@@ -227,7 +227,7 @@ def evaluate_dataset_on_test(study, dataset_name, function_name, pretrain_data, 
             use_block = False
 
         # UNSUPERVISED PRETRAINING
-        if function_name == "random_ee":
+        if function_name in ["random_ee", "diag_ee"]:
             Win, W, bias = init_matrices(n, input_connectivity, hyperparams['connectivity'],  K, w_distribution=stats.uniform(loc=0, scale=1), use_block=use_block, seed=random.randint(0, 1000), random_projection_experiment=random_projection_experiment)
         else:
             Win, W, bias = init_matrices(n, input_connectivity, hyperparams['connectivity'],  K, w_distribution=stats.uniform(loc=-1, scale=2), use_block=use_block, seed=random.randint(0, 1000), random_projection_experiment=random_projection_experiment)
@@ -252,13 +252,13 @@ def evaluate_dataset_on_test(study, dataset_name, function_name, pretrain_data, 
             W, (_, _, _) = run_algorithm(W, Win, bias, hyperparams['leaky_rate'], activation_function, pretrain_data,
                                          hyperparams['weight_increment'], hyperparams['target_rate'], hyperparams['rate_spread'], "mean_hag",
                                          multiple_instances=is_instances_classification,
-                                         min_increment = 100, max_increment=100, use_full_instance = False,
+                                         min_increment = 1, max_increment=1, use_full_instance = False,
                                          max_partners=np.inf, method="pearson", n_jobs=nb_jobs)
         elif function_name == "hsp":
             W, (_, _, _) = run_algorithm(W, Win, bias, hyperparams['leaky_rate'], activation_function, pretrain_data,
                                          hyperparams['weight_increment'], hyperparams['target_rate'], hyperparams['rate_spread'],"mean_hag",
                                          multiple_instances=is_instances_classification,
-                                         min_increment=1, max_increment=1, use_full_instance=False,
+                                         min_increment=100, max_increment=100, use_full_instance=False,
                                          max_partners=np.inf, method="random", n_jobs=nb_jobs)
         elif function_name in ["random_ee", "random_ei", "diag_ee", "diag_ei", "ip_correct", "anti-oja_fast", "ip-anti-oja_fast"]:
             eigen = sparse.linalg.eigs(W, k=1, which="LM", maxiter=W.shape[0] * 20, tol=0.1, return_eigenvectors=False)
@@ -273,8 +273,7 @@ def evaluate_dataset_on_test(study, dataset_name, function_name, pretrain_data, 
             unsupervised_pretrain = pretrain_data.astype(float)
         if function_name == "ip_correct":
             reservoir = init_ip_reservoir(W, Win, bias, mu=hyperparams['mu'], sigma=hyperparams['sigma'], learning_rate=hyperparams['learning_rate'],
-                                          leaking_rate=hyperparams['leaky_rate'], activation_function=activation_function
-                                          )
+                                          leaking_rate=hyperparams['leaky_rate'])
             _ = reservoir.fit(unsupervised_pretrain, warmup=100)
         elif function_name == "anti-oja_fast":
             reservoir = init_local_rule_reservoir(W, Win, bias, local_rule="anti-oja", eta=hyperparams['oja_eta'],
@@ -286,8 +285,7 @@ def evaluate_dataset_on_test(study, dataset_name, function_name, pretrain_data, 
             reservoir = init_ip_local_rule_reservoir(W, Win, bias, local_rule="anti-oja", eta=hyperparams['oja_eta'],
                                                       synapse_normalization=False, bcm_theta=None,
                                                       mu=hyperparams['mu'], sigma=hyperparams['sigma'], learning_rate=hyperparams['learning_rate'],
-                                                      leaking_rate=hyperparams['leaky_rate'], activation_function=activation_function,
-                                                      )
+                                                      leaking_rate=hyperparams['leaky_rate'])
             _ = reservoir.fit(unsupervised_pretrain, warmup=100)
         else:
             reservoir = init_reservoir(W, Win, bias, leaky_rate, activation_function)

@@ -1,11 +1,9 @@
 import numpy as np
 
-from scipy.sparse import csr_matrix
 from sklearn.metrics import accuracy_score
 from hag.performances.losses import nrmse_multivariate
 from reservoirpy.nodes import Reservoir, IPReservoir, Ridge, RLS, LMS, NVAR, LocalPlasticityReservoir
 from hag.models.intrinsicSynapticPlasticityReservoir import IPLocalPlasticityReservoir
-from reservoirpy import ESN
 
 def init_readout(ridge_coef=None, rls=False, lms=False):
     """Select the proper readout according to flags."""
@@ -90,21 +88,34 @@ def train_model_for_prediction(reservoir, readout, X_train, Y_train, n_jobs, war
     reservoir.name = "reservoir"
     readout.name = "readout"
 
-    esn = ESN(reservoir=reservoir, readout=readout, workers=n_jobs)
+    if verbosity > 0:
+        print("X_train.shape:", X_train.shape)
+        print("Y_train.shape:", Y_train.shape)
+
+    # Reset only if the reservoir has already been initialized.
+    # Plain Reservoir objects do not have `.state` before first run.
+    if hasattr(reservoir, "state"):
+        reservoir.reset()
+
+    # Run reservoir to obtain states.
+    # This initializes plain Reservoirs, and uses already-fitted plastic Reservoirs.
+    states = reservoir.run(X_train)
+
+    # Train only the readout, not the reservoir.
+    states_train = states[warmup:]
+    y_train = Y_train[warmup:]
 
     if rls or lms:
-        # warmup once (see issue #2 below)
-        if warmup > 0:
-            esn.run(X_train[:warmup])
-
-        esn.train(X_train[warmup:], Y_train[warmup:])
+        for x_t, y_t in zip(states_train, y_train):
+            readout.train(x_t, y_t)
     else:
-        if verbosity > 0:
-            print(X_train.shape)
-        esn.fit(X_train, Y_train, warmup=warmup)
+        readout.fit(states_train, y_train)
 
-    return esn
+    # Reset again so validation does not start from the final training state.
+    if hasattr(reservoir, "state"):
+        reservoir.reset()
 
+    return reservoir >> readout
 
 def train_model_for_classification(reservoir, readout, X_train, Y_train, mode, warmup=2):
     if mode == "sequence-to-vector":
@@ -115,11 +126,12 @@ def train_model_for_classification(reservoir, readout, X_train, Y_train, mode, w
         readout.fit(states_to_train_on, Y_train)
         return readout
     elif mode == "sequence-to-sequence":
-        # Repeat targets to match sequence lengths
         Y_train_seq = [np.array([Y_train[i]] * len(x)) for i, x in enumerate(X_train)]
-        esn = reservoir >> readout
-        esn.fit(X_train, Y_train_seq, stateful=False, warmup=warmup)
-        return esn
+
+        all_states = reservoir.run(X_train)
+        readout.fit(all_states, Y_train_seq, warmup=warmup)
+
+        return reservoir >> readout
     else:
         raise ValueError(f"Invalid mode: {mode}")
 

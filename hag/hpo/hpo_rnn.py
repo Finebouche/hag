@@ -312,7 +312,7 @@ if __name__ == '__main__':
             print("Start optuna")
 
             sampler = TPESampler()
-            sampler_name = "cmaes" if isinstance(sampler, CmaEsSampler) else "new_tpe"
+            sampler_name = "cmaes" if isinstance(sampler, CmaEsSampler) else "tpe"
             if dataset_name == "SPEECHCOMMANDS": sampler_name = "lstm_tpe"
             url = f"sqlite:///{sampler_name}_{camel_to_snake(dataset_name)}_db.sqlite3"
             uri = (

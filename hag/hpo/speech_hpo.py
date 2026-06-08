@@ -383,7 +383,7 @@ print("Start optuna")
 def camel_to_snake(name):
     str1 = re.sub('(.)([A-Z][a-z]+)', r'\1_\2', name)
     return re.sub('([a-z0-9])([A-Z])', r'\1_\2', str1).lower()
-url= "sqlite:///new_tpe_" + camel_to_snake(dataset_name) + "_db.sqlite3"
+url= "sqlite:///tpe_" + camel_to_snake(dataset_name) + "_db.sqlite3"
 print(url)
 
 storage = optuna.storages.RDBStorage(

@@ -125,7 +125,7 @@ def visualize_groups_distribution(groups):
     plt.show()
 
 
-def load_FSDD_dataset(data_dir: Path, test_split=1 / 3, validation_split=0.25, seed=None, visualize=False):
+def load_FSDD_dataset(data_dir: Path, test_split=1 / 3, seed=None, visualize=False):
     data_dir = _require_path(
         Path(data_dir),
         f"FSDD recordings folder not found: {data_dir}"

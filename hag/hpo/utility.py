@@ -3,12 +3,12 @@ import optuna
 from pathlib import Path
 
 VALID_FUNCTION_NAMES = {
-    "desp", "hadsp", "random_ee", "random_ei", "diag_ee", "diag_ei",
+    "desp", "hadsp", "mean_hag", "var_hag", "random_ee", "random_ei", "diag_ee", "diag_ei",
     "ip_correct", "anti-oja_fast", "ip-anti-oja_fast",
-    "lstm_last", "rnn", "rnn-mean_hag", "gru", "short-hag", "hsp",
+    "lstm_last", "rnn", "rnn-mean_hag", "gru", "short-hag", "hsp"
 }
 VALID_PREFIXES = {
-    "new_tpe", "cmaes", "lstm_tpe",
+    "tpe", "new_tpe", "cmaes", "lstm_tpe",
     "rdn-proj_tpe_mfcc", "rdn-proj_tpe_custom", "rdn-proj_tpe_none", "rdn-proj_tpe_stft",
     "mod-proj_tpe_mfcc", "mod-proj_tpe_custom", "mod-proj_tpe_none", "mod-proj_tpe_stft",
 }
@@ -24,7 +24,7 @@ def retrieve_best_model(
     is_multivariate,
     variate_type="multi",
     data_type="normal",
-    prefix="new_tpe",
+    prefix="tpe",
     db_dir: str | Path | None = None,
     verbosity=1,
 ):
