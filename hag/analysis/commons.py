@@ -141,6 +141,8 @@ def load_data(dataset_name, spectral_representation, data_type="normal", noise_s
         elif spectral_representation == "none":
             X_train_band = base_train
             X_test_band = base_test
+        else:
+            raise ValueError(f"Invalid spectral_representation: {spectral_representation}")
 
     # We cut the edges to remove the edges effects
     if not is_instances_classification:
@@ -180,7 +182,7 @@ from hag.performances.esn_model_evaluation import train_model_for_prediction, in
 from hag.metrics.richness import spectral_radius, pearson, squared_uncoupled_dynamics_alternative, distance_correlation
 
 
-nb_jobs = 10
+nb_jobs = 1
 def evaluate_dataset_on_test(study, dataset_name, function_name, pretrain_data, train_data, test_data, Y_train, Y_test, is_instances_classification, nb_trials = 8, record_metrics=False, random_projection_experiment=False):
     # Collect all hyperparameters in a dictionary
     hyperparams = {param_name: param_value for param_name, param_value in study.best_trial.params.items()}
@@ -253,7 +255,7 @@ def evaluate_dataset_on_test(study, dataset_name, function_name, pretrain_data, 
                                          hyperparams['weight_increment'], hyperparams['target_rate'], hyperparams['rate_spread'], "mean_hag",
                                          multiple_instances=is_instances_classification,
                                          min_increment = 1, max_increment=1, use_full_instance = False,
-                                         max_partners=np.inf, method="pearson", n_jobs=nb_jobs)
+                                         max_partners=np.inf, method="hebbian", n_jobs=nb_jobs)
         elif function_name == "hsp":
             W, (_, _, _) = run_algorithm(W, Win, bias, hyperparams['leaky_rate'], activation_function, pretrain_data,
                                          hyperparams['weight_increment'], hyperparams['target_rate'], hyperparams['rate_spread'],"mean_hag",
@@ -356,14 +358,14 @@ elif torch.cuda.is_available():
 else:
     DEVICE = torch.device("cpu")
 
-nb_jobs = 8
+rnn_nb_jobs = 8
 
 
 def evaluate_dataset_on_test_rnn(
         study,
         dataset_name,
         function_name,  # e.g. "lstm_last", "rnn", "rnn-mean_hag"
-        pretrain_data,  # list/array of pretraining bands for HAG
+        pretrain_data,
         X_train,  # list of train sequences or array
         X_test,  # list of test sequences or array
         Y_train,  # labels or targets for train
@@ -506,9 +508,9 @@ def evaluate_dataset_on_test_rnn(
             readout = init_readout(ridge_coef=RIDGE_COEF)
             start_step = SLICE_RANGE.start if not is_instances_classification else None
             if is_instances_classification:
-                train_model_for_classification(reservoir, readout, X_train, Y_train, n_jobs=1, mode="sequence-to-vector")
+                train_model_for_classification(reservoir, readout, X_train, Y_train, mode="sequence-to-vector")
             else:
-                _ = train_model_for_prediction(reservoir, readout, X_train, Y_train, warmup=start_step, n_jobs=nb_jobs)
+                _ = train_model_for_prediction(reservoir, readout, X_train, Y_train, warmup=start_step, n_jobs=rnn_nb_jobs)
             Wout = readout.Wout
             bias_out = readout.bias.reshape(-1)
 

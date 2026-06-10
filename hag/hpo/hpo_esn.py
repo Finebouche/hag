@@ -48,7 +48,7 @@ if __name__ == '__main__':
         print(f"Loading {dataset_name}")
 
         (is_instances_classification, is_multivariate, sampling_rate,
-         X_train_raw, X_test_raw, Y_train_raw, Y_test,
+         X_train_raw, _, Y_train_raw, _,
          use_spectral_representation, groups) = load_data(dataset_name, step_ahead, visualize=False)
 
         spectral_representation = "mfcc" if is_instances_classification else "stft"
@@ -276,14 +276,13 @@ if __name__ == '__main__':
                                                      weight_increment, target_rate, rate_spread, "mean_hag",
                                                      multiple_instances=is_instances_classification,
                                                      min_increment = min_increment, max_increment=max_increment, use_full_instance=use_full_instance,
-                                                     max_partners=max_partners, method="pearson",
-                                                     n_jobs=nb_jobs_per_trial)
+                                                     max_partners=np.inf, method="pearson", n_jobs=nb_jobs_per_trial)
                     elif function_name in ("desp", "var_hag"):
                         W, (_, _, _) = run_algorithm(W, Win, bias, leaky_rate, activation_function, pretrain_data,
                                                      weight_increment, variance_target, variance_spread, "var_hag",
                                                      multiple_instances=is_instances_classification,
                                                      min_increment = min_increment, max_increment=max_increment, use_full_instance=use_full_instance,
-                                                     max_partners=max_partners, method="pearson",
+                                                     max_partners=np.inf, method="pearson",
                                                      intrinsic_saturation=intrinsic_saturation, intrinsic_coef=intrinsic_coef,
                                                      n_jobs=nb_jobs_per_trial)
                     elif function_name == "short-hag":
@@ -291,15 +290,13 @@ if __name__ == '__main__':
                                                      weight_increment, target_rate, rate_spread, "mean_hag",
                                                      multiple_instances=is_instances_classification,
                                                      min_increment=1, max_increment=1, use_full_instance=False,
-                                                     max_partners=max_partners, method="hebbian",
-                                                     n_jobs=nb_jobs_per_trial)
+                                                     max_partners=np.inf, method="hebbian", n_jobs=nb_jobs_per_trial)
                     elif function_name == "hsp":
                         W, (_, _, _) = run_algorithm(W, Win, bias, leaky_rate, activation_function, pretrain_data,
                                                      weight_increment, target_rate, rate_spread, "mean_hag",
                                                      multiple_instances=is_instances_classification,
                                                      min_increment=100, max_increment=100, use_full_instance=False,
-                                                     max_partners=max_partners, method="random",
-                                                     n_jobs=nb_jobs_per_trial)
+                                                     max_partners=np.inf, method="random", n_jobs=nb_jobs_per_trial)
                     elif function_name in ["random_ee", "random_ei", "diag_ee", "diag_ei", "ip_correct", "anti-oja_fast", "ip-anti-oja_fast"]:
                         eigen = sparse.linalg.eigs(W, k=1, which="LM", maxiter=W.shape[0] * 20, tol=0.1, return_eigenvectors=False)
                         W *= sr / max(abs(eigen))

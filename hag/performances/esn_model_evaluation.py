@@ -119,10 +119,7 @@ def train_model_for_prediction(reservoir, readout, X_train, Y_train, n_jobs, war
 
 def train_model_for_classification(reservoir, readout, X_train, Y_train, mode, warmup=2):
     if mode == "sequence-to-vector":
-        # Run ALL sequences in one call (batched)
-        all_states = reservoir.run(X_train)
-        # Extract last state of each sequence
-        states_to_train_on = np.array([s[-1] for s in all_states])
+        states_to_train_on = _last_states_per_sequence(reservoir, X_train)
         readout.fit(states_to_train_on, Y_train)
         return readout
     elif mode == "sequence-to-sequence":
@@ -138,8 +135,7 @@ def train_model_for_classification(reservoir, readout, X_train, Y_train, mode, w
 
 def predict_model_for_classification(reservoir, readout, X_test, esn=None, mode="sequence-to-vector"):
     if mode == "sequence-to-vector":
-        all_states = reservoir.run(X_test)
-        states_to_predict = np.vstack([s[-1] for s in all_states])
+        states_to_predict = _last_states_per_sequence(reservoir, X_test)
         Y_pred = readout.run(states_to_predict)
         Y_pred = [y for y in Y_pred]  # convert to list if needed
     elif mode == "sequence-to-sequence":
@@ -148,6 +144,18 @@ def predict_model_for_classification(reservoir, readout, X_test, esn=None, mode=
         raise ValueError(f"Invalid mode: {mode}")
 
     return Y_pred
+
+
+def _last_states_per_sequence(reservoir, sequences):
+    last_states = []
+    for sequence in sequences:
+        if hasattr(reservoir, "state"):
+            reservoir.reset()
+        states = reservoir.run(sequence)
+        last_states.append(states[-1])
+    if hasattr(reservoir, "state"):
+        reservoir.reset()
+    return np.vstack(last_states)
 
 
 def compute_score(Y_pred, Y_test, is_instances_classification, model_name="", verbosity=0):
