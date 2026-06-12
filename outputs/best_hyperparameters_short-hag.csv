@@ -1,0 +1,4 @@
+dataset,function_name,ridge,network_size,input_scaling,bias_scaling,leaky_rate,input_connectivity,target_rate,rate_spread,connectivity,weight_increment
+CatsDogs,short-hag,-6,500,0.19,0.11,1.0,1.0,0.79,0.395,0.0,0.1
+JapaneseVowels,short-hag,-6,500,0.19,0.11,1.0,1.0,0.79,0.395,0.0,0.1
+FSDD,short-hag,-6,500,0.19,0.11,1.0,1.0,0.79,0.395,0.0,0.1

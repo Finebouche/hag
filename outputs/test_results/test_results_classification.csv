@@ -1,10 +1,4 @@
 Dataset,Function,Average Score,Standard Deviation,Date
-JapaneseVowels,short-hag,82.90541 %,± 1.4972 %,2026-04-06
-JapaneseVowels,hsp,96.68919 %,± 0.26169 %,2026-04-06
-CatsDogs,short-hag,65.09146 %,± 0.26403 %,2026-04-06
-CatsDogs,hsp,65.54878 %,± 0.7468 %,2026-04-06
-FSDD,short-hag,30.3125 %,± 0.93064 %,2026-04-06
-FSDD,hsp,22.5375 %,± 0.76147 %,2026-04-06
 JapaneseVowels,random_ee,97.2973 %,± 0.35753 %,2025-04-09
 JapaneseVowels,random_ei,97.5 %,± 0.67229 %,2025-04-09
 JapaneseVowels,diag_ee,96.58784 %,± 0.57233 %,2025-05-02
@@ -18,6 +12,8 @@ JapaneseVowels,lstm_last,85.63179 %,± 3.12924 %,2025-07-18
 JapaneseVowels,rnn,72.79212 %,± 4.58635 %,2025-07-31
 JapaneseVowels,rnn-mean_hag,98.2337 %,± 0.33281 %,2025-08-02
 JapaneseVowels,gru,93.30842 %,± 1.58995 %,2025-08-22
+JapaneseVowels,short-hag,97.26351 %,± 0.31511 %,2026-06-12
+JapaneseVowels,hsp,97.77027 %,± 0.26169 %,2026-06-12
 CatsDogs,random_ee,67.14939 %,± 0.56526 %,2025-04-09
 CatsDogs,random_ei,64.48171 %,± 1.28447 %,2025-04-09
 CatsDogs,diag_ee,53.35366 %,± 6.67258 %,2025-05-02
@@ -31,6 +27,8 @@ CatsDogs,lstm_last,63.87195 %,± 6.91038 %,2025-07-18
 CatsDogs,rnn,67.07317 %,± 2.04518 %,2025-07-31
 CatsDogs,rnn-mean_hag,69.43598 %,± 1.07521 %,2025-08-03
 CatsDogs,gru,64.78659 %,± 2.70552 %,2025-08-22
+CatsDogs,short-hag,64.25305 %,± 0.7429 %,2026-06-12
+CatsDogs,hsp,67.75915 %,± 0.64224 %,2026-06-12
 FSDD,random_ee,17.575 %,± 0.77902 %,2025-08-30
 FSDD,random_ei,24.25 %,± 2.51744 %,2025-08-30
 FSDD,ip_correct,22.1 %,± 2.65047 %,2025-08-30
@@ -40,6 +38,8 @@ FSDD,hadsp,47.375 %,± 2.13468 %,2025-08-30
 FSDD,desp,47.95 %,± 0.82765 %,2025-08-30
 FSDD,lstm_last,51.6625 %,± 2.87399 %,2025-08-30
 FSDD,gru,45.375 %,± 18.89615 %,2025-08-30
+FSDD,short-hag,26.8875 %,± 0.95058 %,2026-06-12
+FSDD,hsp,25.325 %,± 1.00964 %,2026-06-12
 SpokenArabicDigits,random_ee,71.57231 %,± 1.68403 %,2025-04-09
 SpokenArabicDigits,random_ei,85.86858 %,± 1.33296 %,2025-04-09
 SpokenArabicDigits,diag_ee,86.86903 %,± 1.4946 %,2025-05-02

@@ -75,8 +75,16 @@ function_mapping = {
 #    'diag_ee':        'diag EE',
 }
 
-dataset_label_map = {"JapaneseVowels": "Japanese Vowels", "CatsDogs": "Cats vs Dogs", "FSDD": "FSDD"}
-
+dataset_label_map = {
+    "JapaneseVowels": "Japanese Vowels",
+    "CatsDogs": "Cats vs Dogs",
+    "FSDD": "FSDD",
+    "SpokenArabicDigits": "Spoken Arabic Digits",
+    "SPEECHCOMMANDS": "Speech Commands",
+    "MackeyGlass": "Mackey-Glass",
+    "Lorenz": "Lorenz",
+    "Sunspot_daily": "Sunspot Daily",
+}
 
 ######
 #
