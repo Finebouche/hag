@@ -13,6 +13,7 @@ dist/
 
 # Datasets
 /data/
+/hag/datasets/Canary/
 /hag/datasets/CatsDogs/
 /hag/datasets/HAART/
 /hag/datasets/SpeechCommands/
