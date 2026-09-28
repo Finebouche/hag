@@ -48,6 +48,7 @@ def determine_connection_pairs(neurons_needing_new_connection, connectivity_matr
             mi_for_neuron = mi_for_available_neurons[neuron, available_for_neuron]
             neuron_to_choose_from = np.array(available_for_neuron)[np.isclose(mi_for_neuron, np.nanmax(mi_for_neuron))]
         elif method == "hebbian":
+            # Local Hebbian rule: co-activity x_i * x_j at a single time step (first of the window)
             correlations = states[neuron, 0] * states[available_for_neuron, 0]
             neuron_to_choose_from = np.array(available_for_neuron)[correlations > 0]
         elif method == "pearson":
