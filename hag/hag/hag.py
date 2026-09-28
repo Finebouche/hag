@@ -166,13 +166,14 @@ def hag_step(W_e, states, delta_z, weight_increment, W_inhibitory=np.array([]), 
     total_add = 0
     assert states.shape[0] == nb_neurons, "Wrong state shape. "
 
+    # Neurons too active (delta_z >= 1): their activity must go down
     need_pruning = neurons[delta_z >= 1]
-    # We prune excitatory connexion to drive delta_z down
+    # Less excitatory input -> lower activity: prune one incoming excitatory connexion
     new_prune_pairs = determine_pruning_pairs(need_pruning, W_e, states, method, n_jobs=n_jobs)
     for connexion in new_prune_pairs:
         W_e = change_connexion(W_e, connexion[0], connexion[1], -weight_increment)
         total_prun += 1
-    # We add inhibitory connexion to drive delta_z down
+    # More inhibitory input -> lower activity: add one incoming inhibitory connexion
     if min(W_inhibitory.shape) > 0:
         new_connexion_pairs = determine_connection_pairs(need_pruning, W_inhibitory, states, method,
                                                          mark_and_skip=False, is_inter_matrix=True)
@@ -180,16 +181,17 @@ def hag_step(W_e, states, delta_z, weight_increment, W_inhibitory=np.array([]), 
             W_inhibitory = change_connexion(W_inhibitory, connexion[0], connexion[1], weight_increment)
             total_add += 1
 
+    # Neurons not active enough (delta_z <= -1): their activity must go up
     need_increase = neurons[delta_z <= -1]
-    # We add an excitatory connexion to drive delta_z up
+    # More excitatory input -> higher activity: add one incoming excitatory connexion
     new_connexion_pairs = determine_connection_pairs(need_increase, W_e, states, method, max_partners=max_partners,
                                                      mark_and_skip=False, n_jobs=n_jobs)
     for connexion in new_connexion_pairs:
         W_e = change_connexion(W_e, connexion[0], connexion[1], weight_increment)
         total_add += 1
-    # If needed we prune inhibitory connexion to increase the rate
+    # Less inhibitory input -> higher activity: prune one incoming inhibitory connexion
     if min(W_inhibitory.shape) > 0:
-        new_prune_pairs = determine_pruning_pairs(need_pruning, W_inhibitory, states, method)
+        new_prune_pairs = determine_pruning_pairs(need_increase, W_inhibitory, states, method)
         for connexion in new_prune_pairs:
             W_inhibitory = change_connexion(W_inhibitory, connexion[0], connexion[1], -weight_increment)
             total_prun += 1
