@@ -107,9 +107,9 @@ def run_algorithm(W, Win, bias, leaky_rate, activation_function, input_data, wei
             neurons_state = update_reservoir(W, Win, input_value, neurons_state, leaky_rate, bias, activation_function)
             states_history.append(neurons_state)
 
-        if algorithm_type in ("mean_hag"):
+        if algorithm_type == "mean_hag":
             delta_z = compute_synaptic_change(states_history[-T_current:], target, spread, average=average)
-        elif algorithm_type in ("var_hag"):
+        elif algorithm_type == "var_hag":
             delta_z = compute_variance(states_history[-T_current:], target, spread, average=average)
         else:
             raise ValueError("type must be one of 'mean_hag', 'var_hag'")
@@ -117,7 +117,7 @@ def run_algorithm(W, Win, bias, leaky_rate, activation_function, input_data, wei
         W, _, nb_new_add, nb_new_prun = hag_step(W, states_history[-T_current:], delta_z, weight_increment,
                                                  max_partners=max_partners, method=method, n_jobs=n_jobs)
 
-        if algorithm_type in ("var_hag"):
+        if algorithm_type == "var_hag":
             # implement intrinsic homeostatic plasticity based on saturation of states
             neurons_states = np.array(states_history[-T_current:]).T
             for neuron_states, i in zip(neurons_states, range(bias.size)):
