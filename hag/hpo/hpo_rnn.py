@@ -1,23 +1,8 @@
 import numpy as np
 import torch
 
-SEED = 923984
-if torch.backends.mps.is_available():
-    DEVICE = torch.device("mps")
-elif torch.cuda.is_available():
-    DEVICE = torch.device("cuda")
-else:
-    DEVICE = torch.device("cpu")
-
-nb_jobs = 2
-
-print(f"Using device: {DEVICE}")
-
 from hag.datasets.load_data import load_data
 from hag.models.activation_functions import tanh
-
-# the activation function chosen for the rest of the experiment
-activation_function = lambda x : tanh(x)
 
 # Cross validation
 from sklearn.model_selection import StratifiedKFold, TimeSeriesSplit, StratifiedGroupKFold
@@ -33,6 +18,21 @@ from hag.models.rnn import (LSTMModel, RNNModel, GRUModel, SequenceDataset, trai
                             BucketBatchSampler, PrecomputedForecastDataset, make_sliding_windows)
 from torch.utils.data import DataLoader
 
+# the activation function chosen for the rest of the experiment
+activation_function = lambda x : tanh(x)
+
+
+SEED = 923984
+if torch.backends.mps.is_available():
+    DEVICE = torch.device("mps")
+elif torch.cuda.is_available():
+    DEVICE = torch.device("cuda")
+else:
+    DEVICE = torch.device("cpu")
+
+nb_jobs = 2
+
+print(f"Using device: {DEVICE}")
 if __name__ == '__main__':
 
     print("Starting LSTM optimization...")

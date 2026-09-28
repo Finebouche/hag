@@ -1,5 +1,6 @@
 name: hag_env
 channels:
+  - conda-forge
   - pytorch
 dependencies:
   - python>=3.12

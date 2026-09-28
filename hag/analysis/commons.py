@@ -1,4 +1,12 @@
+from seaborn import color_palette
+import numpy as np
+
 from hag.models.activation_functions import tanh
+from hag.datasets.spectral_decomposition import generate_multivariate_dataset
+from sklearn.preprocessing import MinMaxScaler
+from hag.datasets.preprocessing import scale_data
+from hag.datasets.load_data import load_data as load_dataset
+from hag.datasets.peak_centered_decomposition import process_instance_func, extract_peak_frequencies$
 
 activation_function = lambda x : tanh(x)
 
@@ -7,9 +15,7 @@ activation_function = lambda x : tanh(x)
 # Common visualisation definitions
 #
 ######
-
-from seaborn import color_palette
-
+#
 # -- Define color palettes for each group --
 blues = color_palette("Blues", 5)      # shades of blue
 oranges = color_palette("Oranges", 2)  # shades of orange
@@ -91,12 +97,7 @@ dataset_label_map = {
 # DATALOADING
 #
 ######
-from hag.datasets.spectral_decomposition import generate_multivariate_dataset
-from sklearn.preprocessing import MinMaxScaler
-from hag.datasets.preprocessing import scale_data
-from hag.datasets.load_data import load_data as load_dataset
-from hag.datasets.peak_centered_decomposition import process_instance_func, extract_peak_frequencies
-import numpy as np
+
 
 def load_data(dataset_name, spectral_representation, data_type="normal", noise_std=0.001, step_ahead=5, visualize=False):
     # check if data_type is valid

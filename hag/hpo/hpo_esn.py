@@ -5,22 +5,21 @@ import math
 from joblib import Parallel, delayed
 import traceback
 
-SEED = 923984
+# Hyperparameter optimization
+import optuna
+from optuna.samplers import TPESampler, CmaEsSampler
+import re
+
+# Cross validation
+from sklearn.model_selection import StratifiedKFold, TimeSeriesSplit, StratifiedGroupKFold
 
 from hag.datasets.load_data import load_data
 from hag.models.activation_functions import tanh
 
-# the activation function chosen for the rest of the experiment
-activation_function = lambda x : tanh(x)
-
-# Cross validation
-from sklearn.model_selection import StratifiedKFold, TimeSeriesSplit, StratifiedGroupKFold
-from hag.datasets.preprocessing import flexible_indexing
-
 # Preprocessing
 from hag.datasets.spectral_decomposition import generate_multivariate_dataset
 from sklearn.preprocessing import MinMaxScaler
-from hag.datasets.preprocessing import scale_data, add_noise
+from hag.datasets.preprocessing import scale_data, add_noise, flexible_indexing
 
 # Pretraining
 from hag.models.reservoir import init_matrices
@@ -31,10 +30,10 @@ from hag.performances.esn_model_evaluation import train_model_for_classification
 from hag.performances.esn_model_evaluation import train_model_for_prediction, init_reservoir, init_ip_reservoir, \
     init_local_rule_reservoir, init_ip_local_rule_reservoir, init_readout
 
-# Hyperparameter optimization
-import optuna
-from optuna.samplers import TPESampler, CmaEsSampler
-import re
+# the activation function chosen for the rest of the experiment
+activation_function = lambda x : tanh(x)
+
+SEED = 923984
 
 if __name__ == '__main__':
 
