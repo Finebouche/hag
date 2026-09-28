@@ -128,10 +128,7 @@ def run_algorithm(W, Win, bias, leaky_rate, activation_function, input_data, wei
             states_history = []
         else:
             W_history.append((np.copy(W)))
-            if use_full_instance:  # happened variance to variance_history for a number of inc
-                delta_z_history.extend([delta_z] * 10)
-            else:
-                delta_z_history.extend([delta_z] * inc)
+            delta_z_history.extend([delta_z] * T_current)
 
         if visualize:
             total_add += nb_new_add
