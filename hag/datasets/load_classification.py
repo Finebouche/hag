@@ -125,6 +125,47 @@ def visualize_groups_distribution(groups):
     plt.show()
 
 
+def download_fsdd() -> Path | None:
+    # The GitHub archive extracts to free-spoken-digit-dataset-master/recordings
+    fsdd_dir = DATASETS_DIR / "fsdd"
+    fsdd_zip = DATASETS_DIR / "fsdd.zip"
+    print(f"FSDD dataset not found locally. Downloading to {fsdd_dir} ...")
+    fsdd_dir.mkdir(parents=True, exist_ok=True)
+    urllib.request.urlretrieve(
+        "https://github.com/Jakobovski/free-spoken-digit-dataset/archive/refs/heads/master.zip",
+        str(fsdd_zip),
+    )
+    with zipfile.ZipFile(fsdd_zip, "r") as zip_ref:
+        zip_ref.extractall(fsdd_dir)
+    fsdd_zip.unlink(missing_ok=True)
+    return _first_existing(fsdd_dir / "free-spoken-digit-dataset-master" / "recordings")
+
+
+def download_japanese_vowels_if_needed() -> Path:
+    # reservoirpy downloads from cdn.uci-ics-mlr-prod.aws.uci.edu (expired certificate since 2026-09-23):
+    # fetch the same UCI archive from archive.ics.uci.edu instead, reservoirpy then reads the local files
+    from reservoirpy.datasets._japanese_vowels import REMOTE_FILES  # files reservoirpy expects in data_folder
+
+    data_dir = DATASETS_DIR / "JapaneseVowels"
+    if not all((data_dir / file_name).exists() for file_name in REMOTE_FILES.values()):
+        print(f"JapaneseVowels dataset not found locally. Downloading to {data_dir} ...")
+        data_dir.mkdir(parents=True, exist_ok=True)
+        zip_path = DATASETS_DIR / "JapaneseVowels.zip"
+        urllib.request.urlretrieve("https://archive.ics.uci.edu/static/public/128/japanese+vowels.zip", str(zip_path))
+        with zipfile.ZipFile(zip_path, "r") as zip_ref:
+            zip_ref.extractall(data_dir)
+        zip_path.unlink(missing_ok=True)
+
+        # the description file is not used, but reservoirpy re-downloads everything if it is missing
+        descr = data_dir / REMOTE_FILES["DESCR"]
+        if not descr.exists():
+            descr.write_text("Japanese Vowels, UCI dataset 128: https://archive.ics.uci.edu/dataset/128/japanese+vowels\n")
+        missing = [f for f in REMOTE_FILES.values() if not (data_dir / f).exists()]
+        if missing:
+            raise FileNotFoundError(f"JapaneseVowels archive did not contain {missing} (in {data_dir})")
+    return data_dir
+
+
 def load_FSDD_dataset(data_dir: Path, test_split=1 / 3, seed=None, visualize=False):
     data_dir = _require_path(
         Path(data_dir),
@@ -322,6 +363,8 @@ def load_dataset_classification(name, visualize=True, seed=None):
             DATASETS_DIR / "FSDD" / "free-spoken-digit-dataset-master" / "recordings",
         )
         if fsdd_recordings is None:
+            fsdd_recordings = download_fsdd()
+        if fsdd_recordings is None:
             raise FileNotFoundError(
                 "FSDD recordings folder not found. Expected one of:\n"
                 f"- {DATASETS_DIR / 'fsdd' / 'free-spoken-digit-dataset-master' / 'recordings'}\n"
@@ -351,7 +394,7 @@ def load_dataset_classification(name, visualize=True, seed=None):
     if name == "JapaneseVowels":
         from reservoirpy.datasets import japanese_vowels
 
-        X_train_band, X_test_band, Y_train, Y_test = japanese_vowels()
+        X_train_band, X_test_band, Y_train, Y_test = japanese_vowels(data_folder=download_japanese_vowels_if_needed())
         is_multivariate = True
         groups = None
         sampling_rate = 10000

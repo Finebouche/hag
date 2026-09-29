@@ -3,7 +3,7 @@ import optuna
 from pathlib import Path
 
 VALID_FUNCTION_NAMES = {
-    "desp", "hadsp", "mean_hag", "var_hag", "random_ee", "random_ei", "diag_ee", "diag_ei",
+    "mean_hag", "var_hag", "random_ee", "random_ei", "diag_ee", "diag_ei",
     "ip_correct", "anti-oja_fast", "ip-anti-oja_fast",
     "lstm_last", "rnn", "rnn-mean_hag", "gru", "short-hag", "hsp"
 }

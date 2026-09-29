@@ -192,7 +192,7 @@ if __name__ == '__main__':
             raise ValueError(f"Invalid variable type: {variate_type}")
 
 
-        # "random_ee", "random_ei", "diag_ee", "diag_ei", "desp", "hadsp", "ip_correct", "anti-oja_fast", "ip-anti-oja_fast"
+        # "random_ee", "random_ei", "diag_ee", "diag_ei", "var_hag", "mean_hag", "ip_correct", "anti-oja_fast", "ip-anti-oja_fast"
         for function_name in  ["random_ee", "random_ei", "var_hag", "mean_hag", "ip_correct", "anti-oja_fast", "ip-anti-oja_fast"]:
             def objective(trial):
                 # COMMON
@@ -207,11 +207,11 @@ if __name__ == '__main__':
                 input_connectivity = trial.suggest_float('input_connectivity', 1, 1)
 
                 # MEAN-HAG, HSP
-                if function_name in ("hadsp", "mean_hag", "hsp", "short-hag"):
+                if function_name in ("mean_hag", "hsp", "short-hag"):
                     target_rate = trial.suggest_float('target_rate', 0.5, 1, step=0.01)
                     rate_spread = trial.suggest_float('rate_spread', 0.01, 0.4, step=0.005)
                 # VARIANCE-HAG
-                elif function_name in ("desp", "var_hag"):
+                elif function_name == "var_hag":
                     variance_target = trial.suggest_float('variance_target', 0.001, 0.02, step=0.001)
                     variance_spread = trial.suggest_float('variance_spread', 0.001, 0.05, step=0.002)
                     intrinsic_saturation = trial.suggest_float('intrinsic_saturation', 0.8, 0.98, step=0.02)
@@ -232,7 +232,7 @@ if __name__ == '__main__':
                     # We often use a log-uniform distribution for learning rates:
                     oja_eta = trial.suggest_float('oja_eta', 1e-8, 1e-3, log=True)
 
-                if function_name in ["hadsp", "desp", "mean_hag", "var_hag", "hsp", "short-hag"]:
+                if function_name in ["mean_hag", "var_hag", "hsp", "short-hag"]:
                     connectivity = trial.suggest_float('connectivity', 0, 0)
                     weight_increment = trial.suggest_float('weight_increment', 0.001, 0.1, step=0.001)
                     max_partners = np.inf # trial.suggest_int('max_partners', 10, 20)
@@ -278,13 +278,13 @@ if __name__ == '__main__':
                     Win *= input_scaling
 
                     # HAG runs with n_jobs=1: its per-step work is small, so worker processes cost more than they save
-                    if function_name in ("hadsp", "mean_hag"):
+                    if function_name == "mean_hag":
                         W, (_, _, _) = run_algorithm(W, Win, bias, leaky_rate, activation_function, pretrain_data,
                                                      weight_increment, target_rate, rate_spread, "mean_hag",
                                                      multiple_instances=is_instances_classification,
                                                      min_increment = min_increment, max_increment=max_increment, use_full_instance=use_full_instance,
                                                      max_partners=np.inf, method="pearson", n_jobs=1)
-                    elif function_name in ("desp", "var_hag"):
+                    elif function_name == "var_hag":
                         W, (_, _, _) = run_algorithm(W, Win, bias, leaky_rate, activation_function, pretrain_data,
                                                      weight_increment, variance_target, variance_spread, "var_hag",
                                                      multiple_instances=is_instances_classification,

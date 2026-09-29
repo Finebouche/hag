@@ -23,7 +23,7 @@ figures_path = "../../outputs/figures/hpo_comparaison.pdf"
 
 DATASETS = ["JapaneseVowels"]
 SAMPLERS = ["cmaes", "tpe"]
-FUNCTIONS = ["random_ee", "random_ei", "desp", "hadsp", "ip-anti-oja_fast", "anti-oja_fast", "ip_correct"]
+FUNCTIONS = ["random_ee", "random_ei", "var_hag", "mean_hag", "ip-anti-oja_fast", "anti-oja_fast", "ip_correct"]
 
 
 def ensure_results_file(path: str) -> pd.DataFrame:

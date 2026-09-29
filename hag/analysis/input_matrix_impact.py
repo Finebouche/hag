@@ -33,8 +33,8 @@ FUNCTIONS = [
     "ip_correct",
     "anti-oja_fast",
     "ip-anti-oja_fast",
-    "desp",
-    "hadsp",
+    "var_hag",
+    "mean_hag",
 ]
 
 # (random_projection_experiment, mapping_label)

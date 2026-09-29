@@ -1,3 +1,5 @@
+from pathlib import Path
+
 from seaborn import color_palette
 import numpy as np
 
@@ -6,9 +8,11 @@ from hag.datasets.spectral_decomposition import generate_multivariate_dataset
 from sklearn.preprocessing import MinMaxScaler
 from hag.datasets.preprocessing import scale_data
 from hag.datasets.load_data import load_data as load_dataset
-from hag.datasets.peak_centered_decomposition import process_instance_func, extract_peak_frequencies$
+from hag.datasets.load_categorical_forecasting import canary_mfcc_config
+from hag.datasets.peak_centered_decomposition import process_instance_func, extract_peak_frequencies
 
-activation_function = lambda x : tanh(x)
+# the function itself (not a lambda), so that the batched JAX reservoir run recognises it
+activation_function = tanh
 
 ######
 #
@@ -69,8 +73,8 @@ function_mapping = {
     'ip_correct':       'IP',
     'anti-oja_fast':    'Anti-Oja',
     'ip-anti-oja_fast': 'IP +\nAnti-Oja',
-    'hadsp':            'mean HAG',
-    'desp':             'variance HAG',
+    'mean_hag':         'mean HAG',
+    'var_hag':          'variance HAG',
     'lstm_last':        'LSTM',
 #    'rnn':              'RNN',
     'gru':              'GRU',
@@ -99,6 +103,16 @@ dataset_label_map = {
 ######
 
 
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
+
+
+def study_db_dir(dataset_name):
+    """Folder of the Optuna database for this dataset: the Canary HPO was run from the repo root,
+    the previous studies are in hag/hpo/legacy_studies."""
+    return PROJECT_ROOT if dataset_name == "Canary" else PROJECT_ROOT / "hag" / "hpo" / "legacy_studies"
+
+
+
 def load_data(dataset_name, spectral_representation, data_type="normal", noise_std=0.001, step_ahead=5, visualize=False):
     # check if data_type is valid
     if data_type not in ["normal", "noisy"]:
@@ -120,6 +134,8 @@ def load_data(dataset_name, spectral_representation, data_type="normal", noise_s
     # PREPROCESSING
     hop = 50 if is_instances_classification else 1
     win_length = edge_cut = 100
+    # dataset-specific MFCC, as in hpo_esn.py (None -> default hop / win_length)
+    mfcc_config = canary_mfcc_config(sampling_rate) if dataset_name == "Canary" else None
     if is_multivariate and use_spectral_representation:
         print("Data is already spectral, nothing to do")
     else:
@@ -128,10 +144,12 @@ def load_data(dataset_name, spectral_representation, data_type="normal", noise_s
 
         if spectral_representation in ["stft", "mfcc"]:
             X_train_band = generate_multivariate_dataset(
-                base_train, is_instances_classification, spectral_representation, hop=hop, win_length=win_length
+                base_train, is_instances_classification, spectral_representation, hop=hop, win_length=win_length,
+                mfcc_config=mfcc_config
             )
             X_test_band = generate_multivariate_dataset(
-                base_test, is_instances_classification, spectral_representation, hop=hop, win_length=win_length
+                base_test, is_instances_classification, spectral_representation, hop=hop, win_length=win_length,
+                mfcc_config=mfcc_config
             )
         elif spectral_representation == "custom":
 
@@ -192,7 +210,11 @@ from hag.metrics.richness import spectral_radius, pearson, squared_uncoupled_dyn
 
 
 nb_jobs = 1
-def evaluate_dataset_on_test(study, dataset_name, function_name, pretrain_data, train_data, test_data, Y_train, Y_test, is_instances_classification, nb_trials = 8, record_metrics=False, random_projection_experiment=False):
+def evaluate_dataset_on_test(study, dataset_name, function_name, pretrain_data, train_data, test_data, Y_train, Y_test, is_instances_classification, nb_trials = 8, record_metrics=False, random_projection_experiment=False,
+                             seed=None):
+    # seed: seeds numpy's global RNG, so that two calls draw the same matrices and the same HAG random choices
+    if seed is not None:
+        random.seed(seed)
     # Collect all hyperparameters in a dictionary
     hyperparams = {param_name: param_value for param_name, param_value in study.best_trial.params.items()}
     print(hyperparams)
@@ -245,13 +267,13 @@ def evaluate_dataset_on_test(study, dataset_name, function_name, pretrain_data, 
         bias *= hyperparams['bias_scaling']
         Win *= hyperparams['input_scaling']
 
-        if function_name in ("hadsp", "mean_hag"):
+        if function_name == "mean_hag":
             W, (_, _, _) = run_algorithm(W, Win, bias, hyperparams['leaky_rate'], activation_function, pretrain_data,
                                      hyperparams['weight_increment'], hyperparams['target_rate'], hyperparams['rate_spread'], "mean_hag",
                                      multiple_instances=is_instances_classification,
                                      min_increment = hyperparams['min_increment'], max_increment=hyperparams['max_increment'], use_full_instance=hyperparams['use_full_instance'],
                                      max_partners=np.inf, method="pearson", n_jobs=nb_jobs)
-        elif function_name in ("desp", "var_hag"):
+        elif function_name == "var_hag":
             W, (_, _, _) = run_algorithm(W, Win, bias, hyperparams['leaky_rate'], activation_function, pretrain_data,
                                          hyperparams['weight_increment'], hyperparams['variance_target'], hyperparams['variance_spread'], "var_hag",
                                          multiple_instances=is_instances_classification,
@@ -478,7 +500,7 @@ def evaluate_dataset_on_test_rnn(
         elif function_name == "rnn-mean_hag":
             # HAG-based reservoir initialization
             # 1) Retrieve best HAG hyperparameters
-            hag_study = retrieve_best_model("hadsp", dataset_name, False, variate_type="multi", data_type="normal")
+            hag_study = retrieve_best_model("mean_hag", dataset_name, False, variate_type="multi", data_type="normal")
             hyper = {k: v for k, v in hag_study.best_trial.params.items()}
             if 'variance_target' not in hyper and 'min_variance' in hyper:
                 hyper['variance_target'] = hyper.pop('min_variance')

@@ -1,5 +1,5 @@
 import numpy as np
-from hag.hag.correlation_utility import compute_mutual_information, compute_pearson_corr
+from hag.hag.correlation_utility import compute_mutual_information
 from joblib import Parallel, delayed
 
 
@@ -41,6 +41,12 @@ def determine_connection_pairs(neurons_needing_new_connection, connectivity_matr
     # remaining = set(neurons_needing_new_connection)
     # new_connections = []
 
+    if method == "pearson":
+        # Pearson correlation between all neurons, computed once for all the neurons needing a connexion
+        # (same as compute_pearson_corr(states[neuron, 1:], states[available, 1:]) for each neuron, much faster)
+        with np.errstate(divide="ignore", invalid="ignore"):
+            pearson_corr = np.corrcoef(states[:, 1:])
+
     def compute_new_connexion(neuron):
         available_for_neuron = available_neurons(neuron, connectivity_matrix, neurons_pool, max_partners)
         if method == "mi":
@@ -52,7 +58,7 @@ def determine_connection_pairs(neurons_needing_new_connection, connectivity_matr
             correlations = states[neuron, 0] * states[available_for_neuron, 0]
             neuron_to_choose_from = np.array(available_for_neuron)[correlations > 0]
         elif method == "pearson":
-            correlations = compute_pearson_corr(states[neuron, 1:], states[available_for_neuron, 1:])
+            correlations = pearson_corr[neuron, available_for_neuron]
             # Alternative : np.corrcoef(states[neuron, 1:], states[available_for_neuron, :-1])[0, 1:]
             neuron_to_choose_from = np.array(available_for_neuron)[np.isclose(correlations, np.nanmax(correlations))]
         elif method == "random":

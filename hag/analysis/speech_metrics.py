@@ -95,7 +95,7 @@ def evaluate_dataset_on_test(study, function_name, pretrain_data, test_data, is_
     if not is_instances_classification:
         hyperparams['use_full_instance'] = False
 
-    if function_name in ["hadsp", "desp"]:
+    if function_name in ["mean_hag", "var_hag"]:
         max_partners = np.inf
 
     spectral_radii = []
@@ -123,13 +123,13 @@ def evaluate_dataset_on_test(study, function_name, pretrain_data, test_data, is_
         bias *= hyperparams['bias_scaling']
         Win *= hyperparams['input_scaling']
 
-        if function_name in ("hadsp", "mean_hag"):
+        if function_name == "mean_hag":
             W, (_, _, _) = run_algorithm(W, Win, bias, hyperparams['leaky_rate'], activation_function, pretrain_data,
                                      hyperparams['weight_increment'], hyperparams['target_rate'], hyperparams['rate_spread'], "mean_hag",
                                      multiple_instances=is_instances_classification,
                                      min_increment = hyperparams['min_increment'], max_increment=hyperparams['max_increment'], use_full_instance=hyperparams['use_full_instance'],
                                      max_partners=max_partners, method="pearson", n_jobs=nb_jobs)
-        elif function_name in ("desp", "var_hag"):
+        elif function_name == "var_hag":
             W, (_, _, _) = run_algorithm(W, Win, bias, hyperparams['leaky_rate'], activation_function, pretrain_data,
                                          hyperparams['weight_increment'], hyperparams['variance_target'], hyperparams['variance_spread'], "var_hag",
                                          multiple_instances=is_instances_classification,
@@ -215,7 +215,7 @@ print(dataset)
 pretrain_data, test_data, is_multivariate, is_instances_classification = load_data(dataset)
 
 new_results = []
-for function_name in ["ip-anti-oja_fast"]:  # "random_ee", "random_ei", "ip_correct", "anti-oja_fast",  "ip-anti-oja_fast", "hadsp", "desp"
+for function_name in ["ip-anti-oja_fast"]:  # "random_ee", "random_ei", "ip_correct", "anti-oja_fast",  "ip-anti-oja_fast", "mean_hag", "var_hag"
     # Get the best trial from the study
     print(function_name)
     study = retrieve_best_model(function_name, dataset, is_multivariate, variate_type="multi", data_type="normal")
