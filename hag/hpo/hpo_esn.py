@@ -18,6 +18,7 @@ from hag.models.activation_functions import tanh
 
 # Preprocessing
 from hag.datasets.spectral_decomposition import generate_multivariate_dataset
+from hag.datasets.load_categorical_forecasting import canary_mfcc_config
 from sklearn.preprocessing import MinMaxScaler
 from hag.datasets.preprocessing import scale_data, add_noise, flexible_indexing
 
@@ -31,15 +32,17 @@ from hag.performances.esn_model_evaluation import train_model_for_prediction, in
     init_local_rule_reservoir, init_ip_local_rule_reservoir, init_readout
 
 # the activation function chosen for the rest of the experiment
-activation_function = lambda x : tanh(x)
+# the function itself (not a lambda), so that the batched JAX reservoir run recognises it
+activation_function = tanh
 
 SEED = 923984
 
 if __name__ == '__main__':
 
     step_ahead=5
-    # can be  "JapaneseVowels", "CatsDogs", "FSDD", "SpokenArabicDigits", "SPEECHCOMMANDS", "MackeyGlass", "Sunspot_daily", "Lorenz"
-    for dataset_name in ["SpokenArabicDigits"]:
+    # can be  "JapaneseVowels", "CatsDogs", "FSDD", "SpokenArabicDigits", "SPEECHCOMMANDS", "MackeyGlass", "Sunspot_daily", "Lorenz",
+    # "Canary" (categorical forecasting: predict the next phrase label, same pipeline as classification)
+    for dataset_name in ["Canary"]:
         # score for prediction
         start_step, end_step = 500, 1500
         SLICE_RANGE = slice(start_step, end_step)
@@ -51,6 +54,8 @@ if __name__ == '__main__':
          use_spectral_representation, groups) = load_data(dataset_name, step_ahead, visualize=False)
 
         spectral_representation = "mfcc" if is_instances_classification else "stft"
+        # dataset-specific MFCC (None -> default hop / win_length below)
+        mfcc_config = canary_mfcc_config(sampling_rate) if dataset_name == "Canary" else None
 
         # Define noise parameter
         noise_std = 0.001
@@ -104,10 +109,12 @@ if __name__ == '__main__':
                 base_train, base_val = (x_train_band, x_val_band) if is_multivariate else (x_train, x_val)
 
                 x_train_band = generate_multivariate_dataset(
-                    base_train, is_instances_classification, spectral_representation, hop=hop, win_length=win_length
+                    base_train, is_instances_classification, spectral_representation, hop=hop, win_length=win_length,
+                    mfcc_config=mfcc_config
                 )
                 x_val_band = generate_multivariate_dataset(
-                    base_val, is_instances_classification, spectral_representation, hop=hop, win_length=win_length
+                    base_val, is_instances_classification, spectral_representation, hop=hop, win_length=win_length,
+                    mfcc_config=mfcc_config
                 )
 
             if not is_instances_classification:
@@ -270,12 +277,13 @@ if __name__ == '__main__':
                     bias *= bias_scaling
                     Win *= input_scaling
 
+                    # HAG runs with n_jobs=1: its per-step work is small, so worker processes cost more than they save
                     if function_name in ("hadsp", "mean_hag"):
                         W, (_, _, _) = run_algorithm(W, Win, bias, leaky_rate, activation_function, pretrain_data,
                                                      weight_increment, target_rate, rate_spread, "mean_hag",
                                                      multiple_instances=is_instances_classification,
                                                      min_increment = min_increment, max_increment=max_increment, use_full_instance=use_full_instance,
-                                                     max_partners=np.inf, method="pearson", n_jobs=nb_jobs_per_trial)
+                                                     max_partners=np.inf, method="pearson", n_jobs=1)
                     elif function_name in ("desp", "var_hag"):
                         W, (_, _, _) = run_algorithm(W, Win, bias, leaky_rate, activation_function, pretrain_data,
                                                      weight_increment, variance_target, variance_spread, "var_hag",
@@ -283,19 +291,19 @@ if __name__ == '__main__':
                                                      min_increment = min_increment, max_increment=max_increment, use_full_instance=use_full_instance,
                                                      max_partners=np.inf, method="pearson",
                                                      intrinsic_saturation=intrinsic_saturation, intrinsic_coef=intrinsic_coef,
-                                                     n_jobs=nb_jobs_per_trial)
+                                                     n_jobs=1)
                     elif function_name == "short-hag":
                         W, (_, _, _) = run_algorithm(W, Win, bias, leaky_rate, activation_function, pretrain_data,
                                                      weight_increment, target_rate, rate_spread, "mean_hag",
                                                      multiple_instances=is_instances_classification,
                                                      min_increment=1, max_increment=1, use_full_instance=False,
-                                                     max_partners=np.inf, method="hebbian", n_jobs=nb_jobs_per_trial)
+                                                     max_partners=np.inf, method="hebbian", n_jobs=1)
                     elif function_name == "hsp":
                         W, (_, _, _) = run_algorithm(W, Win, bias, leaky_rate, activation_function, pretrain_data,
                                                      weight_increment, target_rate, rate_spread, "mean_hag",
                                                      multiple_instances=is_instances_classification,
                                                      min_increment=100, max_increment=100, use_full_instance=False,
-                                                     max_partners=np.inf, method="random", n_jobs=nb_jobs_per_trial)
+                                                     max_partners=np.inf, method="random", n_jobs=1)
                     elif function_name in ["random_ee", "random_ei", "diag_ee", "diag_ei", "ip_correct", "anti-oja_fast", "ip-anti-oja_fast"]:
                         eigen = sparse.linalg.eigs(W, k=1, which="LM", maxiter=W.shape[0] * 20, tol=0.1, return_eigenvectors=False)
                         W *= sr / max(abs(eigen))

@@ -22,6 +22,18 @@ CANARY_DIR = DATASETS_DIR / "Canary"
 ZENODO_URL = "https://zenodo.org/api/records/6521932/files/{}/content"
 ANNOTATIONS_ZIP = "M1-2016-spring_csv_annotations.zip"
 AUDIO_ZIP = "M1-2016-sping_audio.zip"  # sic, typo in the Zenodo record
+# Fixed so that the HPO (train split) and the final evaluation (test split) always see the same songs
+CANARY_SPLIT_SEED = 0
+
+
+def canary_mfcc_config(sampling_rate):
+    """
+    MFCC features used for canary songs by Trouvain & Hinaut (ICANN 2021, ReservoirPy tutorial 3), given at 44.1 kHz:
+    23 ms window, 11.6 ms hop, 500-8000 Hz, 13 MFCC + delta + delta-delta. Window sizes are rescaled to sampling_rate.
+    """
+    scale = sampling_rate / 44100
+    return dict(sr=sampling_rate, n_mfcc=13, win_length=round(1024 * scale), hop_length=round(512 * scale),
+                n_fft=round(2048 * scale), fmin=500, fmax=min(8000, sampling_rate / 2), lifter=40, deltas=True)
 
 
 def _download_and_extract(zip_name, target_dir):
@@ -85,7 +97,7 @@ def build_phrase_sequences(annotations, ignored_labels=("SIL", "TRASH"), merge_r
     return pd.DataFrame(pairs, columns=["wave", "start", "end", "current", "next"])
 
 
-def load_canary_dataset(test_split=0.2, seed=None, target_sampling_rate=16000, ignored_labels=("SIL", "TRASH"),
+def load_canary_dataset(test_split=0.2, seed=CANARY_SPLIT_SEED, target_sampling_rate=16000, ignored_labels=("SIL", "TRASH"),
                         merge_repeats=False, end_label=None):
     """
     Load the canary dataset as a next-phrase classification problem.
@@ -136,7 +148,7 @@ def load_canary_dataset(test_split=0.2, seed=None, target_sampling_rate=16000, i
             groups[train_idx], le.classes_)
 
 
-def load_dataset_categorical_forecasting(name, visualize=True, seed=None):
+def load_dataset_categorical_forecasting(name, visualize=True, seed=CANARY_SPLIT_SEED):
     if name == "Canary":
         sampling_rate, X_train, X_test, Y_train, Y_test, groups, classes = load_canary_dataset(seed=seed)
         print("Classes (next phrase) =", list(classes))

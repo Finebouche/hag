@@ -4,6 +4,7 @@ from sklearn.metrics import accuracy_score
 from hag.performances.losses import nrmse_multivariate
 from reservoirpy.nodes import Reservoir, IPReservoir, Ridge, RLS, LMS, NVAR, LocalPlasticityReservoir
 from hag.models.intrinsicSynapticPlasticityReservoir import IPLocalPlasticityReservoir
+from hag.performances.batched_reservoir import last_states as batched_last_states
 
 def init_readout(ridge_coef=None, rls=False, lms=False):
     """Select the proper readout according to flags."""
@@ -147,6 +148,10 @@ def predict_model_for_classification(reservoir, readout, X_test, esn=None, mode=
 
 
 def _last_states_per_sequence(reservoir, sequences):
+    # Plain Reservoir (not its plastic subclasses): batched run, same states much faster
+    if type(reservoir) is Reservoir:
+        return batched_last_states(reservoir.W, reservoir.Win, reservoir.bias, reservoir.lr, reservoir.activation, sequences)
+
     last_states = []
     for sequence in sequences:
         if hasattr(reservoir, "state"):

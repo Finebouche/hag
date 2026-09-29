@@ -24,6 +24,7 @@ dependencies:
   - imageio
   - pip
   - pip:
+    - jax
     - reservoirpy
     - torch
     - torchaudio
