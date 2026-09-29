@@ -1,3 +1,5 @@
+import warnings
+
 import numpy as np
 from joblib import Parallel, delayed
 from librosa import stft
@@ -32,7 +34,10 @@ def generate_multivariate_dataset(
         elif spectral_representation == "mfcc" and mfcc_config is not None:
             config = dict(mfcc_config)
             add_deltas = config.pop("deltas", False)
-            Sx = mfcc(y=x, **config)
+            with warnings.catch_warnings():
+                # instances shorter than n_fft are zero-padded by librosa, which is fine: don't warn for each of them
+                warnings.filterwarnings("ignore", message="n_fft=.* is too large for input signal")
+                Sx = mfcc(y=x, **config)
             if add_deltas:
                 Sx = np.concatenate([Sx, delta(Sx, mode="wrap"), delta(Sx, order=2, mode="wrap")], axis=-2)
         elif spectral_representation == "mfcc":
