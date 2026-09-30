@@ -48,7 +48,7 @@ def compute_synaptic_change(states, target_rate, rate_spread, change_type="linea
 def run_algorithm(W, Win, bias, leaky_rate, activation_function, input_data, weight_increment,
                   target, spread, algorithm_type, multiple_instances, min_increment, max_increment=None, use_full_instance=False,
                   max_partners=np.inf, method="random", intrinsic_saturation=0.9, intrinsic_coef=0.9, average="WHOLE",
-                  n_jobs=1, visualize=False, record_history=False):
+                  n_jobs=1, visualize=False, record_history=False, progress_bar=True):
     neurons_state = np.random.uniform(0, 1, bias.size)
     states_history = []
     delta_z_history = []
@@ -90,7 +90,7 @@ def run_algorithm(W, Win, bias, leaky_rate, activation_function, input_data, wei
         neurons_state = update_reservoir(W, Win, input_value, neurons_state, leaky_rate, bias, activation_function)
         states_history.append(neurons_state)
 
-    pbar = tqdm(total=len(input_data), desc="HAG algorithm")
+    pbar = tqdm(total=len(input_data), desc="HAG algorithm", disable=not progress_bar)
     while (len(input_data) > max_increment and not use_full_instance) or (len(input_data) > 0 and use_full_instance):
         if use_full_instance:  # if is true, take the next instance of the instance array input_data
             input_array = input_data[0]

@@ -72,9 +72,10 @@ class LocalPlasticityReservoir(TrainableNode):
     Learning, at each time step, for the nonzero weights:
         W[i, j] += increment(W[i, j], pre=internal_before[j], post=internal_after[i])
 
-    fit_updates_state: in reservoirpy 0.4.2, LocalPlasticityReservoir.fit never updates the reservoir state, so the
-    pre-synaptic state stays the initial one (zeros) and the post-synaptic state only depends on the input.
-    False reproduces this behaviour, True runs the reservoir during learning.
+    fit_updates_state: True (default) runs the reservoir during learning, as reservoirpy >= 0.4.3. In reservoirpy <= 0.4.2,
+    LocalPlasticityReservoir.fit never updated the reservoir state (fixed by reservoirpy PR #250): the pre-synaptic
+    state stayed the initial one (zeros) and the post-synaptic state only depended on the input. False reproduces this
+    behaviour, e.g. to compare with results obtained with reservoirpy <= 0.4.2.
     """
 
     def __init__(
@@ -90,7 +91,7 @@ class LocalPlasticityReservoir(TrainableNode):
         bcm_theta: float = 0.0,
         synapse_normalization: bool = False,
         epochs: int = 1,
-        fit_updates_state: bool = False,
+        fit_updates_state: bool = True,
         name: Optional[str] = None,
     ):
         self.W = jnp.asarray(W)
@@ -159,14 +160,13 @@ class LocalPlasticityReservoir(TrainableNode):
 class IPLocalPlasticityReservoir(LocalPlasticityReservoir):
     """
     Local plasticity with intrinsic plasticity (IP) learned at the same time, as
-    hag.models.intrinsicSynapticPlasticityReservoir.IPLocalPlasticityReservoir: its fit runs the reservoir
-    (fit_updates_state=True) and its forward step does not use the IP parameters a, b.
+    hag.models.intrinsicSynapticPlasticityReservoir.IPLocalPlasticityReservoir: its fit runs the reservoir and its
+    forward step does not use the IP parameters a, b.
     """
 
     def __init__(self, *args, mu: float = 0.0, sigma: float = 1.0, ip_learning_rate: float = 5e-4,
                  activation_type: Literal["tanh", "sigmoid"] = "tanh", a: jax.Array = None, b: jax.Array = None,
                  **kwargs):
-        kwargs.setdefault("fit_updates_state", True)
         super().__init__(*args, **kwargs)
         # activation_type: activation assumed by the IP rule, as in the NumPy version
         self.mu, self.sigma, self.ip_learning_rate, self.activation_type = mu, sigma, ip_learning_rate, activation_type

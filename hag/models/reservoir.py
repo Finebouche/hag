@@ -58,7 +58,9 @@ def init_matrices(n_neurons, input_connectivity, connectivity, K, spectral_radiu
         # Set the spectral radius
         # source : p104 David Verstraeten : largest eigenvalue = spectral radius
         if connectivity > 0:
-            eigen = sparse.linalg.eigs(W, k=1, which="LM", maxiter=W.shape[0] * 20, tol=0.1, return_eigenvectors=False)
+            # fixed starting vector: ARPACK's default one is random, so W was not reproducible for a given seed
+            eigen = sparse.linalg.eigs(W, k=1, which="LM", maxiter=W.shape[0] * 20, tol=0.1, return_eigenvectors=False,
+                                       v0=np.ones(W.shape[0]))
             sr = max(abs(eigen))
             W *= spectral_radius / sr
 
