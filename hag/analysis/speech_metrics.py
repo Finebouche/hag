@@ -17,7 +17,7 @@ from hag.datasets.preprocessing import scale_data
 from hag.datasets.load_data import load_data as load_dataset
 
 # Evaluating
-from hag.performances.esn_model_evaluation import init_reservoir, init_ip_reservoir, init_local_rule_reservoir, init_ip_local_rule_reservoir
+from hag.performances.esn_model_evaluation import init_reservoir, init_ip_reservoir, init_local_rule_reservoir, init_ip_local_rule_reservoir, run_reservoir, fit_reservoir
 from hag.metrics.richness import spectral_radius, pearson, squared_uncoupled_dynamics_alternative, distance_correlation
 from hag.models.reservoir import init_matrices
 from hag.hag.hag import run_algorithm
@@ -154,14 +154,14 @@ def evaluate_dataset_on_test(study, function_name, pretrain_data, test_data, is_
                                           leaking_rate=hyperparams['leaky_rate'],
                                           activation_function=activation_function
                                           )
-            _ = reservoir.fit(unsupervised_pretrain, warmup=100)
+            fit_reservoir(reservoir, unsupervised_pretrain, warmup=100)
         elif function_name == "anti-oja_fast":
             reservoir = init_local_rule_reservoir(W, Win, bias, local_rule="anti-oja", eta=hyperparams['oja_eta'],
                                                   synapse_normalization=False, bcm_theta=None,
                                                   leaking_rate=hyperparams['leaky_rate'],
                                                   activation_function=activation_function,
                                                   )
-            _ = reservoir.fit(unsupervised_pretrain, warmup=100)
+            fit_reservoir(reservoir, unsupervised_pretrain, warmup=100)
         elif function_name == "ip-anti-oja_fast":
             reservoir = init_ip_local_rule_reservoir(W, Win, bias, local_rule="anti-oja", eta=hyperparams['oja_eta'],
                                                      synapse_normalization=False, bcm_theta=None,
@@ -170,12 +170,12 @@ def evaluate_dataset_on_test(study, function_name, pretrain_data, test_data, is_
                                                      leaking_rate=hyperparams['leaky_rate'],
                                                      activation_function=activation_function,
                                                      )
-            _ = reservoir.fit(unsupervised_pretrain, warmup=100)
+            fit_reservoir(reservoir, unsupervised_pretrain, warmup=100)
         else:
             reservoir = init_reservoir(W, Win, bias, leaky_rate, activation_function)
 
         inputs = np.concatenate(test_data, axis=0) if is_instances_classification else test_data
-        states_history_multi = reservoir.run(inputs)
+        states_history_multi = run_reservoir(reservoir, inputs, reset=False)
 
         sr = spectral_radius(W)
         pearson_correlation, _ = pearson(states_history_multi, num_windows=1, size_window=len(states_history_multi),

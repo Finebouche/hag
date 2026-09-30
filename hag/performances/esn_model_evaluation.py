@@ -4,7 +4,126 @@ from sklearn.metrics import accuracy_score
 from hag.performances.losses import nrmse_multivariate
 from reservoirpy.nodes import Reservoir, IPReservoir, Ridge, RLS, LMS, NVAR, LocalPlasticityReservoir
 from hag.models.intrinsicSynapticPlasticityReservoir import IPLocalPlasticityReservoir
-from hag.performances.batched_reservoir import last_states as batched_last_states
+from hag.models.corrected_local_plasticity_reservoir import CorrectedLocalPlasticityReservoir
+from scipy import sparse
+from reservoirpy import activationsfunc
+from reservoirpy.jax import nodes as jax_nodes
+from hag.models import activation_functions
+from hag.models.jax_local_plasticity_reservoir import (LocalPlasticityReservoir as JaxLocalPlasticityReservoir,
+                                                    IPLocalPlasticityReservoir as JaxIPLocalPlasticityReservoir)
+from hag.performances.batched_reservoir import run_batched
+
+# NumPy activation functions and their reservoirpy.jax name
+JAX_ACTIVATION_NAMES = {
+    activation_functions.tanh: "tanh", activationsfunc.tanh: "tanh", np.tanh: "tanh",
+    activation_functions.sigmoid: "sigmoid", activationsfunc.sigmoid: "sigmoid",
+}
+
+# NumPy reservoirpy reservoir -> (reservoirpy.jax node with the same forward step, fitted attributes to copy)
+# (IPLocalPlasticityReservoir's forward step does not use its IP parameters a, b: same step as its parent)
+JAX_NODES = {
+    Reservoir: (jax_nodes.Reservoir, ()),
+    IPReservoir: (jax_nodes.IPReservoir, ("a", "b")),
+    LocalPlasticityReservoir: (JaxLocalPlasticityReservoir, ()),
+    CorrectedLocalPlasticityReservoir: (JaxLocalPlasticityReservoir, ()),
+    IPLocalPlasticityReservoir: (JaxLocalPlasticityReservoir, ()),
+}
+
+
+def _dense(m):
+    return m.toarray() if sparse.issparse(m) else np.asarray(m, dtype=float)
+
+
+def to_jax_node(reservoir):
+    """
+    reservoirpy.jax node with the same parameters as a NumPy reservoirpy reservoir (plastic reservoirs: their current,
+    already fitted parameters), or None if not supported (reservoirpy then runs it): unknown reservoir or activation
+    (e.g. a lambda), matrices or fitted attributes not initialized yet.
+    """
+    jax_type, fitted = JAX_NODES.get(type(reservoir), (None, ()))
+    activation = JAX_ACTIVATION_NAMES.get(reservoir.activation)
+    if (jax_type is None or activation is None
+            or any(callable(getattr(reservoir, name)) for name in ("W", "Win", "bias"))
+            or any(getattr(reservoir, name, None) is None for name in fitted)):
+        return None
+
+    W, Win = _dense(reservoir.W), _dense(reservoir.Win)
+    node = jax_type(units=W.shape[0], W=W, Win=Win, bias=np.ravel(_dense(reservoir.bias)), lr=reservoir.lr,
+                    activation=activation)
+    node.initialize(np.zeros((1, Win.shape[1])))
+    for name in fitted:
+        setattr(node, name, np.asarray(getattr(reservoir, name)))
+    return node
+
+
+# NumPy reservoir learning a local plasticity rule -> (JAX node learning it, attributes to copy in both directions)
+JAX_LEARNERS = {
+    LocalPlasticityReservoir: (JaxLocalPlasticityReservoir, ()),
+    CorrectedLocalPlasticityReservoir: (JaxLocalPlasticityReservoir, ("fit_updates_state",)),
+    IPLocalPlasticityReservoir: (JaxIPLocalPlasticityReservoir, ("mu", "sigma", "ip_learning_rate", "activation_type",
+                                                                 "a", "b")),
+}
+
+
+def fit_reservoir(reservoir, x, warmup=0):
+    """
+    reservoir.fit(x, warmup=warmup). Local plasticity reservoirs learn in JAX (same weights, much faster) and the
+    learned parameters are written back into the NumPy reservoir; the others are fitted by reservoirpy.
+    """
+    jax_type, ip_attributes = JAX_LEARNERS.get(type(reservoir), (None, ()))
+    activation = JAX_ACTIVATION_NAMES.get(reservoir.activation)
+    if jax_type is None or activation is None or any(callable(getattr(reservoir, name)) for name in ("W", "Win", "bias")):
+        return reservoir.fit(x, warmup=warmup)
+    if not reservoir.initialized:
+        reservoir.initialize(x)
+
+    node = jax_type(W=_dense(reservoir.W), Win=_dense(reservoir.Win), bias=np.ravel(_dense(reservoir.bias)),
+                    lr=reservoir.lr, activation=activation, local_rule=reservoir.increment.__name__.replace("_", "-"),
+                    eta=reservoir.eta, bcm_theta=reservoir.bcm_theta,
+                    synapse_normalization=reservoir.synapse_normalization, epochs=reservoir.epochs,
+                    **{name: getattr(reservoir, name) for name in ip_attributes})
+    node.initialize()
+    node.state = {key: np.asarray(reservoir.state[key], dtype=float) for key in ("internal", "out")}
+    node.fit(x, warmup=warmup)
+
+    reservoir.W = np.asarray(node.W)
+    reservoir.state = {key: np.asarray(value) for key, value in node.state.items()}
+    for name in ip_attributes:
+        setattr(reservoir, name, np.asarray(getattr(node, name)) if name in ("a", "b") else getattr(node, name))
+    return reservoir
+
+
+def run_reservoir(reservoir, x, reset=True):
+    """
+    States of the reservoir on x, like reservoir.run(x): x is one (T, D) series or a list of series, each series
+    starting from a zero state (reset=True) or from the reservoir's current state (reset=False).
+    Run as a reservoirpy.jax node, batched and compiled (see batched_reservoir), for the supported reservoirs.
+    """
+    node = to_jax_node(reservoir)
+    single = isinstance(x, np.ndarray) and x.dtype != object and x.ndim == 2
+    if node is None:
+        if reset and hasattr(reservoir, "state"):
+            reservoir.reset()
+        return reservoir.run(x)
+
+    initial_state = None
+    if not reset and getattr(reservoir, "state", None) is not None:
+        initial_state = {key: reservoir.state[key] for key in node.state}
+    states = run_batched(node, [x] if single else list(x), return_all=True, initial_state=initial_state)
+    return states[0] if single else states
+
+
+class BatchedESN:
+    """Stands for `reservoir >> readout`, with the reservoir states computed by run_reservoir."""
+
+    def __init__(self, reservoir, readout):
+        self.reservoir, self.readout = reservoir, readout
+
+    def run(self, x, **kwargs):
+        # reservoirpy's reset / stateful arguments are accepted and ignored: each call starts from a zero state, as
+        # the reservoir is reset after training
+        return self.readout.run(run_reservoir(self.reservoir, x))
+
 
 def init_readout(ridge_coef=None, rls=False, lms=False):
     """Select the proper readout according to flags."""
@@ -49,9 +168,12 @@ def init_reservoir(W, Win, bias, leaking_rate, activation_function):
     return reservoir
 
 
-def init_local_rule_reservoir(W, Win, bias, local_rule, eta, synapse_normalization, bcm_theta, leaking_rate, activation_function):
+def init_local_rule_reservoir(W, Win, bias, local_rule, eta, synapse_normalization, bcm_theta, leaking_rate, activation_function,
+                              corrected_fit=False):
+    # corrected_fit: fit that runs the reservoir (see CorrectedLocalPlasticityReservoir), instead of reservoirpy's
     bias = np.asarray(bias).ravel()  # (units,)
-    local_rule_reservoir = LocalPlasticityReservoir(
+    reservoir_type = CorrectedLocalPlasticityReservoir if corrected_fit else LocalPlasticityReservoir
+    local_rule_reservoir = reservoir_type(
         units=bias.size,
         local_rule=local_rule,
         eta=eta,
@@ -93,14 +215,8 @@ def train_model_for_prediction(reservoir, readout, X_train, Y_train, n_jobs, war
         print("X_train.shape:", X_train.shape)
         print("Y_train.shape:", Y_train.shape)
 
-    # Reset only if the reservoir has already been initialized.
-    # Plain Reservoir objects do not have `.state` before first run.
-    if hasattr(reservoir, "state"):
-        reservoir.reset()
-
-    # Run reservoir to obtain states.
-    # This initializes plain Reservoirs, and uses already-fitted plastic Reservoirs.
-    states = reservoir.run(X_train)
+    # Run reservoir from a zero state to obtain states (already-fitted plastic reservoirs keep their parameters)
+    states = run_reservoir(reservoir, X_train)
 
     # Train only the readout, not the reservoir.
     states_train = states[warmup:]
@@ -116,7 +232,7 @@ def train_model_for_prediction(reservoir, readout, X_train, Y_train, n_jobs, war
     if hasattr(reservoir, "state"):
         reservoir.reset()
 
-    return reservoir >> readout
+    return BatchedESN(reservoir, readout)
 
 def train_model_for_classification(reservoir, readout, X_train, Y_train, mode, warmup=2):
     if mode == "sequence-to-vector":
@@ -126,10 +242,10 @@ def train_model_for_classification(reservoir, readout, X_train, Y_train, mode, w
     elif mode == "sequence-to-sequence":
         Y_train_seq = [np.array([Y_train[i]] * len(x)) for i, x in enumerate(X_train)]
 
-        all_states = reservoir.run(X_train)
+        all_states = run_reservoir(reservoir, X_train)
         readout.fit(all_states, Y_train_seq, warmup=warmup)
 
-        return reservoir >> readout
+        return BatchedESN(reservoir, readout)
     else:
         raise ValueError(f"Invalid mode: {mode}")
 
@@ -148,9 +264,10 @@ def predict_model_for_classification(reservoir, readout, X_test, esn=None, mode=
 
 
 def _last_states_per_sequence(reservoir, sequences):
-    # Plain Reservoir (not its plastic subclasses): batched run, same states much faster
-    if type(reservoir) is Reservoir:
-        return batched_last_states(reservoir.W, reservoir.Win, reservoir.bias, reservoir.lr, reservoir.activation, sequences)
+    # Supported reservoirs: batched reservoirpy.jax run from a zero state, same states much faster
+    node = to_jax_node(reservoir)
+    if node is not None:
+        return run_batched(node, list(sequences))
 
     last_states = []
     for sequence in sequences:

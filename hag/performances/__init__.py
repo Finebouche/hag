@@ -7,6 +7,8 @@ from .esn_model_evaluation import (
     init_reservoir,
     init_local_rule_reservoir,
     init_ip_local_rule_reservoir,
+    fit_reservoir,
+    run_reservoir,
     train_model_for_prediction,
     train_model_for_classification,
     predict_model_for_classification,
@@ -39,6 +41,8 @@ __all__ = [
     "init_ip_local_rule_reservoir",
 
     # model training / inference / evaluation
+    "fit_reservoir",
+    "run_reservoir",
     "train_model_for_prediction",
     "train_model_for_classification",
     "predict_model_for_classification",

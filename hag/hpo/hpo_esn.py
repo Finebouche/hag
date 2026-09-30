@@ -29,7 +29,7 @@ from hag.hag.hag import run_algorithm
 # Evaluating
 from hag.performances.esn_model_evaluation import train_model_for_classification, predict_model_for_classification, compute_score
 from hag.performances.esn_model_evaluation import train_model_for_prediction, init_reservoir, init_ip_reservoir, \
-    init_local_rule_reservoir, init_ip_local_rule_reservoir, init_readout
+    init_local_rule_reservoir, init_ip_local_rule_reservoir, init_readout, fit_reservoir
 
 # the activation function chosen for the rest of the experiment
 # the function itself (not a lambda), so that the batched JAX reservoir run recognises it
@@ -317,20 +317,20 @@ if __name__ == '__main__':
                         unsupervised_pretrain = pretrain_data.astype(float)
                     if function_name == "ip_correct":
                         reservoir = init_ip_reservoir(W, Win, bias, mu=mu, sigma=sigma, learning_rate=learning_rate, leaking_rate=leaky_rate)
-                        _ = reservoir.fit(unsupervised_pretrain, warmup=100)
+                        fit_reservoir(reservoir, unsupervised_pretrain, warmup=100)
                     elif function_name == "anti-oja_fast":
                         reservoir = init_local_rule_reservoir(W, Win, bias, local_rule="anti-oja", eta=oja_eta,
                                                               synapse_normalization=False, bcm_theta=None,
                                                               leaking_rate=leaky_rate, activation_function=activation_function,
                                                               )
-                        _ = reservoir.fit(unsupervised_pretrain, warmup=100)
+                        fit_reservoir(reservoir, unsupervised_pretrain, warmup=100)
                     elif function_name == "ip-anti-oja_fast":
                         reservoir = init_ip_local_rule_reservoir(W, Win, bias, local_rule="anti-oja", eta=oja_eta,
                                                                   synapse_normalization=False, bcm_theta=None,
                                                                   mu=mu, sigma=sigma, learning_rate=learning_rate,
                                                                   leaking_rate=leaky_rate
                                                                   )
-                        _ = reservoir.fit(unsupervised_pretrain, warmup=100)
+                        fit_reservoir(reservoir, unsupervised_pretrain, warmup=100)
                     else:
                         reservoir = init_reservoir(W, Win, bias, leaky_rate, activation_function)
                     readout = init_readout(ridge_coef=RIDGE_COEF)
