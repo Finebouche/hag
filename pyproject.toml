@@ -25,7 +25,8 @@ dependencies = [
   "numpy",
   "optuna",
   "pandas",
-  "reservoirpy",
+  # branch v0.4.3-dev (LocalPlasticityReservoir.fit fix, reservoirpy PR #250) until reservoirpy 0.4.3 is released
+  "reservoirpy @ git+https://github.com/reservoirpy/reservoirpy.git@5d3cb3eb3900714edd39fa28057198b49c208807",
   "scikit-learn",
   "scipy",
   "seaborn",

@@ -4,7 +4,6 @@ from sklearn.metrics import accuracy_score
 from hag.performances.losses import nrmse_multivariate
 from reservoirpy.nodes import Reservoir, IPReservoir, Ridge, RLS, LMS, NVAR, LocalPlasticityReservoir
 from hag.models.intrinsicSynapticPlasticityReservoir import IPLocalPlasticityReservoir
-from hag.models.corrected_local_plasticity_reservoir import CorrectedLocalPlasticityReservoir
 from scipy import sparse
 from reservoirpy import activationsfunc
 from reservoirpy.jax import nodes as jax_nodes
@@ -25,7 +24,6 @@ JAX_NODES = {
     Reservoir: (jax_nodes.Reservoir, ()),
     IPReservoir: (jax_nodes.IPReservoir, ("a", "b")),
     LocalPlasticityReservoir: (JaxLocalPlasticityReservoir, ()),
-    CorrectedLocalPlasticityReservoir: (JaxLocalPlasticityReservoir, ()),
     IPLocalPlasticityReservoir: (JaxLocalPlasticityReservoir, ()),
 }
 
@@ -59,7 +57,6 @@ def to_jax_node(reservoir):
 # NumPy reservoir learning a local plasticity rule -> (JAX node learning it, attributes to copy in both directions)
 JAX_LEARNERS = {
     LocalPlasticityReservoir: (JaxLocalPlasticityReservoir, ()),
-    CorrectedLocalPlasticityReservoir: (JaxLocalPlasticityReservoir, ("fit_updates_state",)),
     IPLocalPlasticityReservoir: (JaxIPLocalPlasticityReservoir, ("mu", "sigma", "ip_learning_rate", "activation_type",
                                                                  "a", "b")),
 }
@@ -168,12 +165,9 @@ def init_reservoir(W, Win, bias, leaking_rate, activation_function):
     return reservoir
 
 
-def init_local_rule_reservoir(W, Win, bias, local_rule, eta, synapse_normalization, bcm_theta, leaking_rate, activation_function,
-                              corrected_fit=False):
-    # corrected_fit: fit that runs the reservoir (see CorrectedLocalPlasticityReservoir), instead of reservoirpy's
+def init_local_rule_reservoir(W, Win, bias, local_rule, eta, synapse_normalization, bcm_theta, leaking_rate, activation_function):
     bias = np.asarray(bias).ravel()  # (units,)
-    reservoir_type = CorrectedLocalPlasticityReservoir if corrected_fit else LocalPlasticityReservoir
-    local_rule_reservoir = reservoir_type(
+    local_rule_reservoir = LocalPlasticityReservoir(
         units=bias.size,
         local_rule=local_rule,
         eta=eta,
