@@ -42,7 +42,7 @@ if __name__ == '__main__':
     step_ahead=5
     # can be  "JapaneseVowels", "CatsDogs", "FSDD", "SpokenArabicDigits", "SPEECHCOMMANDS", "MackeyGlass", "Sunspot_daily", "Lorenz",
     # "Canary" (categorical forecasting: predict the next phrase label, same pipeline as classification)
-    for dataset_name in ["Canary"]:
+    for dataset_name in ["FSDD"]:
         # score for prediction
         start_step, end_step = 500, 1500
         SLICE_RANGE = slice(start_step, end_step)
@@ -305,7 +305,7 @@ if __name__ == '__main__':
                                                      min_increment=100, max_increment=100, use_full_instance=False,
                                                      max_partners=np.inf, method="random", n_jobs=1)
                     elif function_name in ["random_ee", "random_ei", "diag_ee", "diag_ei", "ip_correct", "anti-oja_fast", "ip-anti-oja_fast"]:
-                        eigen = sparse.linalg.eigs(W, k=1, which="LM", maxiter=W.shape[0] * 20, tol=0.1, return_eigenvectors=False)
+                        eigen = sparse.linalg.eigs(W, k=1, which="LM", maxiter=W.shape[0] * 20, tol=0.1, return_eigenvectors=False, v0=np.ones(W.shape[0]))
                         W *= sr / max(abs(eigen))
                     else:
                         raise ValueError(f"Invalid function: {function_name}")

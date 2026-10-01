@@ -22,6 +22,4 @@ dist/
 /hag/datasets/SpokenArabicDigits
 /hag/datasets/fsdd/
 
-# GA logs
-/outputs/ga/
 /outputs/hag_matrices

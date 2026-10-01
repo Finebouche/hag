@@ -22,15 +22,18 @@ def available_neurons(neuron, connectivity_matrix, neurons_pool, max_partners=np
 
 
 def determine_connection_pairs(neurons_needing_new_connection, connectivity_matrix, states=None, method="random",
-                               is_inter_matrix=False, max_partners=np.inf, random_seed=None, mark_and_skip=False, n_jobs=1):
+                               is_inter_matrix=False, max_partners=np.inf, random_seed=None, mark_and_skip=False, n_jobs=1,
+                               rng=None):
     """
     Determine pairs of neurons for establishing new connections based on specified criteria.
+    rng: np.random.RandomState used for the random choices (default: numpy's global RNG).
 
     Returns:
     - A list of tuples, where each tuple represents a new connection (source_neuron, target_neuron).
     """
     if random_seed is not None:
         np.random.seed(random_seed)
+    rng = np.random if rng is None else rng
     if states is None and method in ("mi", "pearson"):
         raise ValueError("States must be provided if mutual information or pearson based pruning is used.")
 
@@ -73,7 +76,7 @@ def determine_connection_pairs(neurons_needing_new_connection, connectivity_matr
                 f"available_count={len(available_for_neuron)}, "
                 f"neurons_needing_count={len(neurons_needing_new_connection)}"
             )
-        incoming_neuron = np.random.choice(neuron_to_choose_from)
+        incoming_neuron = rng.choice(neuron_to_choose_from)
         return neuron, incoming_neuron
 
     new_connections = Parallel(n_jobs=n_jobs)(
@@ -121,7 +124,7 @@ def determine_connection_pairs(neurons_needing_new_connection, connectivity_matr
 
 
 def determine_pruning_pairs(neurons_for_pruning, connectivity_matrix, states=None, method="random", random_seed=None,
-                            n_jobs=1):
+                            n_jobs=1, rng=None):
     """
     Identifies pairs of neurons for pruning from a connectivity matrix.
 
@@ -131,6 +134,7 @@ def determine_pruning_pairs(neurons_for_pruning, connectivity_matrix, states=Non
 
     if random_seed is not None:
         np.random.seed(random_seed)
+    rng = np.random if rng is None else rng
     if states is None and (method == "mi" or method == "pearson"):
         raise ValueError("States must be provided if mutual information or pearson based pruning is used.")
 
@@ -153,7 +157,7 @@ def determine_pruning_pairs(neurons_for_pruning, connectivity_matrix, states=Non
         # if neuron_to_choose_from.size == 0:
         #     raise ValueError("No neuron_to_choose_from found for neuron in pruning, this should not happen.")
 
-        chosen_connection = np.random.choice(connections)
+        chosen_connection = rng.choice(connections)
         new_pruning_pairs.append((neuron, chosen_connection))
 
     return new_pruning_pairs

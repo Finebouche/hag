@@ -138,7 +138,7 @@ def evaluate_dataset_on_test(study, function_name, pretrain_data, test_data, is_
                                          intrinsic_saturation=hyperparams['intrinsic_saturation'], intrinsic_coef=hyperparams['intrinsic_coef'],
                                          n_jobs = nb_jobs)
         elif function_name in ["random_ee", "random_ei", "ip_correct", "anti-oja_fast", "ip-anti-oja_fast"]:
-            eigen = sparse.linalg.eigs(W, k=1, which="LM", maxiter=W.shape[0] * 20, tol=0.1, return_eigenvectors=False)
+            eigen = sparse.linalg.eigs(W, k=1, which="LM", maxiter=W.shape[0] * 20, tol=0.1, return_eigenvectors=False, v0=np.ones(W.shape[0]))
             W *= hyperparams['spectral_radius'] / max(abs(eigen))
         else:
             raise ValueError(f"Invalid function: {function_name}")

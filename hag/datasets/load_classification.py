@@ -10,7 +10,6 @@ import glob
 from aeon.datasets import load_classification
 
 from sklearn.preprocessing import LabelEncoder, OneHotEncoder
-from sklearn.model_selection import GroupShuffleSplit
 
 from torchaudio.datasets import SPEECHCOMMANDS
 
@@ -166,13 +165,21 @@ def download_japanese_vowels_if_needed() -> Path:
     return data_dir
 
 
-def load_FSDD_dataset(data_dir: Path, test_split=1 / 3, seed=None, visualize=False):
+# FSDD test speakers (2 of the 6 speakers, never seen in training nor in the hyperparameter optimization): the split
+# of seed=1111 (GroupShuffleSplit, test_size=1/3), fixed on 2025-08-29 (8bf3ebc) and used for the results of August
+# 2025. The seed was lost on 2026-02-26 (6d2a057): the split by speaker was then drawn at random at each loading,
+# which changed the test accuracy by ~20 points.
+FSDD_TEST_SPEAKERS = ("nicolas", "yweweler")
+
+
+def load_FSDD_dataset(data_dir: Path, test_speakers=FSDD_TEST_SPEAKERS, visualize=False):
     data_dir = _require_path(
         Path(data_dir),
         f"FSDD recordings folder not found: {data_dir}"
     )
 
-    audio_files = [str(data_dir / file) for file in data_dir.iterdir() if file.suffix == ".wav"]
+    # sorted: iterdir's order depends on the file system
+    audio_files = sorted(str(data_dir / file) for file in data_dir.iterdir() if file.suffix == ".wav")
     print("Number of audio files:", len(audio_files))
 
     audio_files_dataset = tf.data.Dataset.from_tensor_slices(audio_files)
@@ -199,7 +206,7 @@ def load_FSDD_dataset(data_dir: Path, test_split=1 / 3, seed=None, visualize=Fal
 
     X = np.array(features, dtype=object)
     Y = np.array(labels)
-    groups = np.array(speakers)
+    groups = np.array([s.decode() if isinstance(s, bytes) else str(s) for s in speakers])
 
     le = LabelEncoder()
     Y_encoded = le.fit_transform(Y)
@@ -207,8 +214,12 @@ def load_FSDD_dataset(data_dir: Path, test_split=1 / 3, seed=None, visualize=Fal
     ohe = OneHotEncoder(sparse_output=False)
     Y_one_hot = ohe.fit_transform(Y_encoded.reshape(-1, 1))
 
-    gss_test = GroupShuffleSplit(n_splits=1, test_size=test_split, random_state=seed)
-    train_val_idx, test_idx = next(gss_test.split(X, Y_one_hot, groups))
+    unknown = set(test_speakers) - set(groups)
+    if unknown:
+        raise ValueError(f"Unknown FSDD test speakers {sorted(unknown)} (speakers: {sorted(set(groups))})")
+    is_test = np.isin(groups, test_speakers)
+    train_val_idx, test_idx = np.where(~is_test)[0], np.where(is_test)[0]
+    print(f"FSDD test speakers: {sorted(test_speakers)}, train speakers: {sorted(map(str, set(groups[train_val_idx])))}")
     X_train, X_test = X[train_val_idx], X[test_idx]
     Y_train, Y_test = Y_one_hot[train_val_idx], Y_one_hot[test_idx]
     train_speakers, test_speakers = groups[train_val_idx], groups[test_idx]
@@ -373,7 +384,6 @@ def load_dataset_classification(name, visualize=True, seed=None):
 
         sampling_rate, X_train, X_test, Y_train, Y_test, groups = load_FSDD_dataset(
             data_dir=fsdd_recordings,
-            seed=seed,
             visualize=visualize,
         )
 

@@ -3,8 +3,10 @@ import numpy as np
 from sklearn.metrics import accuracy_score
 from hag.performances.losses import nrmse_multivariate
 from reservoirpy.nodes import Reservoir, IPReservoir, Ridge, RLS, LMS, NVAR, LocalPlasticityReservoir
-from hag.models.intrinsicSynapticPlasticityReservoir import IPLocalPlasticityReservoir
+from hag.models.IPLocalPlasticityReservoir import IPLocalPlasticityReservoir
+from hag.models.hag_reservoir import HAGReservoir
 from scipy import sparse
+from reservoirpy.type import is_multiseries
 from reservoirpy import activationsfunc
 from reservoirpy.jax import nodes as jax_nodes
 from hag.models import activation_functions
@@ -18,39 +20,51 @@ JAX_ACTIVATION_NAMES = {
     activation_functions.sigmoid: "sigmoid", activationsfunc.sigmoid: "sigmoid",
 }
 
-# NumPy reservoirpy reservoir -> (reservoirpy.jax node with the same forward step, fitted attributes to copy)
-# (IPLocalPlasticityReservoir's forward step does not use its IP parameters a, b: same step as its parent)
-JAX_NODES = {
-    Reservoir: (jax_nodes.Reservoir, ()),
-    IPReservoir: (jax_nodes.IPReservoir, ("a", "b")),
-    LocalPlasticityReservoir: (JaxLocalPlasticityReservoir, ()),
-    IPLocalPlasticityReservoir: (JaxLocalPlasticityReservoir, ()),
-}
-
 
 def _dense(m):
     return m.toarray() if sparse.issparse(m) else np.asarray(m, dtype=float)
 
 
+def classic_parameters(reservoir):
+    """
+    (W, Win, bias, lr) of the classic reservoir, out <- (1 - lr) * out + lr * f(W @ out + Win @ x + bias), with the
+    same states as `reservoir`, or None if there is none. A run never changes the parameters (plastic reservoirs learn
+    in fit only), so that with lr = 1 (all HAG's optimizations):
+      - Reservoir, HAGReservoir: their own equation,
+      - LocalPlasticityReservoir: f(W @ out + Win @ x + bias), the same,
+      - IPReservoir, IPLocalPlasticityReservoir: f(a * (W @ out + Win @ x + bias) + b), i.e. a classic reservoir with
+        a * W, a * Win, a * bias + b (rows scaled by the gains a).
+    With lr < 1, the plastic reservoirs leak on the pre-activation and have no classic equivalent.
+    """
+    if any(callable(getattr(reservoir, name, None)) for name in ("W", "Win", "bias")):
+        return None  # matrices not initialized yet
+    W, Win = _dense(reservoir.W), _dense(reservoir.Win)
+    bias = np.broadcast_to(np.ravel(_dense(reservoir.bias)), (W.shape[0],)).copy()
+    if isinstance(reservoir, (Reservoir, HAGReservoir)):
+        return W, Win, bias, reservoir.lr
+    if not isinstance(reservoir, (LocalPlasticityReservoir, IPReservoir)) or not np.all(np.asarray(reservoir.lr) == 1):
+        return None
+    if isinstance(reservoir, (IPReservoir, IPLocalPlasticityReservoir)):
+        if getattr(reservoir, "a", None) is None or getattr(reservoir, "b", None) is None:
+            return None
+        a, b = np.ravel(reservoir.a), np.ravel(reservoir.b)
+        return a[:, None] * W, a[:, None] * Win, a * bias + b, 1.0
+    return W, Win, bias, 1.0
+
+
 def to_jax_node(reservoir):
     """
-    reservoirpy.jax node with the same parameters as a NumPy reservoirpy reservoir (plastic reservoirs: their current,
-    already fitted parameters), or None if not supported (reservoirpy then runs it): unknown reservoir or activation
-    (e.g. a lambda), matrices or fitted attributes not initialized yet.
+    reservoirpy.jax Reservoir with the same states as `reservoir` (see classic_parameters), or None if not supported
+    (reservoirpy then runs the reservoir itself): unknown reservoir, activation (e.g. a lambda) or leak rate, or
+    matrices not initialized yet.
     """
-    jax_type, fitted = JAX_NODES.get(type(reservoir), (None, ()))
-    activation = JAX_ACTIVATION_NAMES.get(reservoir.activation)
-    if (jax_type is None or activation is None
-            or any(callable(getattr(reservoir, name)) for name in ("W", "Win", "bias"))
-            or any(getattr(reservoir, name, None) is None for name in fitted)):
+    activation = JAX_ACTIVATION_NAMES.get(getattr(reservoir, "activation", None))
+    parameters = classic_parameters(reservoir)
+    if activation is None or parameters is None:
         return None
-
-    W, Win = _dense(reservoir.W), _dense(reservoir.Win)
-    node = jax_type(units=W.shape[0], W=W, Win=Win, bias=np.ravel(_dense(reservoir.bias)), lr=reservoir.lr,
-                    activation=activation)
+    W, Win, bias, lr = parameters
+    node = jax_nodes.Reservoir(units=W.shape[0], W=W, Win=Win, bias=bias, lr=lr, activation=activation)
     node.initialize(np.zeros((1, Win.shape[1])))
-    for name in fitted:
-        setattr(node, name, np.asarray(getattr(reservoir, name)))
     return node
 
 
@@ -62,14 +76,33 @@ JAX_LEARNERS = {
 }
 
 
-def fit_reservoir(reservoir, x, warmup=0):
+# States seen by the local rules, and warmup, of the unsupervised learning (fit_reservoir): "0.3" as with reservoirpy 0.3,
+# i.e. HAG's results of 2025 - March 2026 (post-synaptic state = output, warmup steps run before learning, see
+# hag.models.jax_local_plasticity_reservoir), "0.4" as reservoirpy >= 0.4.3
+LOCAL_RULE_STATES = "0.3"
+
+
+def fit_reservoir(reservoir, x, warmup=0, rule_states=LOCAL_RULE_STATES):
     """
-    reservoir.fit(x, warmup=warmup). Local plasticity reservoirs learn in JAX (same weights, much faster) and the
-    learned parameters are written back into the NumPy reservoir; the others are fitted by reservoirpy.
+    reservoir.fit(x, warmup=warmup), as with reservoirpy 0.3 (rule_states="0.3") or 0.4 ("0.4"). Local plasticity
+    reservoirs learn in JAX (same weights, much faster) and the learned parameters are written back into the NumPy
+    reservoir; the others are fitted by reservoirpy (IP: same learning in 0.3 and 0.4, apart from the warmup).
     """
     jax_type, ip_attributes = JAX_LEARNERS.get(type(reservoir), (None, ()))
     activation = JAX_ACTIVATION_NAMES.get(reservoir.activation)
     if jax_type is None or activation is None or any(callable(getattr(reservoir, name)) for name in ("W", "Win", "bias")):
+        if isinstance(reservoir, IPLocalPlasticityReservoir):
+            reservoir.rule_states = rule_states  # its own fit handles both
+            return reservoir.fit(x, warmup=warmup)
+        if isinstance(reservoir, LocalPlasticityReservoir) and rule_states == "0.3":
+            raise ValueError("rule_states='0.3' needs the JAX learner: tanh or sigmoid activation, initialized matrices.")
+        if rule_states == "0.3" and warmup:
+            # reservoirpy 0.3: the warmup steps are run (state updated, no learning) before learning
+            sequences = list(x) if is_multiseries(x) else [x]
+            for seq in sequences:
+                reservoir.run(seq[:warmup])
+            x = [seq[warmup:] for seq in sequences] if is_multiseries(x) else x[warmup:]
+            warmup = 0
         return reservoir.fit(x, warmup=warmup)
     if not reservoir.initialized:
         reservoir.initialize(x)
@@ -78,7 +111,7 @@ def fit_reservoir(reservoir, x, warmup=0):
                     lr=reservoir.lr, activation=activation, local_rule=reservoir.increment.__name__.replace("_", "-"),
                     eta=reservoir.eta, bcm_theta=reservoir.bcm_theta,
                     synapse_normalization=reservoir.synapse_normalization, epochs=reservoir.epochs,
-                    **{name: getattr(reservoir, name) for name in ip_attributes})
+                    rule_states=rule_states, **{name: getattr(reservoir, name) for name in ip_attributes})
     node.initialize()
     node.state = {key: np.asarray(reservoir.state[key], dtype=float) for key in ("internal", "out")}
     node.fit(x, warmup=warmup)

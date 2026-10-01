@@ -1,4 +1,10 @@
 Dataset,Function,Average Score,Standard Deviation,Date
+Canary,random_ee,81.19349 %,± 0.27425 %,2026-10-01
+Canary,random_ei,80.29837 %,± 0.32183 %,2026-10-01
+Canary,ip_correct,80.55154 %,± 0.35424 %,2026-10-01
+Canary,ip-anti-oja_fast,80.47468 %,± 0.20573 %,2026-10-01
+Canary,mean_hag,82.61302 %,± 0.20835 %,2026-10-01
+Canary,var_hag,82.64014 %,± 0.14239 %,2026-10-01
 JapaneseVowels,random_ee,97.2973 %,± 0.35753 %,2025-04-09
 JapaneseVowels,random_ei,97.5 %,± 0.67229 %,2025-04-09
 JapaneseVowels,diag_ee,96.58784 %,± 0.57233 %,2025-05-02

@@ -66,3 +66,35 @@ def retrieve_best_model(
         print("Loading study from URL:", url)
     study = optuna.load_study(study_name=study_name, storage=url)
     return study
+
+
+def hag_reservoir_from_hyperparameters(params, function, input_dim, seed=None, **kwargs):
+    """
+    hag.models.hag_reservoir.HAGReservoir of HAG's hyperparameter optimization (mean_hag or var_hag, parameter names of
+    hag/hpo/hpo_esn.py, e.g. the best trial of a study): network_size rounded up to a multiple of input_dim, as in
+    HAG's evaluation. If W, Win and bias are not given, they are HAG's init_matrices with this seed (int), as in its
+    evaluation. kwargs: other HAGReservoir arguments (W, Win, bias, rng, ...).
+    """
+    import math
+    from scipy import stats
+    from hag.models.hag_reservoir import HAGReservoir
+    from hag.models.reservoir import init_matrices
+
+    K = math.ceil(params['network_size'] / input_dim)
+    if not {"W", "Win", "bias"} <= kwargs.keys():
+        Win, W, bias = init_matrices(input_dim * K, params['input_connectivity'], params['connectivity'], K,
+                                     w_distribution=stats.uniform(loc=-1, scale=2), seed=seed)
+        kwargs = {"W": W, "Win": Win * params['input_scaling'], "bias": bias * params['bias_scaling'], **kwargs}
+    if function == "mean_hag":
+        homeostasis, target, spread, extra = "mean", params['target_rate'], params['rate_spread'], {}
+    elif function == "var_hag":
+        homeostasis = "variance"
+        target = params.get('variance_target', params.get('min_variance'))
+        spread = params['variance_spread']
+        extra = dict(intrinsic_saturation=params['intrinsic_saturation'], intrinsic_coef=params['intrinsic_coef'])
+    else:
+        raise ValueError(f"Not mean_hag or var_hag: {function!r}")
+    return HAGReservoir(units=input_dim * K, homeostasis=homeostasis, target=target, spread=spread,
+                        weight_increment=params['weight_increment'], min_window=params['min_increment'],
+                        max_window=params.get('max_increment'), use_full_instance=params.get('use_full_instance', False),
+                        lr=params['leaky_rate'], input_dim=input_dim, seed=seed, **extra, **kwargs)

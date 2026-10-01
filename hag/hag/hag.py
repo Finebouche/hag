@@ -154,8 +154,8 @@ def run_algorithm(W, Win, bias, leaky_rate, activation_function, input_data, wei
     return W, [states_history, delta_z_history, W_history]
 
 
-def hag_step(W_e, states, delta_z, weight_increment, W_inhibitory=np.array([]), max_partners=np.inf, method="random",
-             n_jobs=1):
+def hag_step(W_e, states, delta_z, weight_increment, W_inhibitory=np.array([]), max_partners=np.inf, method="random", n_jobs=1, rng=None):
+    # rng: np.random.RandomState of the random choices of the selection (default: numpy's global RNG)
     states = np.array(states).T
     nb_neurons = W_e.shape[0]
     neurons = np.arange(nb_neurons)
@@ -166,14 +166,13 @@ def hag_step(W_e, states, delta_z, weight_increment, W_inhibitory=np.array([]), 
     # Neurons too active (delta_z >= 1): their activity must go down
     need_pruning = neurons[delta_z >= 1]
     # Less excitatory input -> lower activity: prune one incoming excitatory connexion
-    new_prune_pairs = determine_pruning_pairs(need_pruning, W_e, states, method, n_jobs=n_jobs)
+    new_prune_pairs = determine_pruning_pairs(need_pruning, W_e, states, method, n_jobs=n_jobs, rng=rng)
     for connexion in new_prune_pairs:
         W_e = change_connexion(W_e, connexion[0], connexion[1], -weight_increment)
         total_prun += 1
     # More inhibitory input -> lower activity: add one incoming inhibitory connexion
     if min(W_inhibitory.shape) > 0:
-        new_connexion_pairs = determine_connection_pairs(need_pruning, W_inhibitory, states, method,
-                                                         mark_and_skip=False, is_inter_matrix=True)
+        new_connexion_pairs = determine_connection_pairs(need_pruning, W_inhibitory, states, method, mark_and_skip=False, is_inter_matrix=True, rng=rng)
         for connexion in new_connexion_pairs:
             W_inhibitory = change_connexion(W_inhibitory, connexion[0], connexion[1], weight_increment)
             total_add += 1
@@ -181,14 +180,13 @@ def hag_step(W_e, states, delta_z, weight_increment, W_inhibitory=np.array([]), 
     # Neurons not active enough (delta_z <= -1): their activity must go up
     need_increase = neurons[delta_z <= -1]
     # More excitatory input -> higher activity: add one incoming excitatory connexion
-    new_connexion_pairs = determine_connection_pairs(need_increase, W_e, states, method, max_partners=max_partners,
-                                                     mark_and_skip=False, n_jobs=n_jobs)
+    new_connexion_pairs = determine_connection_pairs(need_increase, W_e, states, method, max_partners=max_partners, mark_and_skip=False, n_jobs=n_jobs, rng=rng)
     for connexion in new_connexion_pairs:
         W_e = change_connexion(W_e, connexion[0], connexion[1], weight_increment)
         total_add += 1
     # Less inhibitory input -> higher activity: prune one incoming inhibitory connexion
     if min(W_inhibitory.shape) > 0:
-        new_prune_pairs = determine_pruning_pairs(need_increase, W_inhibitory, states, method)
+        new_prune_pairs = determine_pruning_pairs(need_increase, W_inhibitory, states, method, rng=rng)
         for connexion in new_prune_pairs:
             W_inhibitory = change_connexion(W_inhibitory, connexion[0], connexion[1], -weight_increment)
             total_prun += 1

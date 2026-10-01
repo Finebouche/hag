@@ -211,8 +211,10 @@ from hag.metrics.richness import spectral_radius, pearson, squared_uncoupled_dyn
 
 nb_jobs = 1
 def evaluate_dataset_on_test(study, dataset_name, function_name, pretrain_data, train_data, test_data, Y_train, Y_test, is_instances_classification, nb_trials = 8, record_metrics=False, random_projection_experiment=False,
-                             seed=None):
+                             seed=None, use_hag_node=False):
     # seed: seeds numpy's global RNG, so that two calls draw the same matrices and the same HAG random choices
+    # use_hag_node: mean_hag / var_hag trained and run by the reservoirpy node hag.models.hag_reservoir.HAGReservoir
+    # instead of run_algorithm (same matrices and same random draws: numpy's global RNG)
     if seed is not None:
         random.seed(seed)
     # Collect all hyperparameters in a dictionary
@@ -267,7 +269,14 @@ def evaluate_dataset_on_test(study, dataset_name, function_name, pretrain_data, 
         bias *= hyperparams['bias_scaling']
         Win *= hyperparams['input_scaling']
 
-        if function_name == "mean_hag":
+        hag_node = None
+        if use_hag_node and function_name in ("mean_hag", "var_hag"):
+            hag_node = hag_reservoir_from_hyperparameters(hyperparams, function_name, input_dim=common_size, W=W, Win=Win,
+                                                          bias=bias, rng=random.mtrand._rand)
+            hag_node.fit(list(pretrain_data) if is_instances_classification else pretrain_data)
+            hag_node.reset()
+            W = hag_node.W
+        elif function_name == "mean_hag":
             W, (_, _, _) = run_algorithm(W, Win, bias, hyperparams['leaky_rate'], activation_function, pretrain_data,
                                      hyperparams['weight_increment'], hyperparams['target_rate'], hyperparams['rate_spread'], "mean_hag",
                                      multiple_instances=is_instances_classification,
@@ -294,7 +303,7 @@ def evaluate_dataset_on_test(study, dataset_name, function_name, pretrain_data, 
                                          min_increment=100, max_increment=100, use_full_instance=False,
                                          max_partners=np.inf, method="random", n_jobs=nb_jobs)
         elif function_name in ["random_ee", "random_ei", "diag_ee", "diag_ei", "ip_correct", "anti-oja_fast", "ip-anti-oja_fast"]:
-            eigen = sparse.linalg.eigs(W, k=1, which="LM", maxiter=W.shape[0] * 20, tol=0.1, return_eigenvectors=False)
+            eigen = sparse.linalg.eigs(W, k=1, which="LM", maxiter=W.shape[0] * 20, tol=0.1, return_eigenvectors=False, v0=np.ones(W.shape[0]))
             W *= hyperparams['spectral_radius'] / max(abs(eigen))
         else:
             raise ValueError(f"Invalid function: {function_name}")
@@ -320,6 +329,8 @@ def evaluate_dataset_on_test(study, dataset_name, function_name, pretrain_data, 
                                                       mu=hyperparams['mu'], sigma=hyperparams['sigma'], learning_rate=hyperparams['learning_rate'],
                                                       leaking_rate=hyperparams['leaky_rate'])
             fit_reservoir(reservoir, unsupervised_pretrain, warmup=100)
+        elif hag_node is not None:
+            reservoir = hag_node
         else:
             reservoir = init_reservoir(W, Win, bias, leaky_rate, activation_function)
         readout = init_readout(ridge_coef=RIDGE_COEF)
@@ -376,6 +387,7 @@ from hag.models.rnn import (
 from hag.hpo.utility import retrieve_best_model
 from hag.hag.hag import run_algorithm
 from hag.models.reservoir import init_matrices
+from hag.hpo.utility import hag_reservoir_from_hyperparameters
 import math
 from scipy import sparse, stats
 from numpy import random
