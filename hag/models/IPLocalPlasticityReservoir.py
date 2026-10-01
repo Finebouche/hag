@@ -27,10 +27,12 @@ class IPLocalPlasticityReservoir(LocalPlasticityReservoir):
 
     .. math::
 
-        r[t+1] &= (1-lr) r[t] + lr (W r[t] + W_{in} u[t+1] + bias) \\\\
+        r[t+1] &= (1-lr) r[t] + lr (W x[t] + W_{in} u[t+1] + bias) \\\\
         x[t+1] &= f(a \\cdot r[t+1] + b)
 
-    where ``a`` and ``b`` are per-neuron IP parameters updated each timestep.
+    where ``a`` and ``b`` are per-neuron IP parameters updated each timestep (same equation as reservoirpy's
+    IPReservoir, and as this reservoir in 2025). Fix: from 2026-04-06 to 2026-10 the forward step returned f(r[t+1])
+    without a, b, so that the IP parameters had no effect at all (IP + local rule was the local rule alone).
 
     All local synaptic rule parameters (``local_rule``, ``eta``,
     ``synapse_normalization``, ``bcm_theta``, …) are inherited unchanged.
@@ -43,6 +45,13 @@ class IPLocalPlasticityReservoir(LocalPlasticityReservoir):
         Target mean (tanh/Gaussian) or 1/λ (sigmoid/exponential).
     sigma : float, default 1.0
         Target std (tanh/Gaussian only).
+    rule_states : {"0.3", "0.4"}, default "0.3"
+        States seen by the local rule, and warmup.
+        "0.3": as this reservoir with reservoirpy 0.3 (IPSPReservoir, results of 2025 - March 2026): pre- and
+        post-synaptic states are the internal state and the output after the step, and the warmup steps are run
+        (state updated, no learning) before learning.
+        "0.4": as reservoirpy >= 0.4.3's LocalPlasticityReservoir: internal states before (pre) and after (post) the
+        step, warmup steps skipped.
 
     Example
     -------
@@ -68,6 +77,7 @@ class IPLocalPlasticityReservoir(LocalPlasticityReservoir):
         ip_learning_rate: float = 1e-3,
         mu: float = 0.0,
         sigma: float = 1.0,
+        rule_states: Literal["0.3", "0.4"] = "0.3",
         # everything else forwarded to parent
         units: Optional[int] = None,
         local_rule: Literal["oja", "anti-oja", "hebbian", "anti-hebbian", "bcm"] = "oja",
@@ -118,6 +128,9 @@ class IPLocalPlasticityReservoir(LocalPlasticityReservoir):
         self.ip_learning_rate = ip_learning_rate
         self.mu = mu
         self.sigma = sigma
+        if rule_states not in ("0.3", "0.4"):
+            raise ValueError(f"rule_states must be '0.3' or '0.4', got {rule_states!r}.")
+        self.rule_states = rule_states
         self.a = None
         self.b = None
 
@@ -161,30 +174,34 @@ class IPLocalPlasticityReservoir(LocalPlasticityReservoir):
         else:
             bias = np.asarray(self.bias).ravel()
 
+        internal = np.asarray(state["internal"]).ravel()
         next_state = ws + wx + bias
-        next_state = (1 - lr) * s + lr * next_state
+        next_state = (1 - lr) * internal + lr * next_state
 
-        return {"internal": next_state, "out": f(next_state)}
+        # IP-adjusted activation
+        return {"internal": next_state, "out": f(self.a * next_state + self.b)}
 
     # ------------------------------------------------------------------
     #  IP update
     # ------------------------------------------------------------------
 
     def _ip_update(self, r: np.ndarray, y: np.ndarray):
-        """Update IP parameters a and b for one timestep."""
+        """Update IP parameters a and b for one timestep (r: internal state, y: output), with reservoirpy's IP
+        gradients (reservoirpy.nodes.IPReservoir, same in 0.3 and 0.4). Fix: from 2026-02 to 2026-10, db had the
+        opposite sign and da was 1 / a + db * r (no learning rate on 1 / a)."""
         eta = self.ip_learning_rate
         mu = self.mu
         sigma = self.sigma
 
         if self.activation_type == "tanh":
-            db = eta * (
+            db = -eta * (
                 -mu / (sigma ** 2)
                 + y / (sigma ** 2) * (2 * sigma ** 2 + 1 - y ** 2 + mu * y)
             )
         else:  # sigmoid
             db = eta * (1.0 - (2.0 + 1.0 / mu) * y + (y ** 2) / mu)
 
-        da = 1.0 / self.a + db * r
+        da = eta / self.a + db * r
 
         self.a += da
         self.b += db
@@ -216,21 +233,27 @@ class IPLocalPlasticityReservoir(LocalPlasticityReservoir):
                 self._ip_update(post_internal, post_output)
 
                 # Local synaptic plasticity update
+                if self.rule_states == "0.3":
+                    pre, post = post_internal, post_output
+                else:
+                    pre, post = pre_state, post_internal
                 rows, cols, data = sp.find(self.W)
-                self.W[rows, cols] += increment(
-                    data, pre_state[cols], post_internal[rows]
-                )
+                self.W[rows, cols] += increment(data, pre[cols], post[rows])
 
                 if do_norm:
                     row_norms = np.sqrt(np.sum(self.W ** 2, axis=1)).reshape(-1, 1)
                     safe_norms = np.where(row_norms > 0, row_norms, 1)
                     self.W[:] /= safe_norms[:]
 
+        sequences = list(x) if is_multiseries(x) else [x]
+        if self.rule_states == "0.3":
+            # reservoirpy 0.3: the warmup steps of every sequence are run first (no learning), then the epochs
+            for seq in sequences:
+                for u in seq[:warmup]:
+                    self.state = self._step(self.state, u)
+
         for _epoch in range(self.epochs):
-            if is_multiseries(x):
-                for seq in x:
-                    _train_sequence(seq[warmup:])
-            else:
-                _train_sequence(x[warmup:])
+            for seq in sequences:
+                _train_sequence(seq[warmup:])
 
         return self
