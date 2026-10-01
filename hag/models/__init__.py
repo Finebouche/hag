@@ -22,7 +22,7 @@ from .reservoir_ei import (
     run_ei,
 )
 
-from .intrinsicSynapticPlasticityReservoir import (
+from .IPLocalPlasticityReservoir import (
     IPLocalPlasticityReservoir,
 )
 
