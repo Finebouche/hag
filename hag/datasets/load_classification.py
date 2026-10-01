@@ -9,6 +9,7 @@ import glob
 
 from aeon.datasets import load_classification
 
+from sklearn.model_selection import GroupShuffleSplit
 from sklearn.preprocessing import LabelEncoder, OneHotEncoder
 
 from torchaudio.datasets import SPEECHCOMMANDS
@@ -165,14 +166,14 @@ def download_japanese_vowels_if_needed() -> Path:
     return data_dir
 
 
-# FSDD test speakers (2 of the 6 speakers, never seen in training nor in the hyperparameter optimization): the split
-# of seed=1111 (GroupShuffleSplit, test_size=1/3), fixed on 2025-08-29 (8bf3ebc) and used for the results of August
-# 2025. The seed was lost on 2026-02-26 (6d2a057): the split by speaker was then drawn at random at each loading,
-# which changed the test accuracy by ~20 points.
-FSDD_TEST_SPEAKERS = ("nicolas", "yweweler")
+# Seed of the split by speaker of FSDD (GroupShuffleSplit, test_size=1/3: 2 of the 6 speakers in the test set, here
+# nicolas and yweweler), as from 2025-08-29 (8bf3ebc) to 2025-12-15, i.e. the results of the paper. The default seed
+# was lost on 2026-02-26 (6d2a057): the test speakers were then drawn at random at each loading, which changed the
+# test accuracy by ~20 points.
+FSDD_SPLIT_SEED = 1111
 
 
-def load_FSDD_dataset(data_dir: Path, test_speakers=FSDD_TEST_SPEAKERS, visualize=False):
+def load_FSDD_dataset(data_dir: Path, test_split=1 / 3, seed=None, visualize=False):
     data_dir = _require_path(
         Path(data_dir),
         f"FSDD recordings folder not found: {data_dir}"
@@ -214,12 +215,10 @@ def load_FSDD_dataset(data_dir: Path, test_speakers=FSDD_TEST_SPEAKERS, visualiz
     ohe = OneHotEncoder(sparse_output=False)
     Y_one_hot = ohe.fit_transform(Y_encoded.reshape(-1, 1))
 
-    unknown = set(test_speakers) - set(groups)
-    if unknown:
-        raise ValueError(f"Unknown FSDD test speakers {sorted(unknown)} (speakers: {sorted(set(groups))})")
-    is_test = np.isin(groups, test_speakers)
-    train_val_idx, test_idx = np.where(~is_test)[0], np.where(is_test)[0]
-    print(f"FSDD test speakers: {sorted(test_speakers)}, train speakers: {sorted(map(str, set(groups[train_val_idx])))}")
+    gss_test = GroupShuffleSplit(n_splits=1, test_size=test_split, random_state=seed)
+    train_val_idx, test_idx = next(gss_test.split(X, Y_one_hot, groups))
+    print(f"FSDD test speakers: {sorted(map(str, set(groups[test_idx])))}, "
+          f"train speakers: {sorted(map(str, set(groups[train_val_idx])))}")
     X_train, X_test = X[train_val_idx], X[test_idx]
     Y_train, Y_test = Y_one_hot[train_val_idx], Y_one_hot[test_idx]
     train_speakers, test_speakers = groups[train_val_idx], groups[test_idx]
@@ -346,7 +345,7 @@ def load_aoen_dataset(dataset_name, seed=None):
     return X_train_raw, Y_train_raw, X_test_raw, Y_test, groups, meta_data
 
 
-def load_dataset_classification(name, visualize=True, seed=None):
+def load_dataset_classification(name, visualize=True, seed=FSDD_SPLIT_SEED):
     if name in ["SpokenArabicDigits", "CatsDogs", "LSST", "ECG5000", "AbnormalHeartbeat"]:
         X_train, Y_train, X_test, Y_test, groups, meta_data = load_aoen_dataset(name, seed)
         sampling_rate = 10000
@@ -384,6 +383,7 @@ def load_dataset_classification(name, visualize=True, seed=None):
 
         sampling_rate, X_train, X_test, Y_train, Y_test, groups = load_FSDD_dataset(
             data_dir=fsdd_recordings,
+            seed=seed,
             visualize=visualize,
         )
 
