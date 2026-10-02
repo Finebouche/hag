@@ -9,13 +9,9 @@ import numpy as np
 import pandas as pd
 from pandas.errors import EmptyDataError
 
-from hag.analysis.commons import (
-    dataset_label_map,
-    evaluate_dataset_on_test,
-    function_mapping,
-    functions_order,
-    load_data,
-)
+from hag.datasets.pipeline import prepare_data
+from hag.performances.plots import dataset_label_map, function_mapping, functions_order
+from hag.performances.test_evaluation import evaluate_dataset_on_test
 from hag.hpo.utility import ANALYSIS_RESULTS, FIGURES, retrieve_best_model
 
 
@@ -112,8 +108,8 @@ data_cache: dict[tuple[str, str], tuple] = {}
 
 
 def _load_dataset(dataset_name: str, representation: str):
-    """Thin wrapper around commons.load_data."""
-    return load_data(
+    """Thin wrapper around prepare_data."""
+    return prepare_data(
         dataset_name,
         representation,
         DATA_TYPE,
@@ -206,7 +202,7 @@ def representation_already_done(
 ) -> bool:
     """
     If all (function, mapping) combinations already exist for this
-    dataset/representation, do not call load_data at all.
+    dataset/representation, do not call prepare_data at all.
     """
     return expected_keys_for_representation(
         dataset_name,
@@ -439,9 +435,9 @@ if __name__ == "__main__":
             print(f"\n===== DATASET: {dataset_name} | REP: {representation} =====")
 
             # IMPORTANT:
-            # Skip before calling load_data(...), so datasets are not rebuilt if already done.
+            # Skip before calling prepare_data(...), so datasets are not rebuilt if already done.
             if representation_already_done(dataset_name, representation, existing_keys):
-                print("All combinations already in CSV -> skipping load_data and evaluation.")
+                print("All combinations already in CSV -> skipping prepare_data and evaluation.")
                 continue
 
             loaded_data = get_loaded_data(dataset_name, representation)

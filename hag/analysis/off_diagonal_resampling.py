@@ -4,7 +4,8 @@ Does the precise structure of HAG's connexions between blocks matter, or only th
 HAG's recurrent matrices are mostly block diagonal (one block of K neurons per input feature), with a few sparse
 connexions between blocks. For each dataset and function (mean_hag, var_hag), with the best hyperparameters of HAG's
 studies, each trial:
-  1. trains HAG (base algorithm, hag.hag.hag.run_algorithm) as in hag.analysis.commons.evaluate_dataset_on_test,
+  1. trains HAG (base algorithm, hag.hag.hag.run_algorithm) as in
+     hag.performances.test_evaluation.evaluate_dataset_on_test,
   2. fits, for each off-diagonal block, a trio (distribution, connectivity, scaling) reproducing its statistics:
        - connectivity: fraction of nonzero weights of the block,
        - distribution and scaling: among DISTRIBUTIONS (one scale parameter each, fitted on the absolute values of the
@@ -26,9 +27,10 @@ import numpy as np
 import pandas as pd
 from scipy import stats
 
-from hag.analysis.commons import activation_function, load_data
+from hag.datasets.pipeline import prepare_data
 from hag.hag.hag import run_algorithm
 from hag.hpo.utility import ANALYSIS_RESULTS, retrieve_best_model
+from hag.models.activation_functions import tanh
 from hag.models.reservoir import init_matrices
 from hag.performances.esn_model_evaluation import (compute_score, init_readout, init_reservoir,
                                                    predict_model_for_classification, train_model_for_classification)
@@ -117,7 +119,7 @@ def train_hag(hp, function, pretrain, seed):
         target, spread = hp['variance_target'], hp['variance_spread']
         extra = dict(intrinsic_saturation=hp['intrinsic_saturation'], intrinsic_coef=hp['intrinsic_coef'])
     np.random.seed(seed)
-    W, _ = run_algorithm(W, Win, bias, hp['leaky_rate'], activation_function, pretrain, hp['weight_increment'], target,
+    W, _ = run_algorithm(W, Win, bias, hp['leaky_rate'], tanh, pretrain, hp['weight_increment'], target,
                          spread, function, multiple_instances=True, min_increment=hp['min_increment'],
                          max_increment=hp['max_increment'], use_full_instance=hp['use_full_instance'],
                          max_partners=np.inf, method="pearson", n_jobs=1, progress_bar=False, **extra)
@@ -126,7 +128,7 @@ def train_hag(hp, function, pretrain, seed):
 
 def test_accuracy(W, Win, bias, hp, train, test, Y_train, Y_test):
     """Test accuracy with the readout of evaluate_dataset_on_test (last state of each sequence, ridge)."""
-    reservoir = init_reservoir(W, Win, bias, hp['leaky_rate'], activation_function)
+    reservoir = init_reservoir(W, Win, bias, hp['leaky_rate'], tanh)
     readout = init_readout(ridge_coef=10 ** hp['ridge'])
     train_model_for_classification(reservoir, readout, train, Y_train, mode="sequence-to-vector")
     Y_pred = predict_model_for_classification(reservoir, readout, test, mode="sequence-to-vector")
@@ -167,8 +169,8 @@ def run(dataset, function, data):
 def main(datasets):
     rows = []
     for dataset in datasets:
-        np.random.seed(DATA_SEED)  # load_data draws the pretraining instances with numpy's global RNG
-        data = load_data(dataset, "mfcc")
+        np.random.seed(DATA_SEED)  # prepare_data draws the pretraining instances with numpy's global RNG
+        data = prepare_data(dataset, "mfcc")
         for function in FUNCTIONS:
             row = run(dataset, function, data)
             rows.append(row)

@@ -1,5 +1,5 @@
 from hag.datasets.load_data import load_data as load_dataset
-from hag.analysis.commons import load_data as load_processed_data
+from hag.datasets.pipeline import prepare_data
 import math
 import pandas as pd
 
@@ -54,7 +54,7 @@ def dataset_characteristics(dataset, data_type="normal", noise_std=0.001):
         Y_test,
         is_multivariate,
         is_instances_classification,
-    ) = load_processed_data(
+    ) = prepare_data(
         dataset,
         spectral_representation,
         data_type,

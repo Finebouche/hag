@@ -6,13 +6,9 @@ import pandas as pd
 from matplotlib import pyplot as plt
 from matplotlib.patches import Patch
 
-from hag.analysis.commons import (
-    evaluate_dataset_on_test,
-    function_mapping,
-    functions_order,
-    function_colors,
-    load_data,
-)
+from hag.datasets.pipeline import prepare_data
+from hag.performances.plots import function_colors, function_mapping, functions_order
+from hag.performances.test_evaluation import evaluate_dataset_on_test
 from hag.hpo.utility import ANALYSIS_RESULTS, FIGURES, retrieve_best_model
 
 
@@ -90,7 +86,7 @@ for dataset_name in DATASETS:
         Y_test,
         is_multivariate,
         is_instances_classification,
-    ) = load_data(dataset_name, spectral_representation, visualize=True)
+    ) = prepare_data(dataset_name, spectral_representation, visualize=True)
 
     for sampler_name in SAMPLERS:
         print(f"--- Sampler: {sampler_name} ---")
