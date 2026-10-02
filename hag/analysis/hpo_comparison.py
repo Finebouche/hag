@@ -8,8 +8,9 @@ from matplotlib.patches import Patch
 
 from hag.datasets.pipeline import prepare_data
 from hag.performances.plots import function_colors, function_mapping, functions_order
-from hag.performances.test_evaluation import evaluate_dataset_on_test
-from hag.hpo.utility import ANALYSIS_RESULTS, FIGURES, retrieve_best_model
+from hag.performances.evaluation_esn import evaluate_dataset_on_test
+from hag.analysis.utils import ANALYSIS_RESULTS, FIGURES
+from hag.hpo.utility import retrieve_best_model
 
 
 columns = ["Dataset", "Function", "Sampler", "Average Score", "Standard Deviation", "Date"]

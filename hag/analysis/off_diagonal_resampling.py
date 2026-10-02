@@ -5,7 +5,7 @@ HAG's recurrent matrices are mostly block diagonal (one block of K neurons per i
 connexions between blocks. For each dataset and function (mean_hag, var_hag), with the best hyperparameters of HAG's
 studies, each trial:
   1. trains HAG (base algorithm, hag.hag.hag.run_algorithm) as in
-     hag.performances.test_evaluation.evaluate_dataset_on_test,
+     hag.performances.evaluation_esn.evaluate_dataset_on_test,
   2. fits, for each off-diagonal block, a trio (distribution, connectivity, scaling) reproducing its statistics:
        - connectivity: fraction of nonzero weights of the block,
        - distribution and scaling: among DISTRIBUTIONS (one scale parameter each, fitted on the absolute values of the
@@ -29,7 +29,8 @@ from scipy import stats
 
 from hag.datasets.pipeline import prepare_data
 from hag.hag.hag import run_algorithm
-from hag.hpo.utility import ANALYSIS_RESULTS, retrieve_best_model
+from hag.analysis.utils import ANALYSIS_RESULTS
+from hag.hpo.utility import retrieve_best_model
 from hag.models.activation_functions import tanh
 from hag.models.reservoir import init_matrices
 from hag.performances.esn_model_evaluation import (compute_score, init_readout, init_reservoir,

@@ -1,6 +1,6 @@
 """
 Test evaluation of the recurrent networks of HAG's study (LSTM, GRU, RNN, RNN initialized by HAG) trained with
-PyTorch, with the best hyperparameters of a study. Separate from test_evaluation so that only it imports torch.
+PyTorch, with the best hyperparameters of a study. Separate from evaluation_esn so that only it imports torch.
 """
 import math
 

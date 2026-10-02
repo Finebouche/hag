@@ -3,7 +3,7 @@ from hag.datasets.pipeline import prepare_data
 import math
 import pandas as pd
 
-from hag.hpo.utility import ANALYSIS_RESULTS
+from hag.analysis.utils import ANALYSIS_RESULTS
 
 
 print("###############")
