@@ -22,7 +22,7 @@ def available_neurons(neuron, connectivity_matrix, neurons_pool, max_partners=np
 
 
 def determine_connection_pairs(neurons_needing_new_connection, connectivity_matrix, states=None, method="random",
-                               is_inter_matrix=False, max_partners=np.inf, random_seed=None, mark_and_skip=False, n_jobs=1,
+                               is_inter_matrix=False, max_partners=np.inf, random_seed=None, n_jobs=1,
                                rng=None):
     """
     Determine pairs of neurons for establishing new connections based on specified criteria.
@@ -40,9 +40,6 @@ def determine_connection_pairs(neurons_needing_new_connection, connectivity_matr
     neurons_pool = list(range(connectivity_matrix.shape[1])) if is_inter_matrix else list(neurons_needing_new_connection)
     if len(neurons_pool) <= 1:
         return []
-
-    # remaining = set(neurons_needing_new_connection)
-    # new_connections = []
 
     if method == "pearson":
         # Pearson correlation between all neurons, computed once for all the neurons needing a connexion
@@ -84,42 +81,6 @@ def determine_connection_pairs(neurons_needing_new_connection, connectivity_matr
         for neuron in neurons_needing_new_connection
     )
 
-    # for neuron in neurons_needing_new_connection:
-    #     # skip any neuron that was already used as a source or target
-    #     if neuron not in remaining:
-    #         continue
-    #
-    #     # get all allowed targets for this neuron
-    #     available = available_neurons(neuron, connectivity_matrix, neurons_pool, max_partners)
-    #     if not available:
-    #         continue
-    #
-    #     # pick best by MI or Pearson, or random
-    #     if method == "mi":
-    #         mi_mat = compute_mutual_information(states, [available, [neuron]])
-    #         scores = mi_mat[neuron, available]
-    #         best = np.array(available)[np.isclose(scores, np.nanmax(scores))]
-    #     elif method == "pearson":
-    #         corrs = compute_pearson_corr(states[neuron], states[available])
-    #         best = np.array(available)[np.isclose(corrs, np.nanmax(corrs))]
-    #     elif method == "random":
-    #         best = np.array(available)
-    #     else:
-    #         raise ValueError("Invalid method. Must be one of 'mi', 'pearson', 'random'.")
-    #
-    #     if best.size == 0:
-    #         raise ValueError("No neuron_to_choose_from found for neuron in adding, this should not happen as"
-    #                          f'list(neurons_needing_new_connection) is : {neurons_needing_new_connection}.')
-    #     # choose one at random among the best
-    #     incoming = np.random.choice(best)
-    #     new_connections.append((neuron, incoming))
-
-        # if mark_and_skip: #otherwise we end up with symmetric connections
-        #     # also remove 'neuron' so it never re-selects in case of duplicates
-        #     remaining.discard(neuron)
-        #     # mark-and-skip: remove 'incoming' so it won't choose later
-        #     remaining.discard(incoming)
-
     return new_connections
 
 
@@ -143,19 +104,6 @@ def determine_pruning_pairs(neurons_for_pruning, connectivity_matrix, states=Non
         connections = connectivity_matrix[neuron].nonzero()[0]
         if len(connections) == 0:
             continue
-        # if method == "mi":
-        #     mi = compute_mutual_information(states, [connections, [neuron]])[neuron, connections]
-        #     neuron_to_choose_from = np.array(connections)[np.isclose(mi, np.nanmin(mi))]
-        # elif method == "pearson":
-        #     correlations = np.corrcoef(states[neuron, 1:], states[connections, :-1])[0, 1:]
-        #     neuron_to_choose_from = np.array(connections)[np.isclose(correlations, np.nanmin(correlations))]
-        # elif method == "random":
-        #     neuron_to_choose_from = connections
-        # else:
-        #     raise ValueError("Invalid method. Must be one of 'mi', 'pearson', 'random'.")
-        #
-        # if neuron_to_choose_from.size == 0:
-        #     raise ValueError("No neuron_to_choose_from found for neuron in pruning, this should not happen.")
 
         chosen_connection = rng.choice(connections)
         new_pruning_pairs.append((neuron, chosen_connection))

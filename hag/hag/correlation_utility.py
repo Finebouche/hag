@@ -155,10 +155,6 @@ if __name__ == "__main__":
         sklearn_timings.append((1, sklearn_time))
         print(f"Scikit-learn calculation time: {sklearn_time:.4f} seconds")
 
-        # print(corr)
-        # print(corr_numpy * corr[1] / corr_numpy[1])
-        # print(mi_custom)
-        # print(mi_sklearn * mi_custom[0, 1]/mi_sklearn[0, 1])
         # Calculate the absolute difference between the two result matrices
         # difference_matrix = np.abs(mi_custom - mi_sklearn * mi_custom[0, 1]/mi_sklearn[0, 1])
         difference_matrix = np.abs(corr - corr_numpy * corr[1]/corr_numpy[1])

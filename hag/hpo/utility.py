@@ -14,6 +14,16 @@ VALID_PREFIXES = {
 }
 
 
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
+LEGACY_STUDIES = PROJECT_ROOT / "hag" / "hpo" / "legacy_studies"
+
+
+def study_db_dir(dataset_name):
+    """Folder of the Optuna database for this dataset: the Canary HPO was run from the repo root,
+    the previous studies are in hag/hpo/legacy_studies."""
+    return PROJECT_ROOT if dataset_name == "Canary" else LEGACY_STUDIES
+
+
 def camel_to_snake(name):
     str1 = re.sub('(.)([A-Z][a-z]+)', r'\1_\2', name)
     return re.sub('([a-z0-9])([A-Z])', r'\1_\2', str1).lower()
@@ -41,9 +51,9 @@ def retrieve_best_model(
 
     study_name = f"{function_name}_{dataset_name}_{data_type}_{variate_type}"
 
-    # If db_dir is not provided, use the folder containing this utility.py file.
+    # If db_dir is not provided, use the folder of this dataset's studies.
     if db_dir is None:
-        db_dir = Path(__file__).resolve().parent
+        db_dir = study_db_dir(dataset_name)
     else:
         db_dir = Path(db_dir).expanduser().resolve()
     db_filename = f"{prefix}_{camel_to_snake(dataset_name)}_db.sqlite3"

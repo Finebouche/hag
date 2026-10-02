@@ -103,13 +103,8 @@ dataset_label_map = {
 ######
 
 
-PROJECT_ROOT = Path(__file__).resolve().parents[2]
-
-
-def study_db_dir(dataset_name):
-    """Folder of the Optuna database for this dataset: the Canary HPO was run from the repo root,
-    the previous studies are in hag/hpo/legacy_studies."""
-    return PROJECT_ROOT if dataset_name == "Canary" else PROJECT_ROOT / "hag" / "hpo" / "legacy_studies"
+# folder of the Optuna databases (kept importable from here)
+from hag.hpo.utility import PROJECT_ROOT, study_db_dir  # noqa: E402
 
 
 
