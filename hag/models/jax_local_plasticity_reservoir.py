@@ -53,9 +53,9 @@ def _run_states(W, Win, bias, lr, a, b, internal, out, x, activation, ip, leak_i
     return internal, out
 
 
-@partial(jax.jit, static_argnames=("activation", "rule", "normalize", "update_state", "ip_activation", "rule_states"))
-def _learn(Win, bias, lr, eta, theta, ip_parameters, carry, x, activation, rule, normalize, update_state,
-           ip_activation, rule_states):
+@partial(jax.jit, static_argnames=("activation", "rule", "normalize", "ip_activation", "rule_states"))
+def _learn(Win, bias, lr, eta, theta, ip_parameters, carry, x, activation, rule, normalize, ip_activation,
+           rule_states):
     increment = LOCAL_RULES[rule]
     ip = ip_activation is not None
 
@@ -70,8 +70,7 @@ def _learn(Win, bias, lr, eta, theta, ip_parameters, carry, x, activation, rule,
             rule_pre, rule_post = (post if ip else internal), post_out
         else:
             rule_pre, rule_post = internal, post
-        if update_state:
-            internal, out = post, post_out
+        internal, out = post, post_out
         if ip:
             a, b = _ip_update(a, b, post, post_out, *ip_parameters, ip_activation)
         # only the existing (nonzero) connexions are updated
@@ -99,11 +98,6 @@ class LocalPlasticityReservoir(TrainableNode):
 
     rule_states: "0.4" (default) as reservoirpy >= 0.4.3, warmup steps skipped; "0.3" as reservoirpy 0.3 (and HAG's
     results of 2025 - March 2026): post-synaptic state = output, warmup steps run (no learning) before learning.
-
-    fit_updates_state: True (default) runs the reservoir during learning, as reservoirpy >= 0.4.3. In reservoirpy <= 0.4.2,
-    LocalPlasticityReservoir.fit never updated the reservoir state (fixed by reservoirpy PR #250): the pre-synaptic
-    state stayed the initial one (zeros) and the post-synaptic state only depended on the input. False reproduces this
-    behaviour, e.g. to compare with results obtained with reservoirpy <= 0.4.2.
     """
 
     def __init__(
@@ -119,7 +113,6 @@ class LocalPlasticityReservoir(TrainableNode):
         bcm_theta: float = 0.0,
         synapse_normalization: bool = False,
         epochs: int = 1,
-        fit_updates_state: bool = True,
         rule_states: Literal["0.3", "0.4"] = "0.4",
         name: Optional[str] = None,
     ):
@@ -135,7 +128,6 @@ class LocalPlasticityReservoir(TrainableNode):
         self.bcm_theta = 0.0 if bcm_theta is None else bcm_theta
         self.synapse_normalization = synapse_normalization
         self.epochs = epochs
-        self.fit_updates_state = fit_updates_state
         if rule_states not in ("0.3", "0.4"):
             raise ValueError(f"rule_states must be '0.3' or '0.4', got {rule_states!r}.")
         self.rule_states = rule_states
@@ -189,8 +181,7 @@ class LocalPlasticityReservoir(TrainableNode):
             for seq in sequences:
                 carry = _learn(self.Win, self.bias, self.lr, self.eta, self.bcm_theta, ip_parameters, carry,
                                jnp.asarray(seq[warmup:]), activation=self.activation, rule=self.local_rule,
-                               normalize=self.synapse_normalization, update_state=self.fit_updates_state,
-                               ip_activation=ip_activation, rule_states=self.rule_states)
+                               normalize=self.synapse_normalization, ip_activation=ip_activation, rule_states=self.rule_states)
         self.W, internal, out, a, b = carry
         self.state = {"internal": internal, "out": out}
         if ip_activation is not None:
