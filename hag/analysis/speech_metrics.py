@@ -135,7 +135,7 @@ def evaluate_dataset_on_test(study, function_name, pretrain_data, test_data, is_
                                          max_partners=max_partners, method = "pearson",
                                          intrinsic_saturation=hyperparams['intrinsic_saturation'], intrinsic_coef=hyperparams['intrinsic_coef'],
                                          n_jobs = nb_jobs)
-        elif function_name in ["random_ee", "random_ei", "ip_correct", "anti-oja_fast", "ip-anti-oja_fast"]:
+        elif function_name in ["random_ee", "random_ei", "ip_correct", "anti-oja", "ip-anti-oja"]:
             eigen = sparse.linalg.eigs(W, k=1, which="LM", maxiter=W.shape[0] * 20, tol=0.1, return_eigenvectors=False, v0=np.ones(W.shape[0]))
             W *= hyperparams['spectral_radius'] / max(abs(eigen))
         else:
@@ -153,14 +153,14 @@ def evaluate_dataset_on_test(study, function_name, pretrain_data, test_data, is_
                                           activation_function=activation_function
                                           )
             fit_reservoir(reservoir, unsupervised_pretrain, warmup=100)
-        elif function_name == "anti-oja_fast":
+        elif function_name == "anti-oja":
             reservoir = init_local_rule_reservoir(W, Win, bias, local_rule="anti-oja", eta=hyperparams['oja_eta'],
                                                   synapse_normalization=False, bcm_theta=None,
                                                   leaking_rate=hyperparams['leaky_rate'],
                                                   activation_function=activation_function,
                                                   )
             fit_reservoir(reservoir, unsupervised_pretrain, warmup=100)
-        elif function_name == "ip-anti-oja_fast":
+        elif function_name == "ip-anti-oja":
             reservoir = init_ip_local_rule_reservoir(W, Win, bias, local_rule="anti-oja", eta=hyperparams['oja_eta'],
                                                      synapse_normalization=False, bcm_theta=None,
                                                      mu=hyperparams['mu'], sigma=hyperparams['sigma'],
@@ -213,7 +213,7 @@ print(dataset)
 pretrain_data, test_data, is_multivariate, is_instances_classification = load_data(dataset)
 
 new_results = []
-for function_name in ["ip-anti-oja_fast"]:  # "random_ee", "random_ei", "ip_correct", "anti-oja_fast",  "ip-anti-oja_fast", "mean_hag", "var_hag"
+for function_name in ["ip-anti-oja"]:  # "random_ee", "random_ei", "ip_correct", "anti-oja",  "ip-anti-oja", "mean_hag", "var_hag"
     # Get the best trial from the study
     print(function_name)
     study = retrieve_best_model(function_name, dataset, is_multivariate, variate_type="multi", data_type="normal")

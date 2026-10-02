@@ -2,8 +2,8 @@ Dataset,Function,Average Score,Standard Deviation,Date
 Sunspot_daily,random_ee,0.3135,± 0.00202,2025-04-09
 Sunspot_daily,random_ei,0.31303,± 0.00078,2025-04-09
 Sunspot_daily,ip_correct,0.3116,± 0.00153,2025-04-09
-Sunspot_daily,anti-oja_fast,0.31329,± 0.00153,2025-04-09
-Sunspot_daily,ip-anti-oja_fast,0.31189,± 0.00112,2025-04-09
+Sunspot_daily,anti-oja,0.31329,± 0.00153,2025-04-09
+Sunspot_daily,ip-anti-oja,0.31189,± 0.00112,2025-04-09
 Sunspot_daily,mean_hag,0.28494,± 0.00377,2025-04-09
 Sunspot_daily,var_hag,0.28553,± 0.00343,2025-04-09
 Sunspot_daily,diag_ee,0.28125,± 0.00424,2025-05-02
@@ -15,8 +15,8 @@ Sunspot_daily,gru,0.1457899957895279,± 0.00788000039756298,2025-08-22
 Lorenz,random_ee,0.78808,± 0.00184,2025-04-09
 Lorenz,random_ei,0.80947,± 0.00531,2025-04-09
 Lorenz,ip_correct,0.81034,± 0.01135,2025-04-09
-Lorenz,anti-oja_fast,0.80895,± 0.00208,2025-04-09
-Lorenz,ip-anti-oja_fast,0.83806,± 0.06371,2025-04-09
+Lorenz,anti-oja,0.80895,± 0.00208,2025-04-09
+Lorenz,ip-anti-oja,0.83806,± 0.06371,2025-04-09
 Lorenz,mean_hag,0.78271,± 0.00379,2025-04-09
 Lorenz,var_hag,0.78412,± 0.00262,2025-04-09
 Lorenz,diag_ee,0.77033,± 0.00383,2025-05-02
@@ -28,8 +28,8 @@ Lorenz,gru,0.7207300066947937,± 0.018950000405311584,2025-08-22
 MackeyGlass,random_ee,0.00319,± 0.00021,2025-04-09
 MackeyGlass,random_ei,0.00454,± 0.00037,2025-04-09
 MackeyGlass,ip_correct,0.00442,± 0.00022,2025-04-09
-MackeyGlass,anti-oja_fast,0.00473,± 0.00031,2025-04-09
-MackeyGlass,ip-anti-oja_fast,0.00468,± 0.00025,2025-04-09
+MackeyGlass,anti-oja,0.00473,± 0.00031,2025-04-09
+MackeyGlass,ip-anti-oja,0.00468,± 0.00025,2025-04-09
 MackeyGlass,mean_hag,0.0032,± 0.00046,2025-04-09
 MackeyGlass,var_hag,0.01627,± 0.01416,2025-04-09
 MackeyGlass,diag_ee,0.00363,± 0.00018,2025-05-02

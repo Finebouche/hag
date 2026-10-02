@@ -214,8 +214,8 @@ if __name__ == '__main__':
                 if not random_projection_experiment and spectral_representation == "none":
                     continue
 
-                # "random_ee", "random_ei", "diag_ee", "diag_ei", "var_hag", "mean_hag", "ip_correct", "anti-oja_fast", "ip-anti-oja_fast"
-                for function_name in  ["random_ee", "random_ei", "var_hag", "mean_hag", "ip_correct", "anti-oja_fast", "ip-anti-oja_fast"]:
+                # "random_ee", "random_ei", "diag_ee", "diag_ei", "var_hag", "mean_hag", "ip_correct", "anti-oja", "ip-anti-oja"
+                for function_name in  ["random_ee", "random_ei", "var_hag", "mean_hag", "ip_correct", "anti-oja", "ip-anti-oja"]:
                     def objective(trial):
                         # COMMON
                         RESERVOIR_SIZE = 500
@@ -240,19 +240,19 @@ if __name__ == '__main__':
                             intrinsic_saturation = trial.suggest_float('intrinsic_saturation', 0.8, 0.98, step=0.02)
                             intrinsic_coef = trial.suggest_float('intrinsic_coef', 0.8, 0.98, step=0.02)
                             method = "pearson"
-                        elif function_name in ["random_ee", "random_ei", "diag_ee", "diag_ei", "ip_correct", "anti-oja_fast", "ip-anti-oja_fast"]:
+                        elif function_name in ["random_ee", "random_ei", "diag_ee", "diag_ei", "ip_correct", "anti-oja", "ip-anti-oja"]:
                             connectivity = trial.suggest_float('connectivity', 0, 1)
                             sr = trial.suggest_float('spectral_radius', 0.4, 1.6, step=0.01)
                         else:
                             raise ValueError(f"Invalid function name: {function_name}")
 
                         # IP
-                        if function_name in ["ip_correct", "ip-anti-oja_fast"]:
+                        if function_name in ["ip_correct", "ip-anti-oja"]:
                             mu = trial.suggest_float('mu', 0, 1)
                             sigma = trial.suggest_float('sigma', 0, 1)
                             learning_rate = trial.suggest_float('learning_rate', 1e-6, 1e-1, log=True)
                         # Anti-Oja
-                        if function_name in ["anti-oja_fast", "ip-anti-oja_fast"]:
+                        if function_name in ["anti-oja", "ip-anti-oja"]:
                             # We often use a log-uniform distribution for learning rates:
                             oja_eta = trial.suggest_float('oja_eta', 1e-8, 1e-3, log=True)
 
@@ -315,7 +315,7 @@ if __name__ == '__main__':
                                                              max_partners=max_partners, method=method,
                                                              intrinsic_saturation=intrinsic_saturation, intrinsic_coef=intrinsic_coef,
                                                              n_jobs=nb_jobs_per_trial)
-                            elif function_name in ["random_ee", "random_ei", "diag_ee", "diag_ei", "ip_correct", "anti-oja_fast", "ip-anti-oja_fast"]:
+                            elif function_name in ["random_ee", "random_ei", "diag_ee", "diag_ei", "ip_correct", "anti-oja", "ip-anti-oja"]:
                                 eigen = sparse.linalg.eigs(W, k=1, which="LM", maxiter=W.shape[0] * 20, tol=0.1, return_eigenvectors=False, v0=np.ones(W.shape[0]))
                                 W *= sr / max(abs(eigen))
                             else:
@@ -331,13 +331,13 @@ if __name__ == '__main__':
                                                               leaking_rate=leaky_rate, activation_function=activation_function
                                                               )
                                 fit_reservoir(reservoir, unsupervised_pretrain, warmup=100)
-                            elif function_name == "anti-oja_fast":
+                            elif function_name == "anti-oja":
                                 reservoir = init_local_rule_reservoir(W, Win, bias, local_rule="anti-oja", eta=oja_eta,
                                                                       synapse_normalization=False, bcm_theta=None,
                                                                       leaking_rate=leaky_rate, activation_function=activation_function,
                                                                       )
                                 fit_reservoir(reservoir, unsupervised_pretrain, warmup=100)
-                            elif function_name == "ip-anti-oja_fast":
+                            elif function_name == "ip-anti-oja":
                                 reservoir = init_ip_local_rule_reservoir(W, Win, bias, local_rule="anti-oja", eta=oja_eta,
                                                                           synapse_normalization=False, bcm_theta=None,
                                                                           mu=mu, sigma=sigma, learning_rate=learning_rate,

@@ -31,8 +31,8 @@ FUNCTIONS = [
     "random_ee",
     "random_ei",
     "ip_correct",
-    "anti-oja_fast",
-    "ip-anti-oja_fast",
+    "anti-oja",
+    "ip-anti-oja",
     "var_hag",
     "mean_hag",
 ]

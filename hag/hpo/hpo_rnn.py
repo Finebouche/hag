@@ -191,7 +191,7 @@ if __name__ == '__main__':
         if variate_type == "uni" and is_multivariate:
             raise ValueError(f"Invalid variable type: {variate_type}")
 
-        # "random_ee", "random_ei", "diag_ee", "diag_ei", "var_hag", "mean_hag", "ip_correct", "anti-oja_fast", "ip-anti-oja_fast",
+        # "random_ee", "random_ei", "diag_ee", "diag_ei", "var_hag", "mean_hag", "ip_correct", "anti-oja", "ip-anti-oja",
         # "lstm_last", "rnn"
         for function_name in ["gru"]:
             def objective(trial):
