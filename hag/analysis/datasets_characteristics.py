@@ -3,6 +3,8 @@ from hag.analysis.commons import load_data as load_processed_data
 import math
 import pandas as pd
 
+from hag.hpo.utility import ANALYSIS_RESULTS
+
 
 print("###############")
 print("#")
@@ -120,7 +122,8 @@ for dataset in datasets:
     results.append(characteristics)
 
 df = pd.DataFrame(results)
-csv_filename = "../../outputs/dataset_characteristics.csv"
+csv_filename = ANALYSIS_RESULTS / "dataset_characteristics.csv"
+csv_filename.parent.mkdir(parents=True, exist_ok=True)
 df.to_csv(csv_filename, index=False)
 
 print(f"Dataset characteristics saved to {csv_filename}")
