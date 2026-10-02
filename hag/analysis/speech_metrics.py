@@ -90,8 +90,6 @@ def evaluate_dataset_on_test(study, function_name, pretrain_data, test_data, is_
     leaky_rate = 1
     input_connectivity = 1
 
-    if 'variance_target' not in hyperparams and 'min_variance' in hyperparams:
-        hyperparams['variance_target'] = hyperparams['min_variance']
     if not is_instances_classification:
         hyperparams['use_full_instance'] = False
 

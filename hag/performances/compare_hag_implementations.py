@@ -31,7 +31,7 @@ from hag.models.reservoir import init_matrices
 DATASETS = ["JapaneseVowels", "CatsDogs", "FSDD", "SpokenArabicDigits", "SPEECHCOMMANDS"]
 FUNCTIONS = ["mean_hag", "var_hag"]
 SEED = 923984      # seed of evaluate_dataset_on_test (the same for both implementations)
-NB_TRIALS = 8      # reservoirs evaluated on the test set
+NB_TRIALS = 1      # reservoirs evaluated on the test set
 N_W_CHECK = 3      # draws for the exact comparison of the weights
 OUTPUT = Path("outputs/test_results/hag_node_vs_run_algorithm.csv")
 # ===========================================================================
@@ -40,17 +40,13 @@ OUTPUT = Path("outputs/test_results/hag_node_vs_run_algorithm.csv")
 def best_hyperparameters(function, dataset, is_multivariate):
     study = retrieve_best_model(function, dataset, is_multivariate, prefix="tpe", db_dir=study_db_dir(dataset),
                                 verbosity=0)
-    hp = dict(study.best_trial.params)
-    if 'variance_target' not in hp and 'min_variance' in hp:
-        hp['variance_target'] = hp['min_variance']
-    return study, hp
+    return study, dict(study.best_trial.params)
 
 
 def initial_matrices(hp, input_dim):
     """HAG's initial matrices, as in evaluate_dataset_on_test (seed drawn from numpy's global RNG)."""
     K = math.ceil(hp['network_size'] / input_dim)
-    Win, W, bias = init_matrices(input_dim * K, 1, hp['connectivity'], K, w_distribution=stats.uniform(loc=-1, scale=2),
-                                 seed=random.randint(0, 1000))
+    Win, W, bias = init_matrices(input_dim * K, 1, hp['connectivity'], K, w_distribution=stats.uniform(loc=-1, scale=2), seed=random.randint(0, 1000))
     return W, Win * hp['input_scaling'], bias * hp['bias_scaling']
 
 

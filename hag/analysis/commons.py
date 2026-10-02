@@ -232,8 +232,6 @@ def evaluate_dataset_on_test(study, dataset_name, function_name, pretrain_data, 
         end_step = 1500
     SLICE_RANGE = slice(start_step, end_step)
 
-    if 'variance_target' not in hyperparams and 'min_variance' in hyperparams:
-        hyperparams['variance_target'] = hyperparams['min_variance']
     if not is_instances_classification:
         hyperparams['use_full_instance'] = False
 
@@ -514,8 +512,6 @@ def evaluate_dataset_on_test_rnn(
             # 1) Retrieve best HAG hyperparameters
             hag_study = retrieve_best_model("mean_hag", dataset_name, False, variate_type="multi", data_type="normal")
             hyper = {k: v for k, v in hag_study.best_trial.params.items()}
-            if 'variance_target' not in hyper and 'min_variance' in hyper:
-                hyper['variance_target'] = hyper.pop('min_variance')
             hyper['use_full_instance'] = not is_instances_classification
 
             # 2) Build reservoir matrices

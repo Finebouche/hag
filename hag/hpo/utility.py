@@ -89,7 +89,7 @@ def hag_reservoir_from_hyperparameters(params, function, input_dim, seed=None, *
         homeostasis, target, spread, extra = "mean", params['target_rate'], params['rate_spread'], {}
     elif function == "var_hag":
         homeostasis = "variance"
-        target = params.get('variance_target', params.get('min_variance'))
+        target = params['variance_target']
         spread = params['variance_spread']
         extra = dict(intrinsic_saturation=params['intrinsic_saturation'], intrinsic_coef=params['intrinsic_coef'])
     else:
