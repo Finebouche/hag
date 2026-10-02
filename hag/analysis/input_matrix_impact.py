@@ -16,12 +16,12 @@ from hag.analysis.commons import (
     functions_order,
     load_data,
 )
-from hag.hpo.utility import retrieve_best_model
+from hag.hpo.utility import ANALYSIS_RESULTS, FIGURES, retrieve_best_model
 
 
 # ====================== CONFIG ======================
-OUTFILE = Path("../../outputs/input_strategy.csv")
-IMG_DIR = Path("../../outputs/figures")
+OUTFILE = ANALYSIS_RESULTS / "input_strategy.csv"
+IMG_DIR = FIGURES
 
 DATASETS = ["CatsDogs", "FSDD", "JapaneseVowels"]
 DATA_TYPE = "normal"   # or "noisy"
@@ -248,7 +248,6 @@ def evaluate_one_configuration(
         variate_type="multi",
         data_type=DATA_TYPE,
         prefix=prefix,
-        db_dir="../../",  # or any folder you want
     )
     if study is None:
         print(f"No study found for {dataset_name} | {representation} | {function_name} | {mapping_label}")

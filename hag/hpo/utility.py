@@ -16,6 +16,9 @@ VALID_PREFIXES = {
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 LEGACY_STUDIES = PROJECT_ROOT / "hag" / "hpo" / "legacy_studies"
+# results of the analyses (hag/analysis) and figures
+ANALYSIS_RESULTS = PROJECT_ROOT / "outputs" / "analysis_results"
+FIGURES = PROJECT_ROOT / "outputs" / "figures"
 
 
 def study_db_dir(dataset_name=None):

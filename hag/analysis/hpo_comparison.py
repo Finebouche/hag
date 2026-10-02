@@ -13,13 +13,13 @@ from hag.analysis.commons import (
     function_colors,
     load_data,
 )
-from hag.hpo.utility import retrieve_best_model
+from hag.hpo.utility import ANALYSIS_RESULTS, FIGURES, retrieve_best_model
 
 
 columns = ["Dataset", "Function", "Sampler", "Average Score", "Standard Deviation", "Date"]
 variate_type = "multi"
-file_name = "../../outputs/hpo_strategy.csv"
-figures_path = "../../outputs/figures/hpo_comparaison.pdf"
+file_name = str(ANALYSIS_RESULTS / "hpo_strategy.csv")
+figures_path = str(FIGURES / "hpo_comparaison.pdf")
 
 DATASETS = ["JapaneseVowels"]
 SAMPLERS = ["cmaes", "tpe"]
@@ -111,7 +111,6 @@ for dataset_name in DATASETS:
                 variate_type=variate_type,
                 data_type="normal",
                 prefix=sampler_name,
-                db_dir="../../",
             )
 
             scores = evaluate_dataset_on_test(
