@@ -22,7 +22,7 @@
 
 - [📍 Overview](#-overview)
 - [📚 Publications](#-publications)
-- [👾 Features](#-features)
+- [🗂 Repository structure](#-repository-structure)
 - [🚀 Setup](#-getting-started)
   - [☑️ Prerequisites](#-prerequisites)
   - [⚙️ Installation](#-installation)
@@ -58,15 +58,18 @@ HAG introduces an innovative, biologically-inspired approach to improve Reservoi
   This work explores an innovative algorithm for structural plasticity, enhancing neural network adaptability to diverse input combinations.
 
 ---
-## 👾 Features
+## 🗂 Repository structure
 
-|     | Feature         | Summary                                                                                                                                                                                        |
-|:----| :---:           |:-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| 🔬️ | **Dynamic Reservoirs**  | Dynamically generates connectivity matrices using Hebbian-inspired rules, ensuring optimized, task-specific reservoir properties for enhanced linear separability and efficiency.         |
-| 🧩  | **Structural Plasticity**    | Implements biologically plausible mechanisms to create or prune connections based on activity levels and correlations, enabling the reservoir to self-organize around task requirements.  |
-| ⚡️  | **Performance Boost**   | Outperforms traditional Echo State Networks (ESNs) across various benchmarks, offering higher accuracy in classification and reduced error in time-series prediction tasks.                    |
-| 📊  | **Comprehensive Metrics**  | Evaluates reservoirs with advanced metrics including Pearson Correlation, Spectral Radius, and Cumulative Explained Variance to ensure enriched dynamics and decorrelated feature representations. |
-
+| Folder | Content |
+|:--|:--|
+| `hag/hag` | The HAG algorithm (`run_algorithm`): structural plasticity driven by the mean (mean HAG) or variance (variance HAG) of the neurons' activity, partners chosen by Pearson correlation |
+| `hag/models` | Reservoirs: HAG as a reservoirpy node (`HAGReservoir`), intrinsic and local plasticity reservoirs (NumPy and JAX), matrix initialization, RNN baselines |
+| `hag/datasets` | Dataset loaders (classification, forecasting, Canary) and preprocessing (`prepare_data`: MFCC / spectrogram, scaling) |
+| `hag/hpo` | Hyperparameter optimization with Optuna (`hpo_esn.py`, `hpo_rnn.py`); studies in `hpo/legacy_studies` |
+| `hag/performances` | Test evaluation of the reservoirs (`evaluation_esn.py`) and RNNs (`evaluation_rnn.py`), batched JAX runs, figure style |
+| `hag/metrics` | Reservoir metrics: spectral radius, correlations, explained variance, separability, capacities |
+| `hag/analysis` | Analysis scripts, results in `outputs/analysis_results` |
+| `*.ipynb` | Notebooks: HAG framework, test results and figures, HAG dynamics, exploration |
 
 ---
 ## 🚀 Setup
