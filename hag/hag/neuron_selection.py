@@ -1,6 +1,31 @@
 import numpy as np
-from hag.hag.correlation_utility import compute_mutual_information
 from joblib import Parallel, delayed
+
+
+def mutual_information_matrix(states, bins=10, chunk=64):
+    """
+    Mutual information (bits) between all the rows of states (neurons, T), from their joint histograms on `bins`
+    bins shared by all neurons (edges of the histogram of all the states), 1e-10 being added to each joint
+    probability. Vectorized: the joint histograms of all the pairs are the products of the one-hot encodings of the
+    bins of each neuron, computed by blocks of `chunk` neurons to bound the memory.
+    """
+    n, T = states.shape
+    edges = np.histogram_bin_edges(states, bins=bins)
+    # bin of each state ([e_k, e_k+1), the last bin being closed, as np.histogram2d)
+    idx = np.clip(np.searchsorted(edges, states, side="right") - 1, 0, bins - 1)
+    onehot = np.zeros((n, bins, T))
+    onehot[np.arange(n)[:, None], idx, np.arange(T)[None, :]] = 1
+    flat = onehot.reshape(n * bins, T)
+    mi = np.empty((n, n))
+    for start in range(0, n, chunk):
+        stop = min(start + chunk, n)
+        # joint probabilities of the pairs (i in the block, j): (block, n, bins, bins)
+        joint = (flat[start * bins:stop * bins] @ flat.T).reshape(stop - start, bins, n, bins).transpose(0, 2, 1, 3)
+        joint = joint / T + 1e-10
+        marginal_i, marginal_j = joint.sum(axis=3), joint.sum(axis=2)
+        mi[start:stop] = np.sum(joint * np.log2(joint / (marginal_i[..., :, None] * marginal_j[..., None, :])),
+                                axis=(2, 3))
+    return mi
 
 
 def available_neurons(neuron, connectivity_matrix, neurons_pool, max_partners=np.inf, is_inter_matrix=False):
@@ -43,15 +68,20 @@ def determine_connection_pairs(neurons_needing_new_connection, connectivity_matr
 
     if method == "pearson":
         # Pearson correlation between all neurons, computed once for all the neurons needing a connexion
-        # (same as compute_pearson_corr(states[neuron, 1:], states[available, 1:]) for each neuron, much faster)
+        # (same as the correlation of states[neuron, 1:] with states[available, 1:] for each neuron, much faster)
         with np.errstate(divide="ignore", invalid="ignore"):
             pearson_corr = np.corrcoef(states[:, 1:])
+    elif method == "mi":
+        # Mutual information between the neurons of the pool (the available neurons of each neuron, with
+        # max_partners = inf), computed once for all the neurons needing a connexion (bins shared by the pool)
+        mi_neurons = np.array(neurons_pool) if np.isinf(max_partners) else np.arange(states.shape[0])
+        mi = np.full((states.shape[0], states.shape[0]), np.nan)
+        mi[np.ix_(mi_neurons, mi_neurons)] = mutual_information_matrix(states[mi_neurons])
 
     def compute_new_connexion(neuron):
         available_for_neuron = available_neurons(neuron, connectivity_matrix, neurons_pool, max_partners)
         if method == "mi":
-            mi_for_available_neurons = compute_mutual_information(states, [available_for_neuron, [neuron]])
-            mi_for_neuron = mi_for_available_neurons[neuron, available_for_neuron]
+            mi_for_neuron = mi[neuron, available_for_neuron]
             neuron_to_choose_from = np.array(available_for_neuron)[np.isclose(mi_for_neuron, np.nanmax(mi_for_neuron))]
         elif method == "hebbian":
             # Local Hebbian rule: co-activity x_i * x_j at a single time step (first of the window)
