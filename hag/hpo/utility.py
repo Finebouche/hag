@@ -77,12 +77,13 @@ def retrieve_best_model(
     return study
 
 
-def hag_reservoir_from_hyperparameters(params, function, input_dim, seed=None, **kwargs):
+def hag_reservoir_from_hyperparameters(params, function, input_dim, seed=None, node_class=None, **kwargs):
     """
     hag.models.hag_reservoir.HAGReservoir of HAG's hyperparameter optimization (mean_hag or var_hag, parameter names of
     hag/hpo/hpo_esn.py, e.g. the best trial of a study): network_size rounded up to a multiple of input_dim, as in
     HAG's evaluation. If W, Win and bias are not given, they are HAG's init_matrices with this seed (int), as in its
-    evaluation. kwargs: other HAGReservoir arguments (W, Win, bias, rng, ...).
+    evaluation. node_class: HAG node class (default: hag.models.hag_reservoir.HAGReservoir, e.g. reservoirpy's
+    HAGReservoir). kwargs: other HAGReservoir arguments (W, Win, bias, plasticity_rng, ...).
     """
     import math
     from scipy import stats
@@ -103,7 +104,8 @@ def hag_reservoir_from_hyperparameters(params, function, input_dim, seed=None, *
         extra = dict(intrinsic_saturation=params['intrinsic_saturation'], intrinsic_coef=params['intrinsic_coef'])
     else:
         raise ValueError(f"Not mean_hag or var_hag: {function!r}")
-    return HAGReservoir(units=input_dim * K, homeostasis=homeostasis, target=target, spread=spread,
-                        weight_increment=params['weight_increment'], min_window=params['min_increment'],
-                        max_window=params.get('max_increment'), use_full_instance=params.get('use_full_instance', False),
-                        lr=params['leaky_rate'], input_dim=input_dim, seed=seed, **extra, **kwargs)
+    node_class = HAGReservoir if node_class is None else node_class
+    return node_class(units=input_dim * K, homeostasis=homeostasis, target=target, spread=spread,
+                      weight_increment=params['weight_increment'], min_window=params['min_increment'],
+                      max_window=params.get('max_increment'), use_full_instance=params.get('use_full_instance', False),
+                      lr=params['leaky_rate'], input_dim=input_dim, seed=seed, **extra, **kwargs)

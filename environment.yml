@@ -25,8 +25,11 @@ dependencies:
   - pip
   - pip:
     - jax
-    # branch v0.4.3-dev (LocalPlasticityReservoir.fit fix, reservoirpy PR #250) until reservoirpy 0.4.3 is released
-    - reservoirpy @ git+https://github.com/reservoirpy/reservoirpy.git@5d3cb3eb3900714edd39fa28057198b49c208807
+    # for now: development version of reservoirpy (local fork, branch based on v0.4.3-dev, with HAGReservoir and
+    # block_input), installed in editable mode. Path relative to the repository root, where the environment is created
+    # (micromamba env create -f environment.yml). Previously:
+    # reservoirpy @ git+https://github.com/reservoirpy/reservoirpy.git@5d3cb3eb3900714edd39fa28057198b49c208807
+    - -e ../../Autres/reservoirpy
     - torch
     - torchaudio
     - jupyterlab-execute-time
