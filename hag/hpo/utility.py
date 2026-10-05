@@ -77,16 +77,20 @@ def retrieve_best_model(
     return study
 
 
-def hag_reservoir_from_hyperparameters(params, function, input_dim, seed=None, **kwargs):
+def hag_reservoir_from_hyperparameters(params, function, input_dim, seed=None, jax=False, **kwargs):
     """
     reservoirpy's HAGReservoir of HAG's hyperparameter optimization (mean_hag or var_hag, parameter names of
     hag/hpo/hpo_esn.py, e.g. the best trial of a study): network_size rounded up to a multiple of input_dim, as in
     HAG's evaluation. If W, Win and bias are not given, they are HAG's init_matrices with this seed (int), as in its
-    evaluation. kwargs: other HAGReservoir arguments (W, Win, bias, ...).
+    evaluation. jax: JAX version of the node (hag.models.jax_hag_reservoir). kwargs: other HAGReservoir arguments (W,
+    Win, bias, ...).
     """
     import math
     from scipy import stats
-    from reservoirpy.nodes import HAGReservoir
+    if jax:
+        from hag.models.jax_hag_reservoir import HAGReservoir
+    else:
+        from reservoirpy.nodes import HAGReservoir
     from hag.models.reservoir import init_matrices
 
     K = math.ceil(params['network_size'] / input_dim)
