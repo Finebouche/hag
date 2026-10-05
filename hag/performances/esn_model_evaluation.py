@@ -2,9 +2,8 @@ import numpy as np
 
 from sklearn.metrics import accuracy_score
 from hag.performances.losses import nrmse_multivariate
-from reservoirpy.nodes import Reservoir, IPReservoir, Ridge, RLS, LMS, NVAR, LocalPlasticityReservoir
+from reservoirpy.nodes import Reservoir, IPReservoir, Ridge, RLS, LMS, NVAR, LocalPlasticityReservoir, HAGReservoir
 from hag.models.IPLocalPlasticityReservoir import IPLocalPlasticityReservoir
-from hag.models.hag_reservoir import HAGReservoir
 from scipy import sparse
 from reservoirpy.type import is_multiseries
 from reservoirpy import activationsfunc

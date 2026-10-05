@@ -1,14 +1,10 @@
 """
-Compare HAG's reference implementation (hag.hag.hag.run_algorithm) with the reservoirpy node HAGReservoir, for mean_hag
+Compare HAG's reference implementation (hag.hag.hag.run_algorithm) with reservoirpy's HAGReservoir node, for mean_hag
 and var_hag with the best hyperparameters of HAG's studies, on the classification datasets:
-  1. weights: same initial matrices and same random draws (numpy's global RNG, ``plasticity_rng`` of
-     hag.models.hag_reservoir.HAGReservoir) -> identical W ("max_W_diff" = 0),
-  2. if reservoirpy provides HAGReservoir: its node and hag's node with the same seed and initial matrices -> identical W
-     ("max_W_diff_reservoirpy" = 0),
-  3. test accuracy: run_algorithm (random choices of numpy's global RNG) vs the node used as in reservoirpy (random
+  1. weights: same initial matrices and same random draws (the node's random choices taken from numpy's global RNG,
+     as run_algorithm) -> identical W ("max_W_diff" = 0),
+  2. test accuracy: run_algorithm (random choices of numpy's global RNG) vs the node used as in reservoirpy (random
      choices from its seed), same initial matrices and readout -> same accuracy up to the randomness of HAG's choices.
-The node of 2 and 3 is reservoirpy's HAGReservoir (development version of reservoirpy, installed in editable mode),
-or hag.models.hag_reservoir.HAGReservoir (same code) if the installed reservoirpy does not provide it.
 The results are written to outputs/analysis_results/hag_node_vs_run_algorithm.csv.
 
 Run from the repository root:  python -m hag.analysis.compare_hag_implementations [dataset ...]
@@ -30,11 +26,6 @@ from hag.models.activation_functions import tanh
 from hag.models.reservoir import init_matrices
 from hag.performances.esn_model_evaluation import (compute_score, init_readout, init_reservoir,
                                                    predict_model_for_classification, train_model_for_classification)
-
-try:
-    from reservoirpy.nodes import HAGReservoir as ReservoirpyHAGReservoir
-except ImportError:
-    ReservoirpyHAGReservoir = None
 
 # =============================== PARAMETERS ===============================
 DATASETS = ["JapaneseVowels", "CatsDogs", "FSDD", "SpokenArabicDigits", "SPEECHCOMMANDS"]
@@ -71,16 +62,17 @@ def W_run_algorithm(hp, function, pretrain, seed):
     return np.asarray(W, dtype=float), Win, bias
 
 
-def W_node(hp, function, pretrain, seed, node_class=None, global_rng=False):
-    """W learned by a HAGReservoir node with the same initial matrices: random choices from numpy's global RNG seeded
-    with seed (global_rng, hag's node only), else from the node's seed."""
+def W_node(hp, function, pretrain, seed, global_rng=False):
+    """W learned by reservoirpy's HAGReservoir with the same initial matrices: random choices from the node's seed, or
+    (global_rng) from numpy's global RNG seeded with seed, as run_algorithm."""
     W, Win, bias = initial_matrices(hp, pretrain[0].shape[1], seed)
-    kwargs = {}
-    if global_rng:
-        random.seed(seed)
-        kwargs["plasticity_rng"] = random.mtrand._rand
     node = hag_reservoir_from_hyperparameters(hp, function, input_dim=pretrain[0].shape[1], W=W, Win=Win, bias=bias,
-                                              seed=seed, node_class=node_class, **kwargs)
+                                              seed=seed)
+    if global_rng:
+        # verification only: replace the node's generator of random choices by numpy's global RNG
+        node.initialize(list(pretrain))
+        node._plasticity_rng = random.mtrand._rand
+        random.seed(seed)
     return node.fit(list(pretrain)).W, Win, bias
 
 
@@ -96,23 +88,14 @@ def test_accuracy(W, Win, bias, hp, train, test, Y_train, Y_test):
 def compare(dataset, function, data):
     pretrain, train, test, Y_train, Y_test, is_multivariate, _ = data
     hp = dict(retrieve_best_model(function, dataset, is_multivariate, verbosity=0).best_trial.params)
-    node_class = ReservoirpyHAGReservoir  # None: hag's node
-
     # 1. same random draws -> same weights
     w_diff = max(np.abs(W_run_algorithm(hp, function, pretrain, SEED + k)[0]
                         - W_node(hp, function, pretrain, SEED + k, global_rng=True)[0]).max() for k in range(N_W_CHECK))
-    row = {"dataset": dataset, "function": function, "max_W_diff": w_diff,
-           "node": "reservoirpy" if node_class is not None else "hag"}
+    row = {"dataset": dataset, "function": function, "max_W_diff": w_diff}
 
-    # 2. reservoirpy's node and hag's node, same seed -> same weights
-    if node_class is not None:
-        row["max_W_diff_reservoirpy"] = max(np.abs(W_node(hp, function, pretrain, SEED + k, node_class)[0]
-                                                   - W_node(hp, function, pretrain, SEED + k)[0]).max()
-                                            for k in range(N_W_CHECK))
-
-    # 3. test accuracy: reference implementation vs node used as in reservoirpy
+    # 2. test accuracy: reference implementation vs node used as in reservoirpy
     for name, learn in (("run_algorithm", lambda k: W_run_algorithm(hp, function, pretrain, SEED + k)),
-                        ("HAGReservoir", lambda k: W_node(hp, function, pretrain, SEED + k, node_class))):
+                        ("HAGReservoir", lambda k: W_node(hp, function, pretrain, SEED + k))):
         start, scores = time.time(), []
         for k in range(NB_TRIALS):
             W, Win, bias = learn(k)
@@ -124,15 +107,13 @@ def compare(dataset, function, data):
 
 def main(datasets):
     rows = []
-    print(f"[compare] HAGReservoir node: {'reservoirpy' if ReservoirpyHAGReservoir is not None else 'hag (reservoirpy has no HAGReservoir)'}")
     for dataset in datasets:
         random.seed(DATA_SEED)  # prepare_data draws the pretraining instances with numpy's global RNG
         data = prepare_data(dataset, "mfcc")
         for function in FUNCTIONS:
             row = compare(dataset, function, data)
             rows.append(row)
-            same = f" | reservoirpy vs hag node max|W diff| {row['max_W_diff_reservoirpy']:.1e}" if "max_W_diff_reservoirpy" in row else ""
-            print(f"[compare] {dataset:20s} {function:9s} max|W diff| {row['max_W_diff']:.1e}{same} | test run_algorithm "
+            print(f"[compare] {dataset:20s} {function:9s} max|W diff| {row['max_W_diff']:.1e} | test run_algorithm "
                   f"{row['run_algorithm_mean_%']:.2f}% ± {row['run_algorithm_std_%']:.2f} ({row['run_algorithm_time_s']}s) | "
                   f"HAGReservoir {row['HAGReservoir_mean_%']:.2f}% ± {row['HAGReservoir_std_%']:.2f} "
                   f"({row['HAGReservoir_time_s']}s)", flush=True)
@@ -142,8 +123,7 @@ def main(datasets):
 
     results = pd.DataFrame(rows)
     print(f"Results saved to {OUTPUT}")
-    if not results["max_W_diff"].eq(0).all() or ("max_W_diff_reservoirpy" in results
-                                                 and not results["max_W_diff_reservoirpy"].eq(0).all()):
+    if not results["max_W_diff"].eq(0).all():
         print("WARNING: the implementations do not give the same weights")
 
 
