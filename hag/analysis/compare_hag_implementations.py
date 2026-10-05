@@ -1,10 +1,12 @@
 """
-Compare HAG's reference implementation (hag.hag.hag.run_algorithm) with reservoirpy's HAGReservoir node, for mean_hag
-and var_hag with the best hyperparameters of HAG's studies, on the classification datasets:
+Compare HAG's reference implementation (hag.hag.hag.run_algorithm) with reservoirpy's HAGReservoir node and its JAX
+version (hag.models.jax_hag_reservoir), for mean_hag and var_hag with the best hyperparameters of HAG's studies, on the
+classification datasets:
   1. weights: same initial matrices and same random draws (the node's random choices taken from numpy's global RNG,
      as run_algorithm) -> identical W ("max_W_diff" = 0),
-  2. test accuracy: run_algorithm (random choices of numpy's global RNG) vs the node used as in reservoirpy (random
-     choices from its seed), same initial matrices and readout -> same accuracy up to the randomness of HAG's choices.
+  2. test accuracy and time: run_algorithm (random choices of numpy's global RNG) vs the nodes used as in reservoirpy
+     (random choices from their seed), same initial matrices and readout -> same accuracy up to the randomness of HAG's
+     choices. The JAX node draws its random choices with Jax's generator: it can only be compared statistically.
 The results are written to outputs/analysis_results/hag_node_vs_run_algorithm.csv.
 
 Run from the repository root:  python -m hag.analysis.compare_hag_implementations [dataset ...]
@@ -62,18 +64,18 @@ def W_run_algorithm(hp, function, pretrain, seed):
     return np.asarray(W, dtype=float), Win, bias
 
 
-def W_node(hp, function, pretrain, seed, global_rng=False):
-    """W learned by reservoirpy's HAGReservoir with the same initial matrices: random choices from the node's seed, or
-    (global_rng) from numpy's global RNG seeded with seed, as run_algorithm."""
+def W_node(hp, function, pretrain, seed, global_rng=False, jax=False):
+    """W learned by reservoirpy's HAGReservoir (jax: its JAX version) with the same initial matrices: random choices
+    from the node's seed, or (global_rng, NumPy node only) from numpy's global RNG seeded with seed, as run_algorithm."""
     W, Win, bias = initial_matrices(hp, pretrain[0].shape[1], seed)
     node = hag_reservoir_from_hyperparameters(hp, function, input_dim=pretrain[0].shape[1], W=W, Win=Win, bias=bias,
-                                              seed=seed)
+                                              seed=seed, jax=jax)
     if global_rng:
         # verification only: replace the node's generator of random choices by numpy's global RNG
         node.initialize(list(pretrain))
         node._plasticity_rng = random.mtrand._rand
         random.seed(seed)
-    return node.fit(list(pretrain)).W, Win, bias
+    return np.asarray(node.fit(list(pretrain)).W, dtype=float), Win, bias
 
 
 def test_accuracy(W, Win, bias, hp, train, test, Y_train, Y_test):
@@ -93,9 +95,10 @@ def compare(dataset, function, data):
                         - W_node(hp, function, pretrain, SEED + k, global_rng=True)[0]).max() for k in range(N_W_CHECK))
     row = {"dataset": dataset, "function": function, "max_W_diff": w_diff}
 
-    # 2. test accuracy: reference implementation vs node used as in reservoirpy
+    # 2. test accuracy: reference implementation vs nodes used as in reservoirpy
     for name, learn in (("run_algorithm", lambda k: W_run_algorithm(hp, function, pretrain, SEED + k)),
-                        ("HAGReservoir", lambda k: W_node(hp, function, pretrain, SEED + k))):
+                        ("HAGReservoir", lambda k: W_node(hp, function, pretrain, SEED + k)),
+                        ("JaxHAGReservoir", lambda k: W_node(hp, function, pretrain, SEED + k, jax=True))):
         start, scores = time.time(), []
         for k in range(NB_TRIALS):
             W, Win, bias = learn(k)
@@ -116,7 +119,8 @@ def main(datasets):
             print(f"[compare] {dataset:20s} {function:9s} max|W diff| {row['max_W_diff']:.1e} | test run_algorithm "
                   f"{row['run_algorithm_mean_%']:.2f}% ± {row['run_algorithm_std_%']:.2f} ({row['run_algorithm_time_s']}s) | "
                   f"HAGReservoir {row['HAGReservoir_mean_%']:.2f}% ± {row['HAGReservoir_std_%']:.2f} "
-                  f"({row['HAGReservoir_time_s']}s)", flush=True)
+                  f"({row['HAGReservoir_time_s']}s) | JaxHAGReservoir {row['JaxHAGReservoir_mean_%']:.2f}% ± "
+                  f"{row['JaxHAGReservoir_std_%']:.2f} ({row['JaxHAGReservoir_time_s']}s)", flush=True)
             # saved after each comparison, so that an interrupted run keeps its results
             OUTPUT.parent.mkdir(parents=True, exist_ok=True)
             pd.DataFrame(rows).to_csv(OUTPUT, index=False)
