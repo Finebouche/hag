@@ -31,6 +31,9 @@ dependencies:
     # reservoirpy @ git+https://github.com/reservoirpy/reservoirpy.git@5d3cb3eb3900714edd39fa28057198b49c208807
     - -e ../../Autres/reservoirpy
     - torch
+    - gymnasium[classic-control,box2d,mujoco]
+    - stable-baselines3
+    - popgym
     - torchaudio
     - jupyterlab-execute-time
     - jupyterlab-optuna

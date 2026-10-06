@@ -43,6 +43,11 @@ notebooks = [
   "jupyterlab-execute-time",
   "jupyterlab-optuna",
 ]
+rl = [
+  "gymnasium[classic-control,box2d,mujoco]",
+  "popgym",
+  "stable-baselines3",
+]
 
 [project.urls]
 Homepage = "https://github.com/Finebouche/HAG"
