@@ -1,6 +1,6 @@
 """
 JAX version of reservoirpy.nodes.HAGReservoir (same algorithm and parameters), the plasticity steps of fit being
-compiled with jax.lax.scan. Statistically identical to the NumPy version, but not equal for a given seed (the random
+compiled with jax.lax.scan (at each call of fit). Statistically identical to the NumPy version, but not equal for a given seed (the random
 choices are drawn with Jax's random generator).
 """
 from functools import partial
@@ -19,123 +19,28 @@ from reservoirpy.utils.data_validation import check_node_input
 
 block_input = JaxInitializer(np_mat_gen._block_input, allow_sr=False)
 
-# the number of windows is padded (empty windows) to a multiple of WINDOW_BUCKET: fit is compiled again only when it
-# changes of bucket, not for each draw of the windows lengths
-WINDOW_BUCKET = 64
-
-
 @partial(jax.jit, static_argnames=("activation",))
 def _forward(W, Win, bias, lr, state, x, activation):
     """Next state of the reservoir (matrices passed as arguments: they change during fit)."""
     return (1 - lr) * state + lr * activation(W @ state + Win @ x + bias)
 
 
-@partial(jax.jit, static_argnames=("activation",))
-def _run_inputs(W, Win, bias, lr, state, inputs, activation):
-    """Last state of the reservoir after running inputs (timesteps, input_dim)."""
-
-    def step(s, u):
-        return _forward(W, Win, bias, lr, s, u, activation), None
-
-    state, _ = jax.lax.scan(step, state, inputs)
-    return state
+def _fmix32(x):
+    """Finalizer of MurmurHash3: bijection of the uint32 with a good avalanche (each input bit changes half of the
+    output bits)."""
+    x = (x ^ (x >> 16)) * jnp.uint32(0x85EBCA6B)
+    x = (x ^ (x >> 13)) * jnp.uint32(0xC2B2AE35)
+    return x ^ (x >> 16)
 
 
 def _random_choice(key, mask):
-    """Column drawn uniformly among the True elements of each row of mask (0 for the empty rows): the k-th True
-    element, k drawn at random (one draw per row instead of one per element)."""
-    counts = jnp.sum(mask, axis=1)
-    k = jnp.minimum(jnp.floor(jax.random.uniform(key, (mask.shape[0],)) * counts), counts - 1)
-    return jnp.argmax(jnp.cumsum(mask, axis=1) > k[:, None], axis=1)
-
-
-@partial(jax.jit, static_argnames=("activation", "homeostasis"))
-def _fit_windows(
-    W,
-    Win,
-    bias,
-    lr,
-    state,
-    key,
-    windows,
-    lengths,
-    target,
-    spread,
-    weight_increment,
-    max_partners,
-    intrinsic_saturation,
-    intrinsic_coef,
-    activation,
-    homeostasis,
-):
-    """HAG on windows (n_windows, max_length, input_dim) of lengths (n_windows,), zero-padded: one plasticity step per
-    window (none for the empty windows). Returns W, the last state, and the numbers of added and removed (weakened) connections."""
-    units = W.shape[0]
-    steps = jnp.arange(windows.shape[1])
-    rows = jnp.arange(units)
-    not_self = ~jnp.eye(units, dtype=bool)
-
-    def window_step(carry, window_and_length):
-        W, state, key, n_added, n_pruned = carry
-        window, length = window_and_length
-        key, prune_key, add_key = jax.random.split(key, 3)
-
-        # run the reservoir on the window (the padding steps leave the state unchanged)
-        def run(s, t_u):
-            t, u = t_u
-            s = jnp.where(t < length, _forward(W, Win, bias, lr, s, u, activation), s)
-            return s, s
-
-        state, states = jax.lax.scan(run, state, (steps, window))
-        valid = (steps < length)[:, None]
-        n = length.astype(states.dtype)
-        mean = jnp.sum(jnp.where(valid, states, 0.0), axis=0) / n
-        if homeostasis == "mean":
-            activity = mean
-        else:
-            activity = jnp.sqrt(jnp.sum(jnp.where(valid, (states - mean) ** 2, 0.0), axis=0) / n)
-        delta_z = (activity - target) / spread
-
-        # too active: one incoming connection, drawn at random, is weakened
-        connected = W != 0
-        prune = (delta_z >= 1) & jnp.any(connected, axis=1)
-        partner = _random_choice(prune_key, connected)
-        old = W[rows, partner]
-        W = W.at[rows, partner].set(jnp.where(prune, jnp.maximum(old - weight_increment, 0.0), old))
-
-        # not active enough: one incoming connection from the most correlated neuron (Pearson correlation over the
-        # window without its first timestep, among the other neurons not active enough, ties drawn at random)
-        pool = delta_z <= -1
-        corr_valid = ((steps >= 1) & (steps < length))[:, None]
-        corr_mean = jnp.sum(jnp.where(corr_valid, states, 0.0), axis=0) / jnp.sum(corr_valid)
-        centered = jnp.where(corr_valid, states - corr_mean, 0.0)
-        cov = centered.T @ centered
-        std = jnp.sqrt(jnp.diag(cov))
-        correlations = jnp.clip(cov / jnp.outer(std, std), -1.0, 1.0)  # NaN where a neuron has a constant activity
-
-        connected = W != 0
-        # beyond max_partners, only the existing connections are strengthened
-        available = jnp.where(
-            (jnp.sum(connected, axis=1) >= max_partners)[:, None], connected, pool[None, :] & not_self
-        )
-        scores = jnp.where(available, correlations, jnp.nan)
-        best = jnp.nanmax(scores, axis=1)
-        ties = available & jnp.isclose(scores, best[:, None])
-        # undefined correlations: no new connection
-        add = pool & jnp.any(ties, axis=1) & (jnp.sum(pool) > 1)
-        partner = _random_choice(add_key, ties)
-        W = W.at[rows, partner].add(jnp.where(add, weight_increment, 0.0))
-
-        if homeostasis == "variance":
-            # intrinsic homeostatic plasticity: weaker inputs for the neurons saturated on the whole window
-            saturated = jnp.all(jnp.where(valid, states >= intrinsic_saturation, True), axis=0) & (length > 0)
-            W = jnp.where(saturated[:, None], W * intrinsic_coef, W)
-
-        return (W, state, key, n_added + jnp.sum(add), n_pruned + jnp.sum(prune)), None
-
-    carry = (W, state, key, jnp.array(0), jnp.array(0))
-    (W, state, _, n_added, n_pruned), _ = jax.lax.scan(window_step, carry, (windows, lengths))
-    return W, state, n_added, n_pruned
+    """Column drawn uniformly among the True elements of each row of mask (0 for the empty rows), independently for
+    each row: the True element of highest pseudo-random priority, a hash of its index and of a random seed (much faster
+    than one random draw per element with Jax's generator, or than a cumulative sum over the rows)."""
+    seed = _fmix32(jax.random.bits(key, (), jnp.uint32))
+    index = jnp.arange(mask.size, dtype=jnp.uint32).reshape(mask.shape)
+    priority = _fmix32(index ^ seed)  # bijection of the index: no ties
+    return jnp.argmax(jnp.where(mask, priority, jnp.uint32(0)), axis=1)
 
 
 class HAGReservoir(TrainableNode):
@@ -443,9 +348,8 @@ class HAGReservoir(TrainableNode):
                 T = self._plasticity_rng.choice(lengths)
                 windows.append(inputs[:T])
                 inputs = inputs[T:]
-        lengths = np.zeros(WINDOW_BUCKET * -(-len(windows) // WINDOW_BUCKET), dtype=int)
-        lengths[: len(windows)] = [len(window) for window in windows]
-        padded = np.zeros((len(lengths), max(lengths, default=1), self.input_dim))
+        lengths = np.array([len(window) for window in windows], dtype=int)
+        padded = np.zeros((len(windows), max(lengths, default=1), self.input_dim))
         for k, window in enumerate(windows):
             padded[k, : len(window)] = window
         return init, padded, lengths
@@ -477,17 +381,106 @@ class HAGReservoir(TrainableNode):
         sequences = [np.asarray(seq, dtype=float)[warmup:] for seq in (x if multiple else [x])]
         init, windows, lengths = self._windows(sequences, multiple)
 
+        # functions of the plasticity, jitted with the parameters of the node as constants (W, which changes, is an
+        # argument): compiled at each call of fit
+        Win, bias, lr, activation = self.Win, self.bias, self.lr, self.activation
+        target, spread, weight_increment = self.target, self.spread, self.weight_increment
+        max_partners = self.max_partners
+        steps, rows = jnp.arange(windows.shape[1]), jnp.arange(self.units)
+        not_self = ~jnp.eye(self.units, dtype=bool)
+
+        @jax.jit
+        def run_inputs(W, state, inputs):
+            """Last state of the reservoir after running inputs (timesteps, input_dim)."""
+            return jax.lax.scan(lambda s, u: (_forward(W, Win, bias, lr, s, u, activation), None), state, inputs)[0]
+
+        def window_step(carry, window_and_length):
+            """Plasticity step on a window, zero-padded (none for an empty window)."""
+            W, state, key, n_added, n_pruned = carry
+            window, length = window_and_length
+            key, prune_key, add_key = jax.random.split(key, 3)
+
+            # run the reservoir on the window (the padding steps leave the state unchanged)
+            def run(s, t_u):
+                t, u = t_u
+                s = jnp.where(t < length, _forward(W, Win, bias, lr, s, u, activation), s)
+                return s, s
+
+            state, states = jax.lax.scan(run, state, (steps, window))
+            valid = (steps < length)[:, None]
+            n = length.astype(states.dtype)
+            mean = jnp.sum(jnp.where(valid, states, 0.0), axis=0) / n
+            if self.homeostasis == "mean":
+                activity = mean
+            else:
+                activity = jnp.sqrt(jnp.sum(jnp.where(valid, (states - mean) ** 2, 0.0), axis=0) / n)
+            delta_z = (activity - target) / spread
+
+            # too active: one incoming connection, drawn at random, is weakened
+            too_active = delta_z >= 1
+
+            def weaken(W):
+                connected = W != 0
+                prune = too_active & jnp.any(connected, axis=1)
+                partner = _random_choice(prune_key, connected)
+                old = W[rows, partner]
+                W = W.at[rows, partner].set(jnp.where(prune, jnp.maximum(old - weight_increment, 0.0), old))
+                return W, jnp.sum(prune)
+
+            # not active enough: one incoming connection from the most correlated neuron (Pearson correlation over the
+            # window without its first timestep, among the other neurons not active enough, ties drawn at random)
+            pool = delta_z <= -1
+
+            def strengthen(W):
+                corr_valid = ((steps >= 1) & (steps < length))[:, None]
+                corr_mean = jnp.sum(jnp.where(corr_valid, states, 0.0), axis=0) / jnp.sum(corr_valid)
+                centered = jnp.where(corr_valid, states - corr_mean, 0.0)
+                cov = centered.T @ centered
+                std = jnp.sqrt(jnp.diag(cov))
+                correlations = jnp.clip(cov / jnp.outer(std, std), -1.0, 1.0)  # NaN for a constant activity
+
+                connected = W != 0
+                # beyond max_partners, only the existing connections are strengthened
+                available = jnp.where(
+                    (jnp.sum(connected, axis=1) >= max_partners)[:, None], connected, pool[None, :] & not_self
+                )
+                scores = jnp.where(available & ~jnp.isnan(correlations), correlations, -jnp.inf)
+                best = jnp.max(scores, axis=1)
+                ties = scores >= best[:, None] - (1e-8 + 1e-5 * jnp.abs(best[:, None]))  # (tolerance of np.isclose)
+                # undefined correlations (best = -inf): no new connection
+                add = pool & jnp.isfinite(best)
+                partner = _random_choice(add_key, ties)
+                return W.at[rows, partner].add(jnp.where(add, weight_increment, 0.0)), jnp.sum(add)
+
+            # each step only when a neuron needs it (lax.cond only runs one branch): once the activity is regulated,
+            # most windows change no connection
+            no_change = lambda W: (W, jnp.array(0))  # noqa: E731
+            W, pruned = jax.lax.cond(jnp.any(too_active), weaken, no_change, W)
+            W, added = jax.lax.cond(jnp.sum(pool) > 1, strengthen, no_change, W)
+
+            if self.homeostasis == "variance":
+                # intrinsic homeostatic plasticity: weaker inputs for the neurons saturated on the whole window
+                saturated = jnp.all(jnp.where(valid, states >= self.intrinsic_saturation, True), axis=0) & (length > 0)
+                W = jnp.where(saturated[:, None], W * self.intrinsic_coef, W)
+
+            return (W, state, key, n_added + added, n_pruned + pruned), None
+
+        @jax.jit
+        def fit_windows(W, state, key, windows, lengths):
+            """HAG on windows (n_windows, max_length, input_dim) of lengths (n_windows,): one plasticity step per
+            window. Returns W, the last state, and the numbers of added and removed (weakened) connections."""
+            carry = (W, state, key, jnp.array(0), jnp.array(0))
+            (W, state, _, n_added, n_pruned), _ = jax.lax.scan(window_step, carry, (windows, lengths))
+            return W, state, n_added, n_pruned
+
         self._key, init_key, fit_key = jax.random.split(self._key, 3)
         state = jax.random.uniform(init_key, (self.units,), dtype=self.W.dtype)
         if len(init) > 0:
-            state = _run_inputs(self.W, self.Win, self.bias, self.lr, state, jnp.asarray(init, dtype=self.W.dtype), activation=self.activation)
+            state = run_inputs(self.W, state, jnp.asarray(init, dtype=self.W.dtype))
         self.n_added = self.n_pruned = 0
         if len(lengths) > 0:
-            self.W, state, n_added, n_pruned = _fit_windows(
-                self.W, self.Win, self.bias, self.lr, state, fit_key, jnp.asarray(windows, dtype=self.W.dtype),
-                jnp.asarray(lengths), self.target, self.spread, self.weight_increment, self.max_partners,
-                self.intrinsic_saturation, self.intrinsic_coef, activation=self.activation,
-                homeostasis=self.homeostasis,
+            self.W, state, n_added, n_pruned = fit_windows(
+                self.W, state, fit_key, jnp.asarray(windows, dtype=self.W.dtype), jnp.asarray(lengths)
             )
             self.n_added, self.n_pruned = int(n_added), int(n_pruned)
 
