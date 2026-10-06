@@ -1,19 +1,23 @@
 #!/bin/bash
 # Reinforcement learning experiments of hag (hag/rl) on PlaFRIM, for one benchmark (environment variable HAG_RL_ENV,
 # see hag.rl.envs.BENCHMARKS), on one node: hyperparameter optimization (hag.rl.hpo, all the studies or the ones given
-# as arguments) then final training (hag.rl.train), N_WORKERS being the cores of the job. The results are written on the
-# local disk of the node (SQLite does not support the network file systems well) and copied to
-# outputs/rl_results/<benchmark> every 10 minutes and at the end of the job.
+# as arguments) then final training (hag.rl.train), N_WORKERS being the cores of the job (a whole suroit node: 48 AMD
+# Zen4 cores, 256 GB). The results are written in /dev/shm (local memory of the node: SQLite does not support the
+# network file systems well, and the suroit nodes have no local disk) and copied to outputs/rl_results/<benchmark>
+# every 10 minutes and at the end of the job.
+# Usage rules of PlaFRIM: large experiments at night or during holidays, no job longer than 72 h outside week-ends, no
+# more than 5 hours on all the cores of a sub-cluster per working day (9:00-19:00); slurm/submit_rl.sh limits the
+# number of jobs running at the same time.
 #
 # Environment: slurm/setup_env.sh (micromamba environment hag_env).
 # Submit from the repository root (all the benchmarks: slurm/submit_rl.sh):
 #   sbatch --export=ALL,HAG_RL_ENV=<benchmark> --job-name=rl-<benchmark> slurm/rl.sbatch [study ...]
 #SBATCH --job-name=hag-rl
 #SBATCH --partition=routage
-#SBATCH --constraint=zonda
+#SBATCH --constraint=suroit
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
-#SBATCH --cpus-per-task=64
+#SBATCH --cpus-per-task=48
 #SBATCH --time=1-00:00:00
 #SBATCH --signal=B:TERM@120
 #SBATCH --output=slurm/logs/%x-%j.out
@@ -26,7 +30,7 @@ eval "$(micromamba shell hook -s bash)"
 micromamba activate hag_env
 
 RESULTS=$SLURM_SUBMIT_DIR/outputs/rl_results/$HAG_RL_ENV
-export HAG_RL_RESULTS=/tmp/hag_rl_$SLURM_JOB_ID
+export HAG_RL_RESULTS=/dev/shm/hag_rl_$SLURM_JOB_ID
 mkdir -p "$RESULTS" "$HAG_RL_RESULTS"
 rsync -a "$RESULTS/" "$HAG_RL_RESULTS/"
 sync_back() { rsync -a "$HAG_RL_RESULTS/" "$RESULTS/"; }
