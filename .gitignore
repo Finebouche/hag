@@ -24,3 +24,6 @@ dist/
 
 /outputs/hag_matrices
 outputs/rl_results/rl_curves/
+
+outputs/rl_results/**/rl_curves/
+outputs/rl_results/**/*.sqlite3
