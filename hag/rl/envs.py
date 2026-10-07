@@ -20,7 +20,7 @@ class Benchmark:
     keep: Optional[tuple] = None                   # observation indices kept (None: all)
     kwargs: dict = field(default_factory=dict)     # arguments of gym.make
     hpo_timesteps: int = 100_000                   # PPO budget per seed of a trial of the hyperparameter optimization
-    train_timesteps: int = 300_000                 # PPO budget per seed of the final training (hag.rl.train)
+    train_timesteps: int = 300_000                 # PPO budget per seed of the final training (hag.rl.ppo.train)
     n_trials: int = 200                            # trials per study of the hyperparameter optimization
     normalize_reward: bool = False                 # normalization of the rewards for PPO (VecNormalize)
 
@@ -46,16 +46,30 @@ BENCHMARKS = {
 
 
 class MaskObservation(gym.ObservationWrapper):
-    """Keep only the observation components of indices."""
+    """Keep only the observation components of indices (the full observation is kept in the attribute full)."""
 
     def __init__(self, env: gym.Env, indices):
         super().__init__(env)
         self.indices = np.asarray(indices)
         low, high = env.observation_space.low[self.indices], env.observation_space.high[self.indices]
         self.observation_space = gym.spaces.Box(low, high, dtype=np.float32)
+        self.full = None
 
     def observation(self, observation):
+        self.full = np.asarray(observation)
         return observation[self.indices].astype(np.float32)
+
+
+def hidden_state(env: gym.Env) -> np.ndarray:
+    """Hidden state at the last observation of an environment of make_env, what the agent has to infer: the components
+    removed from the observations (velocities), or the state of the POPGym environments (flattened: one-hot encoding
+    of its discrete parts)."""
+    unwrapped = env.unwrapped
+    if hasattr(unwrapped, "get_state"):
+        return gym.spaces.flatten(unwrapped.state_space, unwrapped.get_state()).astype(float)
+    while not isinstance(env, MaskObservation):
+        env = env.env
+    return np.delete(env.full, env.indices).astype(float)
 
 
 def make_env(name: str) -> gym.Env:
@@ -70,3 +84,22 @@ def make_env(name: str) -> gym.Env:
     if not isinstance(env.observation_space, gym.spaces.Box):
         env = gym.wrappers.FlattenObservation(env)  # (one-hot encoding of the discrete observations)
     return env
+
+
+def has_discrete_actions(name: str) -> bool:
+    """Whether the actions of the benchmark name are discrete (as LSPI needs)."""
+    env = make_env(name)
+    discrete = isinstance(env.action_space, gym.spaces.Discrete)
+    env.close()
+    return discrete
+
+
+if __name__ == "__main__":
+    # names of the benchmarks given as arguments (all by default), only those with discrete actions with --discrete,
+    # one per line (used by slurm/submit_rl.sh)
+    import sys
+
+    names = [arg for arg in sys.argv[1:] if arg != "--discrete"] or list(BENCHMARKS)
+    for name in names:
+        if "--discrete" not in sys.argv[1:] or has_discrete_actions(name):
+            print(name)

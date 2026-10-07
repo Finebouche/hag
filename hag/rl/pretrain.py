@@ -1,7 +1,7 @@
 """
 Pretraining of the features: episodes of a pretraining policy (random, or a policy trained on other features, see
-hag.rl.train.pretraining_episodes), bounds of the MinMax scaling of the observations and of the filter bank features,
-and reservoirs. The reservoirs share the same input matrix and bias (one block of units per input feature, as the
+hag.rl.experiment.pretraining_episodes), bounds of the MinMax scaling of the observations and of the filter bank
+features, and reservoirs. The reservoirs share the same input matrix and bias (one block of units per input feature, as the
 default input matrix of reservoirpy's HAGReservoir) and only differ by W: random, rescaled to a spectral radius, for
 the ESN; learned by HAG on the pretraining episodes; zero for the random projection "proj" (control of HAG).
 """
@@ -13,7 +13,7 @@ from reservoirpy.mat_gen import block_input, random_sparse, uniform
 from reservoirpy.utils.random import rand_generator
 
 from hag.models.jax_hag_reservoir import HAGReservoir
-from hag.rl.envs import make_env
+from hag.rl.envs import hidden_state, make_env
 from hag.rl.features import FeaturePipeline, make_filter_bank
 
 FILTER_BANK_PARAMS = ("decomposition", "n_filters", "slowest")  # parameters of make_filter_bank
@@ -39,26 +39,30 @@ class FeaturePolicy:
         return self.model.predict(features, deterministic=self.deterministic)[0][0]
 
 
-def collect_episodes(name: str, n_steps: int, seed: int = 0, policy=None) -> list:
+def collect_episodes(name: str, n_steps: int, seed: int = 0, policy=None, hidden: bool = False):
     """Observations (T, D) of the episodes of a policy (e.g. FeaturePolicy; random if None) on the benchmark name (see
-    hag.rl.envs.BENCHMARKS), until n_steps steps."""
+    hag.rl.envs.BENCHMARKS), until n_steps steps. hidden: also return the hidden states (T, H) of the episodes (see
+    hag.rl.envs.hidden_state), returns (episodes, hidden states)."""
     env = make_env(name)
     env.action_space.seed(seed)
-    episodes, steps = [], 0
+    episodes, hiddens, steps = [], [], 0
     while steps < n_steps:
         observation, _ = env.reset(seed=seed + len(episodes))
         if policy is not None:
             policy.reset()
-        observations, done = [observation], False
+        observations, states, done = [observation], [hidden_state(env)] if hidden else [], False
         while not done:
             action = env.action_space.sample() if policy is None else policy(observation)
             observation, _, terminated, truncated, _ = env.step(action)
             observations.append(observation)
+            if hidden:
+                states.append(hidden_state(env))
             done = terminated or truncated
         episodes.append(np.asarray(observations, dtype=float))
+        hiddens.append(np.asarray(states, dtype=float))
         steps += len(observations)
     env.close()
-    return episodes
+    return (episodes, hiddens) if hidden else episodes
 
 
 def scaling_bounds(episodes: list) -> tuple:

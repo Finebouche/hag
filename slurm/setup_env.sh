@@ -21,4 +21,5 @@ pip install aeon cmaes dcor imageio jax joblib librosa matplotlib networkx numpy
     popgym
 pip install -e "$HOME/reservoirpy" --no-deps
 pip install -e "$HOME/hag" --no-deps
-python -c "import hag.rl.train, hag.rl.hpo, reservoirpy, mujoco, Box2D, popgym; print('hag_env ok:', reservoirpy.__file__)"
+python -c "import hag.rl.ppo.hpo, hag.rl.lspi.hpo, reservoirpy, mujoco, Box2D, popgym; print('hag_env ok:', \
+reservoirpy.__file__)"

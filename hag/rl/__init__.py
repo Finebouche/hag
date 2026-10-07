@@ -1,8 +1,9 @@
-"""Reinforcement learning with HAG as preprocessing: partially observable gymnasium environments, causal filter bank,
-reservoir (random ESN or HAG) features and PPO agents (stable-baselines3)."""
+"""Reinforcement learning with HAG as preprocessing: partially observable benchmarks, causal filter bank, reservoir
+(random ESN or HAG) features, and readouts learned by PPO (stable-baselines3, hag.rl.ppo) or by least-squares policy
+iteration (hag.rl.lspi)."""
 import os
 
-# one thread per process: the experiments are parallelized over processes (N_WORKERS of hag.rl.train and hag.rl.hpo)
+# one thread per process: the experiments are parallelized over processes (N_WORKERS, see hag.rl.utils)
 # and their networks and matrices are small, multithreading would only add contention (and slows PPO down). The flags
 # of XLA (jax) must be set before jax is imported.
 os.environ.setdefault("XLA_FLAGS", "--xla_cpu_multi_thread_eigen=false intra_op_parallelism_threads=1")
