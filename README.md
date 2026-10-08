@@ -69,8 +69,8 @@ HAG introduces an innovative, biologically-inspired approach to improve Reservoi
 | `hag/performances` | Test evaluation of the reservoirs (`evaluation_esn.py`) and RNNs (`evaluation_rnn.py`), batched JAX runs, figure style |
 | `hag/metrics` | Reservoir metrics: spectral radius, correlations, explained variance, separability, capacities |
 | `hag/analysis` | Analysis scripts, results in `outputs/analysis_results` |
-| `hag/rl` | Reinforcement learning with HAG as preprocessing: partially observable benchmarks (classic control, MuJoCo "-P", POPGym), causal filter bank, reservoir features, readouts learned by PPO (`hag/rl/ppo`) or by least-squares policy iteration (`hag/rl/lspi`), each with its training (`python -m hag.rl.<method>.train`) and hyperparameter optimization (`python -m hag.rl.<method>.hpo`), supervised probe of the features (`python -m hag.rl.probe`), results in `outputs/rl_results` |
-| `slurm` | Jobs of the RL experiments on PlaFRIM: environment (`setup_env.sh`), one job per benchmark (`submit_rl.sh`, `rl.sbatch`) |
+| `hag/rl` | Reinforcement learning with HAG as preprocessing: partially observable benchmarks (classic control, MuJoCo "-P", POPGym), causal filter bank, reservoir features, readouts learned by PPO (`hag/rl/ppo`), DQN with a linear Q-head (`hag/rl/dqn`) or least-squares policy iteration (`hag/rl/lspi`), each with its training (`python -m hag.rl.<method>.train`) and hyperparameter optimization (`python -m hag.rl.<method>.hpo`), or by behavioral cloning of an expert that sees the hidden state (`hag/rl/bc`, DAgger with a ridge readout, no RL: upper bound of the linear readouts), supervised probe of the features (`python -m hag.rl.probe`), sweep of the readout (PPO's network depth, PPO vs DQN, LSPI and behavioral cloning) and of the reservoir size (`python -m hag.rl.sweep`), results in `outputs/rl_results` |
+| `slurm` | Jobs of the RL experiments on PlaFRIM: environment (`setup_env.sh`), one job per benchmark (`submit_rl.sh`, `rl.sbatch`; `HAG_RL_METHOD=ppo`, `dqn`, `lspi`, `bc` or `sweep`) |
 | `*.ipynb` | Notebooks: HAG framework, test results and figures, HAG dynamics, exploration |
 
 ---

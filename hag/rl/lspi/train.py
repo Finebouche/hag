@@ -130,16 +130,16 @@ def condition_params(condition):
     return DEFAULT_PARAMS[kind]
 
 
-def run(condition, seed, episodes, params=None, save_curves=True, check=None):
+def run(condition, seed, episodes, params=None, save_curves=True, check=None, units=UNITS):
     """LSPI on the features of a condition, fitted on the pretraining episodes, and return the results of the run.
     params: parameters of the features, "ridge" and "gamma" (default: condition_params; RIDGE and GAMMA if missing).
     check: function called with the feature pipeline before the training (e.g. to stop a run whose reservoir is not
-    suitable by raising an exception)."""
+    suitable by raising an exception). units: reservoir size."""
     start = time.time()
     params = condition_params(condition) if params is None else params
     lspi = dict(dict(ridge=RIDGE, gamma=GAMMA), **{key: params[key] for key in LSPI_PARAMS if key in params})
     feature_params = {key: value for key, value in params.items() if key not in LSPI_PARAMS + ("learning_rate",)}
-    pipeline = make_pipeline(condition, episodes, UNITS, seed, feature_params)
+    pipeline = make_pipeline(condition, episodes, units, seed, feature_params)
     if check is not None:
         check(pipeline)
     features = Features(pipeline, episodes)

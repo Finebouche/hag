@@ -5,7 +5,9 @@ Partially observable benchmarks (BENCHMARKS), with their budgets:
   - "-P" variants of the MuJoCo locomotion tasks (Ni et al., 2022, "Recurrent model-free RL can be a strong baseline for
     many POMDPs"): positions only, the velocities removed (HalfCheetah, Hopper, Walker2d, Ant),
   - POPGym (Morad et al., 2023), easy versions: positions only (and noisy) CartPole and Pendulum, and memory tasks on
-    cards (RepeatPrevious, CountRecall, Autoencode), whose discrete observations are one-hot encoded.
+    cards (RepeatPrevious, CountRecall, Autoencode), whose discrete observations are one-hot encoded; medium and hard
+    versions of RepeatPrevious (card of k = 32 and 64 steps before, instead of 4) and CountRecall (more decks, and more
+    card values for the hard one), the easy ones being solved by most conditions.
 """
 from dataclasses import dataclass, field
 from typing import Optional
@@ -42,6 +44,9 @@ BENCHMARKS = {
                     "NoisyPositionOnlyPendulum"]},
     **{name: Benchmark(f"popgym-{name}Easy-v0", hpo_timesteps=300_000, train_timesteps=1_000_000)
        for name in ["RepeatPrevious", "CountRecall", "Autoencode"]},
+    # POPGym, medium and hard versions of the memory tasks
+    **{f"{name}{level}": Benchmark(f"popgym-{name}{level}-v0", hpo_timesteps=300_000, train_timesteps=1_000_000)
+       for name in ["RepeatPrevious", "CountRecall"] for level in ["Medium", "Hard"]},
 }
 
 
@@ -84,6 +89,26 @@ def make_env(name: str) -> gym.Env:
     if not isinstance(env.observation_space, gym.spaces.Box):
         env = gym.wrappers.FlattenObservation(env)  # (one-hot encoding of the discrete observations)
     return env
+
+
+class ExpertObservation(gym.ObservationWrapper):
+    """Observations of an environment of make_env followed by its hidden state (see hidden_state): what an expert
+    needs to act without memory. The observation of the agent is the first n_agent components."""
+
+    def __init__(self, env: gym.Env):
+        super().__init__(env)
+        self.n_agent = env.observation_space.shape[0]
+        env.reset(seed=0)
+        n = self.n_agent + len(hidden_state(env))
+        self.observation_space = gym.spaces.Box(-np.inf, np.inf, shape=(n,), dtype=np.float32)
+
+    def observation(self, observation):
+        return np.concatenate([observation, hidden_state(self.env)]).astype(np.float32)
+
+
+def make_expert_env(name: str) -> ExpertObservation:
+    """Environment of the benchmark name with the expert observations (see ExpertObservation)."""
+    return ExpertObservation(make_env(name))
 
 
 def has_discrete_actions(name: str) -> bool:

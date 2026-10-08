@@ -41,13 +41,14 @@ STUDIES = ("obs", "filterbank") + tuple(f"{kind}_{decomposition}" for kind in ("
 warnings.filterwarnings("ignore", category=optuna.exceptions.ExperimentalWarning)  # (multivariate TPE)
 
 
-def storage_path(db_name: str):
-    return RL_RESULTS / f"{db_name}.sqlite3"
+def storage_path(db_name: str, root=None):
+    """Path of the database db_name, in the folder root (default: RL_RESULTS)."""
+    return (RL_RESULTS if root is None else root) / f"{db_name}.sqlite3"
 
 
-def storage(db_name: str) -> optuna.storages.RDBStorage:
+def storage(db_name: str, root=None) -> optuna.storages.RDBStorage:
     # timeout: the workers write to the same database
-    return optuna.storages.RDBStorage(f"sqlite:///{storage_path(db_name)}",
+    return optuna.storages.RDBStorage(f"sqlite:///{storage_path(db_name, root)}",
                                       engine_kwargs={"connect_args": {"timeout": 60}})
 
 
@@ -118,16 +119,16 @@ def connections_check(trial: optuna.Trial):
     return check
 
 
-def best_params(db_name: str, kind: str, suggest):
+def best_params(db_name: str, kind: str, suggest, root=None):
     """Best parameters (suggest(trial, study_name): search space of the method) of the studies of a kind ("obs",
     "filterbank", "esn": best of the "esn_*" studies, or "hag": best of the "hag_mean_*" and "hag_variance_*" studies)
-    of the database db_name, or None if there is no completed study."""
-    if not storage_path(db_name).exists():  # (load_study would create an empty database)
+    of the database db_name (in the folder root, default: RL_RESULTS), or None if there is no completed study."""
+    if not storage_path(db_name, root).exists():  # (load_study would create an empty database)
         return None
     best = None
     for study_name in [study for study in STUDIES if study_kind(study) == kind]:
         try:
-            study = optuna.load_study(study_name=study_name, storage=storage(db_name))
+            study = optuna.load_study(study_name=study_name, storage=storage(db_name, root))
             if best is None or study.best_value > best[0]:
                 best = (study.best_value, study_name, study.best_params)
         except (KeyError, ValueError):  # study missing or without completed trial

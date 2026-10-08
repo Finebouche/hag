@@ -76,23 +76,24 @@ def condition_params(condition):
 
 
 def run(condition, seed, episodes, params=None, total_timesteps=TOTAL_TIMESTEPS, evaluate=True, save_curves=True,
-        check=None):
+        check=None, units=UNITS, net_arch=NET_ARCH):
     """Train PPO with the features of a condition, fitted on the pretraining episodes, and return the results of the
     run. params: parameters of the features and "learning_rate" of PPO (default: condition_params; stable-baselines3's
     learning rate if missing). check: function called with the feature pipeline before the training (e.g. to stop a
-    run whose reservoir is not suitable by raising an exception)."""
+    run whose reservoir is not suitable by raising an exception). units: reservoir size, net_arch: networks of the
+    policy and of the value function (default: linear readouts)."""
     start = time.time()
     params = condition_params(condition) if params is None else params
     features = {key: value for key, value in params.items() if key != "learning_rate"}
     ppo_params = {key: value for key, value in params.items() if key == "learning_rate"}
-    pipeline = make_pipeline(condition, episodes, UNITS, seed, features)
+    pipeline = make_pipeline(condition, episodes, units, seed, features)
     if check is not None:
         check(pipeline)
     eval_env = FeatureVecEnv(make_vec_env(lambda: make_env(ENV_ID), n_envs=N_EVAL_ENVS, seed=10_000 + seed),
                              copy.deepcopy(pipeline))
 
     returns = EpisodeReturns()
-    model = train_ppo(pipeline, seed, total_timesteps, callback=returns, n_envs=N_ENVS, net_arch=NET_ARCH,
+    model = train_ppo(pipeline, seed, total_timesteps, callback=returns, n_envs=N_ENVS, net_arch=net_arch,
                       **ppo_params)
     eval_mean, eval_std = (evaluate_policy(model, eval_env, n_eval_episodes=N_EVAL_EPISODES, deterministic=True)
                            if evaluate else (np.nan, np.nan))

@@ -23,7 +23,8 @@ from hag.rl.ppo import train
 # =============================== PARAMETERS ===============================
 N_TRIALS = BENCHMARK.n_trials              # trials per study
 TOTAL_TIMESTEPS = BENCHMARK.hpo_timesteps  # PPO budget per seed
-DB_NAME = f"rl_hpo_{RESULTS_NAME}"         # database of the studies
+DB_PREFIX = "rl_hpo"
+DB_NAME = f"{DB_PREFIX}_{RESULTS_NAME}"         # database of the studies
 # ===========================================================================
 
 
@@ -39,9 +40,10 @@ def trial_params(study_name: str, values: dict) -> dict:
     return suggest_params(optuna.trial.FixedTrial(values), study_name)
 
 
-def best_params(kind: str):
-    """Best parameters of the studies of a kind (see hag.rl.search.best_params), or None."""
-    return search.best_params(DB_NAME, kind, suggest_params)
+def best_params(kind: str, db_name: str = DB_NAME, root=None):
+    """Best parameters of the studies of a kind in the database db_name (default: that of the benchmark) of the folder
+    root (default: RL_RESULTS), see hag.rl.search.best_params, or None."""
+    return search.best_params(db_name, kind, suggest_params, root)
 
 
 def objective(trial: optuna.Trial, study_name: str, episodes: dict) -> float:
