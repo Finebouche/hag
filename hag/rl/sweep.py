@@ -1,7 +1,7 @@
 """
 Sweep of the readout and of the reservoir size on the benchmark of hag.rl.experiment (HAG_RL_ENV): are the reservoirs
-(and HAG) limited by the linear readout of PPO, by the 100 units, or by PPO itself (vs DQN, LSPI, and behavioral
-cloning, which needs no RL)?
+(and HAG) limited by the linear readout of PPO, by the 100 units, or by PPO itself (vs DQN, LSPI, evolution strategies,
+natural actor-critic, and behavioral cloning, which needs no RL)?
 Grid (one run per cell and seed of SEEDS):
   - PPO (hag.rl.ppo.train): networks of the policy and of the value function NET_ARCHS (linear readouts as in
     hag.rl.ppo.train, or MLPs), learning rates LEARNING_RATES (the one of the hyperparameter optimization was searched
@@ -12,18 +12,23 @@ Grid (one run per cell and seed of SEEDS):
     hyperparameter optimization,
   - BC (hag.rl.bc.train, benchmarks with discrete actions): ridge readout cloning an expert that sees the hidden state
     (DAgger), the upper bound of the linear readouts; one expert per seed, shared by the cells,
+  - CMA-ES (hag.rl.cmaes.train) and OpenAI-ES (hag.rl.openai_es.train): linear readout searched on the returns of
+    episodes, initial step sizes CMAES_SIGMAS and learning rates OPENAI_ES_LEARNING_RATES (best one per cell selected
+    afterwards),
+  - NAC (hag.rl.nac.train, benchmarks with discrete actions): softmax policy updated along the natural gradient given
+    by an LSTD-Q(lambda) critic, step sizes NAC_STEP_SIZES (best one per cell selected afterwards),
   - conditions of hag.rl.experiment.CONDITIONS, reservoir sizes UNITS_GRID for the reservoirs ("esn", "hag" and their
     control "proj"; rounded up as in hag.rl.pretrain.build_reservoir, the actual size is the column "n_features").
 Features: best parameters of the hyperparameter optimization of the method (searched with UNITS units and linear
 readouts), on the benchmark PARAMS_FROM[ENV_ID] for the harder variants without their own optimization (read from
 PARAMS_ROOT/<benchmark>/); without optimization of the method (DQN, LSPI, and BC which has none), the features of the
 best parameters of PPO (LSPI: with its default RIDGE and GAMMA).
-LSPI runs whose system has more than LSPI_MAX_SIZE unknowns (n_actions * (n_features + 1)) are skipped (column
-"skipped"): their dense solve is too slow and too large.
+LSPI and NAC runs whose system has more than LSPI_MAX_SIZE unknowns (n_actions * (n_features + 1) for LSPI,
+(n_actions + 1) * (n_features + 1) for NAC) are skipped (column "skipped"): their dense solve is too slow and too large.
 The runs already in the results are skipped (a job stopped by its time limit can be resubmitted).
 
 Results: <RL_RESULTS>/sweep_<name>.csv (columns of hag.rl.ppo.train and hag.rl.lspi.train, and of the grid: "method",
-"units", "arch", "learning_rate").
+"units", "arch", "learning_rate": the step size of the method, STEP_PARAMS, NaN for LSPI and BC).
 Run from the repository root:  HAG_RL_ENV=<benchmark> python -m hag.rl.sweep [method ...]  (METHODS by default)
 Benchmarks of the sweep (used by slurm/submit_rl.sh):  python -m hag.rl.sweep --benchmarks
 """
@@ -44,7 +49,8 @@ from hag.rl.experiment import CONDITIONS, ENV_ID, RESULTS_NAME, SEEDS, UNITS, co
 from hag.rl.utils import N_WORKERS, RL_RESULTS
 
 # =============================== PARAMETERS ===============================
-METHODS = ("ppo", "dqn", "lspi", "bc")  # (benchmarks with continuous actions: PPO only)
+METHODS = ("ppo", "dqn", "lspi", "bc", "cmaes", "openai_es", "nac")
+CONTINUOUS_METHODS = ("ppo", "cmaes", "openai_es")  # methods of the benchmarks with continuous actions
 # benchmarks with discrete actions (all the methods), where the conditions differ or memory matters
 SWEEP_BENCHMARKS = ("PositionOnlyCartPole", "LunarLander-v3", "RepeatPrevious", "RepeatPreviousMedium",
                     "RepeatPreviousHard", "CountRecall", "CountRecallMedium", "Autoencode")
@@ -53,6 +59,12 @@ NET_ARCHS = {"linear": [], "64": [64], "64x64": [64, 64]}  # hidden layers of th
 LEARNING_RATES = (3e-4, 1e-3, 3e-3, 1e-2)                  # 3e-4: stable-baselines3's default (for its 64x64 MLP)
 DQN_NET_ARCHS = ("linear",)
 DQN_LEARNING_RATES = (1e-4, 3e-4, 1e-3, 3e-3)              # 1e-4: stable-baselines3's default
+CMAES_SIGMAS = (0.03, 0.1, 0.3)
+OPENAI_ES_LEARNING_RATES = (0.003, 0.01, 0.03)
+NAC_STEP_SIZES = (0.03, 0.1, 0.3)
+# parameter of each method stored in the column "learning_rate" (its swept step size)
+STEP_PARAMS = {"ppo": "learning_rate", "dqn": "learning_rate", "openai_es": "learning_rate", "cmaes": "sigma0",
+               "nac": "step_size"}
 LSPI_MAX_SIZE = 10_000
 # features of the harder variants: those of the hyperparameter optimization of their easy version
 PARAMS_FROM = {"RepeatPreviousMedium": "RepeatPrevious", "RepeatPreviousHard": "RepeatPrevious",
@@ -72,11 +84,15 @@ def method_params(method: str) -> dict:
     optimization of the method, else of PPO, on the benchmark PARAMS_FROM.get(ENV_ID, ENV_ID) (learning rate removed:
     it is swept). The databases are copied to a temporary folder first (SQLite does not support the network file
     systems well)."""
+    from hag.rl.cmaes import hpo as cmaes_hpo
     from hag.rl.dqn import hpo as dqn_hpo
     from hag.rl.lspi import hpo as lspi_hpo
+    from hag.rl.nac import hpo as nac_hpo
+    from hag.rl.openai_es import hpo as openai_es_hpo
     from hag.rl.ppo import hpo as ppo_hpo
 
-    searches = {"ppo": [ppo_hpo], "dqn": [dqn_hpo, ppo_hpo], "lspi": [lspi_hpo, ppo_hpo], "bc": [ppo_hpo]}[method]
+    own = {"dqn": dqn_hpo, "lspi": lspi_hpo, "cmaes": cmaes_hpo, "openai_es": openai_es_hpo, "nac": nac_hpo}
+    searches = [own[method], ppo_hpo] if method in own else [ppo_hpo]
     source = PARAMS_FROM.get(ENV_ID, ENV_ID)
     params = {}
     with tempfile.TemporaryDirectory() as root:
@@ -93,7 +109,8 @@ def method_params(method: str) -> dict:
                 raise FileNotFoundError(f"No hyperparameter optimization of {method} or PPO for {kind} in "
                                         f"{PARAMS_ROOT / source}")
             # (features of PPO for LSPI: hag.rl.lspi.train.run uses its default ridge and gamma)
-            params[kind] = {key: value for key, value in best.items() if key != "learning_rate"}
+            params[kind] = {key: value for key, value in best.items()
+                            if key not in ("learning_rate", STEP_PARAMS.get(method))}
     return params
 
 
@@ -104,7 +121,10 @@ def grid(methods) -> list:
         for condition in CONDITIONS:
             for units in (UNITS_GRID if condition_kind(condition) in ("esn", "hag") else (0,)):  # 0: no reservoir
                 cells = {"ppo": [(arch, lr) for arch in NET_ARCHS for lr in LEARNING_RATES],
-                         "dqn": [(arch, lr) for arch in DQN_NET_ARCHS for lr in DQN_LEARNING_RATES]}.get(
+                         "dqn": [(arch, lr) for arch in DQN_NET_ARCHS for lr in DQN_LEARNING_RATES],
+                         "cmaes": [("linear", sigma0) for sigma0 in CMAES_SIGMAS],
+                         "openai_es": [("linear", lr) for lr in OPENAI_ES_LEARNING_RATES],
+                         "nac": [("linear", step_size) for step_size in NAC_STEP_SIZES]}.get(
                     method, [("linear", np.nan)])
                 specs += [dict(method=method, condition=condition, units=units, arch=arch, learning_rate=lr, seed=seed)
                           for arch, lr in cells for seed in SEEDS]
@@ -134,18 +154,30 @@ def run(spec: dict, episodes: list, params: dict, expert_info: dict = None) -> d
     elif spec["method"] == "bc":
         row = bc_train.run(condition, seed, episodes, params=params, save_curves=False, units=units,
                            expert_info=expert_info)
-    else:
+    elif spec["method"] in ("cmaes", "openai_es"):
+        from importlib import import_module
+        train = import_module(f"hag.rl.{spec['method']}.train")
+        step = {STEP_PARAMS[spec["method"]]: spec["learning_rate"]}
+        row = train.run(condition, seed, episodes, params=dict(params, **step), save_curves=False, units=units)
+    else:  # (LSPI and NAC: dense linear systems)
+        from hag.rl.nac import train as nac_train
         n_actions = make_env(ENV_ID).action_space.n
+        n_rows = n_actions if spec["method"] == "lspi" else n_actions + 1
 
         def check(pipeline):
-            if n_actions * (pipeline.n_features + 1) > LSPI_MAX_SIZE:
+            if n_rows * (pipeline.n_features + 1) > LSPI_MAX_SIZE:
                 raise TooLarge(pipeline.n_features)
 
         try:
-            row = lspi_train.run(condition, seed, episodes, params=params, save_curves=False, check=check, units=units)
+            if spec["method"] == "lspi":
+                row = lspi_train.run(condition, seed, episodes, params=params, save_curves=False, check=check,
+                                     units=units)
+            else:
+                row = nac_train.run(condition, seed, episodes, params=dict(params, step_size=spec["learning_rate"]),
+                                    save_curves=False, check=check, units=units)
         except TooLarge as error:
             row = {"env": ENV_ID, "n_features": error.args[0],
-                   "skipped": f"LSPI system larger than {LSPI_MAX_SIZE} unknowns"}
+                   "skipped": f"{spec['method'].upper()} system larger than {LSPI_MAX_SIZE} unknowns"}
     return dict(row, **spec)
 
 
@@ -197,4 +229,4 @@ if __name__ == "__main__":
     if "--benchmarks" in sys.argv[1:]:
         print("\n".join(SWEEP_BENCHMARKS))
     else:
-        main(sys.argv[1:] or (list(METHODS) if has_discrete_actions(ENV_ID) else ["ppo"]))
+        main(sys.argv[1:] or list(METHODS if has_discrete_actions(ENV_ID) else CONTINUOUS_METHODS))
