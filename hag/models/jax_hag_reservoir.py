@@ -105,6 +105,9 @@ class HAGReservoir(TrainableNode):
     W : callable or array-like of shape (units, units), default to :py:func:`~reservoirpy.jax.mat_gen.zeros`
         Initial recurrent weights matrix or initializer (HAG grows the connections
         from an empty matrix by default).
+    W_fixed : array-like of shape (units, units), optional
+        Fixed recurrent weights (e.g. those of a random reservoir), added to ``W`` in
+        the dynamics but never changed by the plasticity, which only acts on ``W``.
     Win : callable or array-like of shape (units, features), default to :py:func:`~reservoirpy.mat_gen.block_input`
         Input weights matrix or initializer. By default, each input feature drives
         its own block of ``units // features`` neurons.
@@ -212,6 +215,7 @@ class HAGReservoir(TrainableNode):
         input_scaling: Union[float, Sequence] = 1.0,
         bias_scaling: float = 1.0,
         W: Union[Weights, Callable] = zeros,
+        W_fixed: Optional[Weights] = None,
         Win: Union[Weights, Callable] = block_input,
         bias: Union[Weights, Callable] = JaxInitializer(np_mat_gen._random_sparse)(dist="foldnorm", c=1.0, scale=0.1),
         activation: Union[str, Callable] = tanh,
@@ -255,6 +259,7 @@ class HAGReservoir(TrainableNode):
         self.bias_scaling = bias_scaling
         self.Win = Win
         self.W = W
+        self.W_fixed = W_fixed
         self.bias = bias
         self.activation = get_function(activation) if isinstance(activation, str) else activation
         self.dtype = dtype
@@ -318,6 +323,9 @@ class HAGReservoir(TrainableNode):
             jnp.asarray(M.todense() if hasattr(M, "todense") else M) for M in (self.W, self.Win, self.bias)
         )
         self.bias = jnp.ravel(self.bias)
+        if self.W_fixed is not None:
+            W_fixed = self.W_fixed
+            self.W_fixed = jnp.asarray(W_fixed.todense() if hasattr(W_fixed, "todense") else W_fixed)
 
         # random choices of fit: windows lengths (NumPy) and plasticity (Jax)
         self._plasticity_rng = plasticity_rng
@@ -327,8 +335,13 @@ class HAGReservoir(TrainableNode):
 
         self.initialized = True
 
+    def _recurrent(self, W):
+        """Recurrent weights of the dynamics: the plastic ones W plus the fixed ones."""
+        return W if self.W_fixed is None else W + self.W_fixed
+
     def _step(self, state: State, x: Timestep) -> State:
-        return {"out": _forward(self.W, self.Win, self.bias, self.lr, state["out"], x, activation=self.activation)}
+        W = self._recurrent(self.W)
+        return {"out": _forward(W, self.Win, self.bias, self.lr, state["out"], x, activation=self.activation)}
 
     def _windows(self, sequences: list, multiple: bool) -> tuple:
         """(initialization inputs, zero-padded windows (n_windows, max_length, input_dim), lengths (n_windows,)), as
@@ -383,7 +396,7 @@ class HAGReservoir(TrainableNode):
 
         # functions of the plasticity, jitted with the parameters of the node as constants (W, which changes, is an
         # argument): compiled at each call of fit
-        Win, bias, lr, activation = self.Win, self.bias, self.lr, self.activation
+        Win, bias, lr, activation, recurrent = self.Win, self.bias, self.lr, self.activation, self._recurrent
         target, spread, weight_increment = self.target, self.spread, self.weight_increment
         max_partners = self.max_partners
         steps, rows = jnp.arange(windows.shape[1]), jnp.arange(self.units)
@@ -392,6 +405,7 @@ class HAGReservoir(TrainableNode):
         @jax.jit
         def run_inputs(W, state, inputs):
             """Last state of the reservoir after running inputs (timesteps, input_dim)."""
+            W = recurrent(W)
             return jax.lax.scan(lambda s, u: (_forward(W, Win, bias, lr, s, u, activation), None), state, inputs)[0]
 
         def window_step(carry, window_and_length):
@@ -401,9 +415,11 @@ class HAGReservoir(TrainableNode):
             key, prune_key, add_key = jax.random.split(key, 3)
 
             # run the reservoir on the window (the padding steps leave the state unchanged)
+            W_dynamics = recurrent(W)
+
             def run(s, t_u):
                 t, u = t_u
-                s = jnp.where(t < length, _forward(W, Win, bias, lr, s, u, activation), s)
+                s = jnp.where(t < length, _forward(W_dynamics, Win, bias, lr, s, u, activation), s)
                 return s, s
 
             state, states = jax.lax.scan(run, state, (steps, window))

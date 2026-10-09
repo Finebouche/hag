@@ -17,12 +17,16 @@ Grid (one run per cell and seed of SEEDS):
     afterwards),
   - NAC (hag.rl.nac.train, benchmarks with discrete actions): softmax policy updated along the natural gradient given
     by an LSTD-Q(lambda) critic, step sizes NAC_STEP_SIZES (best one per cell selected afterwards),
-  - conditions of hag.rl.experiment.CONDITIONS, reservoir sizes UNITS_GRID for the reservoirs ("esn", "hag" and their
-    control "proj"; rounded up as in hag.rl.pretrain.build_reservoir, the actual size is the column "n_features").
+  - conditions of hag.rl.experiment.CONDITIONS and HYBRID_CONDITIONS (hybrids of an ESN and HAG, see
+    hag.rl.pretrain.build_reservoir), reservoir sizes UNITS_GRID for the reservoirs ("esn", "hag", their control
+    "proj" and the hybrids; rounded up as in hag.rl.pretrain.build_reservoir, the actual size is the column
+    "n_features").
 Features: best parameters of the hyperparameter optimization of the method (searched with UNITS units and linear
 readouts), on the benchmark PARAMS_FROM[ENV_ID] for the harder variants without their own optimization (read from
 PARAMS_ROOT/<benchmark>/); without optimization of the method (DQN, LSPI, and BC which has none), the features of the
-best parameters of PPO (LSPI: with its default RIDGE and GAMMA).
+best parameters of PPO (LSPI: with its default RIDGE and GAMMA). The hybrids take the parameters of the ESN (filter
+bank, inputs, spectral radius and connectivity) and, in "hag", those of HAG (plasticity, and inputs of the HAG half of
+"esn_hag").
 LSPI and NAC runs whose system has more than LSPI_MAX_SIZE unknowns (n_actions * (n_features + 1) for LSPI,
 (n_actions + 1) * (n_features + 1) for NAC) are skipped (column "skipped"): their dense solve is too slow and too large.
 The runs already in the results are skipped (a job stopped by its time limit can be resubmitted).
@@ -46,6 +50,7 @@ from hag.hpo.utility import PROJECT_ROOT
 from hag.rl.bc import train as bc_train
 from hag.rl.envs import has_discrete_actions, make_env
 from hag.rl.experiment import CONDITIONS, ENV_ID, RESULTS_NAME, SEEDS, UNITS, condition_kind, pretraining_episodes
+from hag.rl.pretrain import HYBRIDS
 from hag.rl.utils import N_WORKERS, RL_RESULTS
 
 # =============================== PARAMETERS ===============================
@@ -55,6 +60,7 @@ CONTINUOUS_METHODS = ("ppo", "cmaes", "openai_es")  # methods of the benchmarks 
 SWEEP_BENCHMARKS = ("PositionOnlyCartPole", "LunarLander-v3", "RepeatPrevious", "RepeatPreviousMedium",
                     "RepeatPreviousHard", "CountRecall", "CountRecallMedium", "Autoencode")
 UNITS_GRID = (100, 300, 1000)
+HYBRID_CONDITIONS = tuple(f"filterbank+{hybrid}" for hybrid in HYBRIDS)
 NET_ARCHS = {"linear": [], "64": [64], "64x64": [64, 64]}  # hidden layers of the policy and of the value function
 LEARNING_RATES = (3e-4, 1e-3, 3e-3, 1e-2)                  # 3e-4: stable-baselines3's default (for its 64x64 MLP)
 DQN_NET_ARCHS = ("linear",)
@@ -111,6 +117,8 @@ def method_params(method: str) -> dict:
             # (features of PPO for LSPI: hag.rl.lspi.train.run uses its default ridge and gamma)
             params[kind] = {key: value for key, value in best.items()
                             if key not in ("learning_rate", STEP_PARAMS.get(method))}
+    for hybrid in HYBRIDS:  # parameters of the ESN, and of HAG in "hag"
+        params[hybrid] = dict(params["esn"], hag=params["hag"])
     return params
 
 
@@ -118,8 +126,9 @@ def grid(methods) -> list:
     """Cells and seeds of the sweep, the longest runs first (largest reservoirs and networks)."""
     specs = []
     for method in methods:
-        for condition in CONDITIONS:
-            for units in (UNITS_GRID if condition_kind(condition) in ("esn", "hag") else (0,)):  # 0: no reservoir
+        for condition in CONDITIONS + list(HYBRID_CONDITIONS):
+            reservoir = condition_kind(condition) in ("esn", "hag") + HYBRIDS
+            for units in (UNITS_GRID if reservoir else (0,)):  # 0: no reservoir
                 cells = {"ppo": [(arch, lr) for arch in NET_ARCHS for lr in LEARNING_RATES],
                          "dqn": [(arch, lr) for arch in DQN_NET_ARCHS for lr in DQN_LEARNING_RATES],
                          "cmaes": [("linear", sigma0) for sigma0 in CMAES_SIGMAS],

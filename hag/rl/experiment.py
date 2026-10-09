@@ -64,7 +64,8 @@ RESULTS_NAME = ENV_ID
 
 
 def condition_kind(condition: str) -> str:
-    """Kind of features of a condition ("obs", "filterbank", "esn" or "hag"; the control "proj" takes HAG's)."""
+    """Kind of features of a condition ("obs", "filterbank", "esn", "hag", or a hybrid of both, see
+    hag.rl.pretrain.HYBRIDS; the control "proj" takes HAG's)."""
     kind = condition.split("+")[1] if "+" in condition else condition
     return "hag" if kind == "proj" else kind
 
