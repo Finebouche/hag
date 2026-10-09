@@ -29,7 +29,8 @@ bank, inputs, spectral radius and connectivity) and, in "hag", those of HAG (pla
 "esn_hag").
 LSPI and NAC runs whose system has more than LSPI_MAX_SIZE unknowns (n_actions * (n_features + 1) for LSPI,
 (n_actions + 1) * (n_features + 1) for NAC) are skipped (column "skipped"): their dense solve is too slow and too large.
-The runs already in the results are skipped (a job stopped by its time limit can be resubmitted).
+The runs already in the results are skipped (a job stopped by its time limit can be resubmitted); a run that fails is
+reported and not saved, so that it runs again with the next sweep.
 
 Results: <RL_RESULTS>/sweep_<name>.csv (columns of hag.rl.ppo.train and hag.rl.lspi.train, and of the grid: "method",
 "units", "arch", "learning_rate": the step size of the method, STEP_PARAMS, NaN for LSPI and BC).
@@ -215,11 +216,15 @@ def main(methods):
         experts = {seed: pool.submit(bc_train.expert, seed) for seed in SEEDS} if "bc" in methods else {}
         episodes = dict(zip(SEEDS, pool.map(pretraining_episodes, SEEDS)))
         experts = {seed: future.result() for seed, future in experts.items()}
-        futures = [pool.submit(run, spec, episodes[spec["seed"]],
-                               params[spec["method"]][condition_kind(spec["condition"])], experts.get(spec["seed"]))
-                   for spec in specs]
+        futures = {pool.submit(run, spec, episodes[spec["seed"]],
+                               params[spec["method"]][condition_kind(spec["condition"])],
+                               experts.get(spec["seed"])): spec for spec in specs}
         for future in as_completed(futures):
-            row = future.result()
+            try:
+                row = future.result()
+            except Exception as error:  # (the run is not saved: it is run again by the next sweep)
+                print(f"[sweep] {ENV_ID} FAILED {futures[future]}: {type(error).__name__}: {error}", flush=True)
+                continue
             rows.append(row)
             print(f"[sweep] {ENV_ID} {row['method']} {row['condition']:16s} units {row['units']:4d} {row['arch']:6s} "
                   f"lr {row['learning_rate']:.0e} seed {row['seed']}: "

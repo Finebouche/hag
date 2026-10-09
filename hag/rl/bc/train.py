@@ -56,7 +56,8 @@ N_EVAL_EPISODES = 50
 
 def expert(seed) -> dict:
     """Expert of a seed, trained if not saved yet: {"path": its file, "return_mean", "return_std": its evaluation on
-    N_EVAL_EPISODES episodes}."""
+    N_EVAL_EPISODES episodes}. The path is that of the current RL_RESULTS (the results of a Slurm job are copied to a
+    temporary folder, different for each job)."""
     folder = RL_RESULTS / "experts"
     path, info = folder / f"{RESULTS_NAME}_seed{seed}.zip", folder / f"{RESULTS_NAME}_seed{seed}.json"
     if not info.exists():
@@ -69,10 +70,10 @@ def expert(seed) -> dict:
         model.save(path)
         eval_env = make_vec_env(lambda: make_expert_env(ENV_ID), n_envs=8, seed=10_000 + seed)
         mean, std = evaluate_policy(model, eval_env, n_eval_episodes=N_EVAL_EPISODES, deterministic=True)
-        info.write_text(json.dumps(dict(path=str(path), return_mean=float(mean), return_std=float(std))))
+        info.write_text(json.dumps(dict(return_mean=float(mean), return_std=float(std))))
         print(f"[bc] {ENV_ID} expert seed {seed}: return {mean:.3f} ± {std:.3f} | {round(time.time() - start)}s",
               flush=True)
-    return json.loads(info.read_text())
+    return dict(json.loads(info.read_text()), path=str(path))
 
 
 class Readout:
