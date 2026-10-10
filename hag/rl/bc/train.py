@@ -3,8 +3,8 @@ Behavioral cloning of an expert by a ridge readout of the features, with DAgger 
 imitation learning and structured prediction to no-regret online learning"), on the benchmark and conditions of
 hag.rl.experiment (features fitted on its pretraining episodes): supervised, no reinforcement learning. The readout is
 told the right action at each step, so its return is what a linear readout of the features can reach when its
-learning is not the problem (an upper bound of the RL methods with linear readouts, hag.rl.ppo, hag.rl.dqn,
-hag.rl.lspi). Benchmarks with discrete actions only.
+learning is not the problem (an upper bound of the RL methods with linear readouts, hag.rl.ppo, hag.rl.lspi,
+hag.rl.nac). Benchmarks with discrete actions only.
 
 Expert (expert): PPO (stable-baselines3's MLP and default hyperparameters, EXPERT_TIMESTEPS) on the expert observations
 (hag.rl.envs.make_expert_env: observation and hidden state, the task is then Markov), one per seed, saved in

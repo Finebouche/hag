@@ -110,15 +110,16 @@ def build_reservoir(kind: str, sequences: list, units: int, seed: int, params: d
         strengthen all its connections),
       - "esn_hag": an ESN and a HAG reservoir side by side (block-diagonal W), sharing the units of the ESN of the same
         size (half of the units of each input block each, the ESN taking the extra one of odd blocks), each with its
-        own inputs (params of the inputs of the ESN and of HAG).
+        own inputs (params of the inputs of the ESN and of HAG),
+      - "esn_proj": control of "esn_hag", same reservoir (same params) with W = 0 in its HAG half.
     min_per_input: minimal number of units per input feature."""
     params = dict(params)
     hag = dict(params.pop("hag", {}))  # (hybrids)
-    if kind == "esn_hag":
+    if kind in ("esn_hag", "esn_proj"):
         n_inputs = sequences[0].shape[1]
         per_input = max(math.ceil(units / n_inputs), min_per_input)  # (units per input of the ESN of the same size)
         esn = build_reservoir("esn", sequences, n_inputs * math.ceil(per_input / 2), seed, params, min_per_input=1)
-        hag = build_reservoir("hag", sequences, n_inputs * (per_input // 2), seed,
+        hag = build_reservoir("hag" if kind == "esn_hag" else "proj", sequences, n_inputs * (per_input // 2), seed,
                               {key: value for key, value in hag.items() if key in INPUT_PARAMS + HAG_PARAMS},
                               min_per_input=1)
         lr = [np.full(len(r["W"]), r["lr"], dtype=float) for r in (esn, hag)]
@@ -148,7 +149,7 @@ def build_reservoir(kind: str, sequences: list, units: int, seed: int, params: d
     elif kind == "proj":
         W = np.zeros((units, units))
     else:
-        raise ValueError(f"Unknown reservoir {kind!r}: 'hag', 'esn', 'proj' or {HYBRIDS}.")
+        raise ValueError(f"Unknown reservoir {kind!r}: 'hag', 'esn', 'proj', 'esn_proj' or {HYBRIDS}.")
     return {"W": np.asarray(W, dtype=float), "Win": Win, "bias": bias, "lr": lr}
 
 

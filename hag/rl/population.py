@@ -1,6 +1,6 @@
 """
 Linear readouts of the features evaluated as policies, one episode per readout, for the methods searching the readout
-directly (evolution strategies: hag.rl.cmaes, hag.rl.openai_es).
+directly (evolution strategy: hag.rl.openai_es).
 
 A readout is a matrix theta of shape (n_outputs, F + 1) applied to the standardized features [x, 1] (statistics of the
 pretraining episodes, see hag.rl.lspi.train.Features):

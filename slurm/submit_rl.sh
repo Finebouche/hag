@@ -1,10 +1,11 @@
 #!/bin/bash
 # Submit one job of slurm/rl.sbatch per benchmark (all the benchmarks of hag.rl.envs.BENCHMARKS, or the ones given as
 # arguments), at most MAX_CONCURRENT running at the same time (the next ones wait for the end of a previous one, Slurm
-# dependencies: no flooding of the platform). Method: environment variable HAG_RL_METHOD ("ppo", default, "dqn", "lspi"
-# or "bc": only the benchmarks with discrete actions are kept, or "sweep": sweep of the readout and of the reservoir size, hag.rl.sweep,
+# dependencies: no flooding of the platform). Method: environment variable HAG_RL_METHOD ("ppo", default, "lspi", "fqi",
+# "openai_es", "nac" or "bc": only the benchmarks with discrete actions are kept, or "sweep": sweep of the readout and of the reservoir size, hag.rl.sweep,
 # on its benchmarks by default). Run from the repository root:
-#   [HAG_RL_METHOD=dqn|lspi|bc|sweep] bash slurm/submit_rl.sh [benchmark ...]
+#   [HAG_RL_METHOD=lspi|fqi|openai_es|nac|bc|sweep] bash slurm/submit_rl.sh [benchmark ...]  (full experiment:
+#   slurm/submit_full.sh)
 set -euo pipefail
 MAX_CONCURRENT=8
 cd "$(dirname "$0")/.."
@@ -24,7 +25,7 @@ if [ "$method" != ppo ]; then
     micromamba activate hag_env
     set -u
     if [ "$method" != sweep ]; then
-        # DQN, LSPI, BC: benchmarks with discrete actions only (hag.rl.envs)
+        # LSPI, FQI, NAC, BC (and OpenAI-ES here): benchmarks with discrete actions only (hag.rl.envs)
         BENCHMARKS=($(python -m hag.rl.envs --discrete "${BENCHMARKS[@]}" 2>/dev/null))
     elif [ $# -eq 0 ]; then
         BENCHMARKS=($(python -m hag.rl.sweep --benchmarks 2>/dev/null))

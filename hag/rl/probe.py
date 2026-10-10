@@ -100,10 +100,10 @@ def summary(results: pd.DataFrame) -> pd.DataFrame:
 
 def main():
     optuna.logging.set_verbosity(optuna.logging.WARNING)
-    storage = search.storage(hpo.DB_NAME)
     rng = np.random.default_rng(SEED)
     tasks = []
-    for study_name in optuna.get_all_study_names(storage):
+    for study_name in [name for name in search.STUDIES if search.storage_path(hpo.DB_NAME, study_name=name).exists()]:
+        storage = search.storage(hpo.DB_NAME, study_name=study_name)
         trials = [t for t in optuna.load_study(study_name=study_name, storage=storage).trials
                   if t.state.name in ("COMPLETE", "PRUNED") and 0 in t.intermediate_values]
         for k in rng.permutation(len(trials))[:N_PROBED_TRIALS]:

@@ -6,8 +6,8 @@ of the search, with a training budget of TOTAL_TIMESTEPS (budget and number of t
 hag.rl.envs.BENCHMARKS). Trials are pruned (median rule) after each seed. The policy is never evaluated on its
 evaluation episodes during the search.
 
-Studies: <RL_RESULTS>/rl_hpo_<name>.sqlite3, name being hag.rl.experiment.RESULTS_NAME (study names:
-hag.rl.search.STUDIES).
+Studies: <RL_RESULTS>/rl_hpo_<name>_<study>.sqlite3 (one database per study), name being hag.rl.experiment.RESULTS_NAME
+(study names: hag.rl.search.STUDIES).
 Run from the repository root:  HAG_RL_ENV=<benchmark> python -m hag.rl.ppo.hpo [study ...]  (all the studies by
 default)
 """

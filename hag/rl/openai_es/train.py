@@ -2,7 +2,7 @@
 OpenAI evolution strategy (Salimans et al., 2017, "Evolution strategies as a scalable alternative to reinforcement
 learning") on the linear readout of the features (see hag.rl.population), on the benchmark and conditions of
 hag.rl.experiment (features fitted on its pretraining episodes): the readout is searched directly on the returns of
-episodes, without value function, as hag.rl.cmaes.
+episodes, without value function.
 
 Each generation evaluates N_PAIRS antithetic pairs of perturbations of the readout, theta +- SIGMA * epsilon (one
 episode each, all on the same episode: same reset seed), and moves theta along the gradient estimated from their ranks

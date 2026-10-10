@@ -27,7 +27,7 @@ from stable_baselines3.common.env_util import make_vec_env
 from stable_baselines3.common.vec_env import VecNormalize
 
 from hag.rl.envs import BENCHMARKS, make_env
-from hag.rl.pretrain import FeaturePolicy, collect_episodes, make_pipeline
+from hag.rl.pretrain import HYBRIDS, FeaturePolicy, collect_episodes, make_pipeline
 from hag.rl.utils import BENCHMARK_NAME
 from hag.rl.wrappers import FeatureVecEnv
 
@@ -57,6 +57,8 @@ DEFAULT_PARAMS = {
     "hag": dict(FILTER_BANK_PARAMS, homeostasis="mean", target=0.5, spread=0.1, weight_increment=0.02, min_window=5,
                 max_window=20, input_scaling=0.5, bias_scaling=0.1, lr=1.0),
 }
+# hybrids of an ESN and HAG (see hag.rl.pretrain.build_reservoir): parameters of the ESN, and of HAG in "hag"
+DEFAULT_PARAMS.update({hybrid: dict(DEFAULT_PARAMS["esn"], hag=DEFAULT_PARAMS["hag"]) for hybrid in HYBRIDS})
 # ===========================================================================
 
 # name of the results and of the hyperparameter optimization studies
@@ -65,9 +67,9 @@ RESULTS_NAME = ENV_ID
 
 def condition_kind(condition: str) -> str:
     """Kind of features of a condition ("obs", "filterbank", "esn", "hag", or a hybrid of both, see
-    hag.rl.pretrain.HYBRIDS; the control "proj" takes HAG's)."""
+    hag.rl.pretrain.HYBRIDS; the controls "proj" and "esn_proj" take the ones of HAG and "esn_hag")."""
     kind = condition.split("+")[1] if "+" in condition else condition
-    return "hag" if kind == "proj" else kind
+    return {"proj": "hag", "esn_proj": "esn_hag"}.get(kind, kind)
 
 
 def train_ppo(pipeline, seed, total_timesteps, callback=None, n_envs=1, net_arch=PRETRAIN_NET_ARCH, **ppo_params):

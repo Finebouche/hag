@@ -1,15 +1,15 @@
 """
-Hyperparameter optimization of LSPI (hag.rl.lspi.train): regularization ("ridge") and discount ("gamma") of LSTD-Q and
-parameters of the features, in the studies of hag.rl.search (search space of the features, parallel run, pruning of
-HAG's trials without recurrence). Benchmarks with discrete actions only.
-Objective (maximized): mean return of the greedy policies of the iterations of LSPI ("greedy_return_mean": sample
+Hyperparameter optimization of FQI (hag.rl.fqi.train): discount ("gamma") and minimal leaf size of the trees
+("min_samples_leaf") of the fitted Q-iteration, and parameters of the features, in the studies of hag.rl.search (search
+space of the features, parallel run, pruning of HAG's trials without recurrence). Benchmarks with discrete actions only.
+Objective (maximized): mean return of the greedy policies of the iterations of FQI ("greedy_return_mean": sample
 efficiency of the learned policies), averaged over the seeds of the search (number of trials: that of the benchmark,
-see hag.rl.envs.BENCHMARKS; budget: N_ITERATIONS * STEPS_PER_ITERATION of hag.rl.lspi.train). Trials are pruned
+see hag.rl.envs.BENCHMARKS; budget: N_ITERATIONS * STEPS_PER_ITERATION of hag.rl.fqi.train). Trials are pruned
 (median rule) after each seed. The final evaluation episodes are never used during the search.
 
-Studies: <RL_RESULTS>/lspi_hpo_<name>_<study>.sqlite3 (one database per study), name being
-hag.rl.experiment.RESULTS_NAME (study names: hag.rl.search.STUDIES).
-Run from the repository root:  HAG_RL_ENV=<benchmark> python -m hag.rl.lspi.hpo [study ...]  (all the studies by
+Studies: <RL_RESULTS>/fqi_hpo_<name>_<study>.sqlite3 (one database per study), name being hag.rl.experiment.RESULTS_NAME
+(study names: hag.rl.search.STUDIES).
+Run from the repository root:  HAG_RL_ENV=<benchmark> python -m hag.rl.fqi.hpo [study ...]  (all the studies by
 default)
 """
 import sys
@@ -21,21 +21,21 @@ from gymnasium import spaces
 from hag.rl import search
 from hag.rl.envs import make_env
 from hag.rl.experiment import BENCHMARK, ENV_ID, RESULTS_NAME
-from hag.rl.lspi import train
+from hag.rl.fqi import train
 
 # =============================== PARAMETERS ===============================
 N_TRIALS = BENCHMARK.n_trials              # trials per study
-DB_PREFIX = "lspi_hpo"
+DB_PREFIX = "fqi_hpo"
 DB_NAME = f"{DB_PREFIX}_{RESULTS_NAME}"       # database of the studies
 # ===========================================================================
 
 
 def suggest_params(trial: optuna.Trial, study_name: str) -> dict:
-    """Parameters of a trial of a study: regularization and discount of LSTD-Q ("ridge", "gamma") and features (see
-    hag.rl.search.suggest_features)."""
-    lspi = dict(ridge=trial.suggest_float("ridge", 1e-6, 1.0, log=True),
-                gamma=trial.suggest_float("gamma", 0.9, 0.999))
-    return dict(lspi, **search.suggest_features(trial, study_name))
+    """Parameters of a trial of a study: discount and minimal leaf size of the trees ("gamma", "min_samples_leaf") and
+    features (see hag.rl.search.suggest_features)."""
+    fqi = dict(gamma=trial.suggest_float("gamma", 0.9, 0.999),
+               min_samples_leaf=trial.suggest_int("min_samples_leaf", 1, 100, log=True))
+    return dict(fqi, **search.suggest_features(trial, study_name))
 
 
 def trial_params(study_name: str, values: dict) -> dict:
@@ -67,5 +67,5 @@ def objective(trial: optuna.Trial, study_name: str, episodes: dict) -> float:
 
 if __name__ == "__main__":
     if not isinstance(make_env(ENV_ID).action_space, spaces.Discrete):
-        raise ValueError(f"LSPI needs discrete actions: {ENV_ID} has {make_env(ENV_ID).action_space}")
+        raise ValueError(f"FQI needs discrete actions: {ENV_ID} has {make_env(ENV_ID).action_space}")
     search.optimize(DB_NAME, sys.argv[1:] or search.STUDIES, objective, N_TRIALS)

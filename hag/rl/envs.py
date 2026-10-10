@@ -6,8 +6,9 @@ Partially observable benchmarks (BENCHMARKS), with their budgets:
     many POMDPs"): positions only, the velocities removed (HalfCheetah, Hopper, Walker2d, Ant),
   - POPGym (Morad et al., 2023), easy versions: positions only (and noisy) CartPole and Pendulum, and memory tasks on
     cards (RepeatPrevious, CountRecall, Autoencode), whose discrete observations are one-hot encoded; medium and hard
-    versions of RepeatPrevious (card of k = 32 and 64 steps before, instead of 4) and CountRecall (more decks, and more
-    card values for the hard one), the easy ones being solved by most conditions.
+    versions of RepeatPrevious (card of k = 32 and 64 steps before, instead of 4), CountRecall (more decks, and more
+    card values for the hard one) and Autoencode (longer sequences of cards), the easy ones being solved by most
+    conditions; RepeatFirst (easy to hard: the first card, to remember during the whole episode).
 """
 from dataclasses import dataclass, field
 from typing import Optional
@@ -23,7 +24,7 @@ class Benchmark:
     kwargs: dict = field(default_factory=dict)     # arguments of gym.make
     hpo_timesteps: int = 100_000                   # PPO budget per seed of a trial of the hyperparameter optimization
     train_timesteps: int = 300_000                 # PPO budget per seed of the final training (hag.rl.ppo.train)
-    n_trials: int = 200                            # trials per study of the hyperparameter optimization
+    n_trials: int = 300                            # trials per study of the hyperparameter optimization
     normalize_reward: bool = False                 # normalization of the rewards for PPO (VecNormalize)
 
 
@@ -46,7 +47,11 @@ BENCHMARKS = {
        for name in ["RepeatPrevious", "CountRecall", "Autoencode"]},
     # POPGym, medium and hard versions of the memory tasks
     **{f"{name}{level}": Benchmark(f"popgym-{name}{level}-v0", hpo_timesteps=300_000, train_timesteps=1_000_000)
-       for name in ["RepeatPrevious", "CountRecall"] for level in ["Medium", "Hard"]},
+       for name in ["RepeatPrevious", "CountRecall", "Autoencode"] for level in ["Medium", "Hard"]},
+    # POPGym, RepeatFirst: the first card of the episode, to remember until its end (episodes of 52 to 832 steps)
+    "RepeatFirst": Benchmark("popgym-RepeatFirstEasy-v0", hpo_timesteps=300_000, train_timesteps=1_000_000),
+    **{f"RepeatFirst{level}": Benchmark(f"popgym-RepeatFirst{level}-v0", hpo_timesteps=300_000,
+                                        train_timesteps=1_000_000) for level in ["Medium", "Hard"]},
 }
 
 
