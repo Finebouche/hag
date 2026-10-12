@@ -3,11 +3,11 @@ Fit time of the JAX version of HAGReservoir (hag.models.jax_hag_reservoir) and o
 the classification datasets, for mean_hag (FUNCTIONS) with the best hyperparameters of HAG's studies and the same
 initial matrices. One fit per new instance, NB_TRIALS instances (seeds SEED + k) per dataset and function, times in
 seconds: first fit and mean of the next ones. The JAX fit is compiled at each call (about 0.2 to 0.5 s).
-The results are written to outputs/analysis_results/jax_hag_fit_time.csv.
+The results are written to outputs/hag/analysis_results/jax_hag_fit_time.csv.
 
 (A previous version compared this compilation at each fit with a compilation cache shared by the instances, jitted
 functions at module level: 0.2 to 0.45 s saved per fit, -7 to -47 % on the small datasets, nothing on SPEECHCOMMANDS,
-identical W. Results in outputs/analysis_results/jax_hag_compilation.csv.)
+identical W. Results in outputs/hag/analysis_results/jax_hag_compilation.csv.)
 
 Run from the repository root:  python -m hag.analysis.compare_jax [dataset ...]
 """

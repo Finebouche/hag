@@ -7,7 +7,7 @@ classification datasets:
   2. test accuracy and time: run_algorithm (random choices of numpy's global RNG) vs the nodes used as in reservoirpy
      (random choices from their seed), same initial matrices and readout -> same accuracy up to the randomness of HAG's
      choices. The JAX node draws its random choices with Jax's generator: it can only be compared statistically.
-The results are written to outputs/analysis_results/hag_node_vs_run_algorithm.csv.
+The results are written to outputs/hag/analysis_results/hag_node_vs_run_algorithm.csv.
 
 Run from the repository root:  python -m hag.analysis.compare_hag_implementations [dataset ...]
 """

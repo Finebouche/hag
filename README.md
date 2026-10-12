@@ -68,7 +68,7 @@ HAG introduces an innovative, biologically-inspired approach to improve Reservoi
 | `hag/hpo` | Hyperparameter optimization with Optuna (`hpo_esn.py`, `hpo_rnn.py`); studies in `hpo/legacy_studies` |
 | `hag/performances` | Test evaluation of the reservoirs (`evaluation_esn.py`) and RNNs (`evaluation_rnn.py`), batched JAX runs, figure style |
 | `hag/metrics` | Reservoir metrics: spectral radius, correlations, explained variance, separability, capacities |
-| `hag/analysis` | Analysis scripts, results in `outputs/analysis_results` |
+| `hag/analysis` | Analysis scripts, results in `outputs/hag/analysis_results` |
 | `*.ipynb` | Notebooks: HAG framework, test results and figures, HAG dynamics, exploration |
 
 ---

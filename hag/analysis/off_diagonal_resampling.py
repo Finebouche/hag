@@ -14,7 +14,7 @@ studies, each trial:
      positions, weights drawn from the fitted distribution; same sign proportion), the diagonal blocks being kept,
   4. evaluates on the test set (same readout as evaluate_dataset_on_test): HAG's matrix ("hag"), the resampled one
      ("resampled") and, as a control, HAG's matrix without its off-diagonal blocks ("no_off_diagonal").
-The results are written to outputs/analysis_results/hag_off_diagonal_resampling.csv.
+The results are written to outputs/hag/analysis_results/hag_off_diagonal_resampling.csv.
 
 Run from the repository root:  python -m hag.analysis.off_diagonal_resampling [dataset ...]
 """
