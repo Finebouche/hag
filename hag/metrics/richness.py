@@ -5,9 +5,7 @@ import dcor
 from joblib import Parallel, delayed
 from tqdm import tqdm
 
-def spectral_radius(W):
-    eigen = sparse.linalg.eigs(W, k=1, which="LM", maxiter=W.shape[0] * 20, tol=0.1, return_eigenvectors=False, v0=np.ones(W.shape[0]))
-    return max(abs(eigen))
+from hag.models.reservoir import spectral_radius  # (robust to an almost empty W)
 
 
 def pearson(state_history, size_window=500, step_size=None, num_windows=None, show_progress=True):

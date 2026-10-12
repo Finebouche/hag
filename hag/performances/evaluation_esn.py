@@ -11,7 +11,7 @@ from scipy import sparse, stats
 from hag.hag.hag import run_algorithm
 from hag.metrics.richness import distance_correlation, pearson, spectral_radius, squared_uncoupled_dynamics_alternative
 from hag.models.activation_functions import tanh
-from hag.models.reservoir import init_matrices
+from hag.models.reservoir import init_matrices, scale_spectral_radius
 from hag.performances.esn_model_evaluation import (compute_score, fit_reservoir, init_ip_local_rule_reservoir,
                                                    init_ip_reservoir, init_local_rule_reservoir, init_readout,
                                                    init_reservoir, predict_model_for_classification, run_reservoir,
@@ -79,8 +79,7 @@ def build_reservoir_from_study(function_name, hyperparams, pretrain_data, is_ins
                                      min_increment=100, max_increment=100, use_full_instance=False,
                                      max_partners=np.inf, method="random", n_jobs=N_JOBS)
     elif function_name in ["random_ee", "random_ei", "diag_ee", "diag_ei", "ip_correct", "anti-oja", "ip-anti-oja"]:
-        eigen = sparse.linalg.eigs(W, k=1, which="LM", maxiter=W.shape[0] * 20, tol=0.1, return_eigenvectors=False, v0=np.ones(W.shape[0]))
-        W *= hyperparams['spectral_radius'] / max(abs(eigen))
+        W = scale_spectral_radius(W, hyperparams['spectral_radius'])
     else:
         raise ValueError(f"Invalid function: {function_name}")
 

@@ -43,7 +43,7 @@ from hag.datasets.pipeline import prepare_data
 from hag.hag.hag import run_algorithm
 from hag.hpo.utility import hag_reservoir_from_hyperparameters, retrieve_best_model
 from hag.models.activation_functions import tanh
-from hag.models.reservoir import init_matrices
+from hag.models.reservoir import init_matrices, scale_spectral_radius
 from hag.performances.esn_model_evaluation import (compute_score, fit_reservoir, init_ip_local_rule_reservoir,
                                                    init_local_rule_reservoir, init_readout, init_reservoir,
                                                    predict_model_for_classification, train_model_for_classification)
@@ -142,9 +142,7 @@ def local_rule_reservoir(hp, function, input_dim, seed):
     Win, W, bias = init_matrices(input_dim * K, 1, hp['connectivity'], K, w_distribution=stats.uniform(loc=-1, scale=2),
                                  seed=seed)
     if hp['connectivity'] > 0:
-        eigen = sparse.linalg.eigs(W, k=1, which="LM", maxiter=W.shape[0] * 20, tol=0.1, return_eigenvectors=False,
-                                   v0=np.ones(W.shape[0]))
-        W = W * hp['spectral_radius'] / max(abs(eigen))
+        W = scale_spectral_radius(W, hp['spectral_radius'])
     Win, bias = Win * hp['input_scaling'], bias * hp['bias_scaling']
     common = dict(local_rule="anti-oja", eta=hp['oja_eta'], synapse_normalization=False, bcm_theta=None,
                   leaking_rate=hp['leaky_rate'])
