@@ -20,8 +20,14 @@ datasets, nothing on SPEECHCOMMANDS, identical W.)
 Also the local plasticity reservoirs, anti-oja (reservoirpy's LocalPlasticityReservoir) and ip-anti-oja
 (hag.models.IPLocalPlasticityReservoir), with the best hyperparameters of their studies: their NumPy learning
 (reservoir.fit) vs the JAX learner used by HAG's evaluation (hag.performances.esn_model_evaluation.fit_reservoir), same
-matrices, same pretraining data (concatenated, warmup of 100 steps) and same post-synaptic states (rule_states "0.4",
-the only ones of the NumPy LocalPlasticityReservoir; HAG's evaluation uses "0.3", JAX only). Both are deterministic:
+matrices, same pretraining data (concatenated, warmup of 100 steps) and same post-synaptic states (RULE_STATES:
+ip-anti-oja with "0.3", as HAG's evaluation and its optimization; anti-oja with "0.4", the only ones of the NumPy
+LocalPlasticityReservoir, HAG's evaluation using "0.3" in JAX only). With other states than those of its optimization,
+a reservoir can become chaotic (e.g. ip-anti-oja on CatsDogs with "0.4": IP gains up to 1.4, chance accuracy), and the
+rounding differences between NumPy and JAX then grow. Even with "0.3", ip-anti-oja on CatsDogs goes through a chaotic
+phase (gains up to about 2 after 15000 steps, then back to about 0): the difference grows steadily from the rounding
+(1e-15 after 500 steps, 4e-11 after 15000) to about 1e-3 on W and 1e-2 on a, b at the end, with the same accuracy.
+Both are deterministic:
 same learned parameters (max_W_diff, max_ab_diff for the IP gains and biases), test accuracy and learning time, for
 NB_TRIALS_LOCAL draws of the matrices (the NumPy learning can take hours on the larger datasets).
 The results are written to outputs/hag/analysis_results/local_plasticity_numpy_vs_jax.csv.
@@ -43,7 +49,7 @@ from hag.datasets.pipeline import prepare_data
 from hag.hag.hag import run_algorithm
 from hag.hpo.utility import hag_reservoir_from_hyperparameters, retrieve_best_model
 from hag.models.activation_functions import tanh
-from hag.models.reservoir import init_matrices
+from hag.models.reservoir import init_matrices, scale_spectral_radius
 from hag.performances.esn_model_evaluation import (compute_score, fit_reservoir, init_ip_local_rule_reservoir,
                                                    init_local_rule_reservoir, init_readout, init_reservoir,
                                                    predict_model_for_classification, train_model_for_classification)
@@ -60,6 +66,7 @@ N_W_CHECK = 3      # draws for the exact comparison of the weights
 DATA_SEED = 0      # draw of the pretraining instances among the train set
 NB_TRIALS_LOCAL = 3  # draws of the matrices for the local plasticity reservoirs
 LOCAL_WARMUP = 100   # as in HAG's evaluation
+RULE_STATES = {"anti-oja": "0.4", "ip-anti-oja": "0.3"}  # post-synaptic states of the local rules, see the docstring
 OUTPUT = ANALYSIS_RESULTS / "hag_node_vs_run_algorithm.csv"
 OUTPUT_LOCAL = ANALYSIS_RESULTS / "local_plasticity_numpy_vs_jax.csv"
 # ===========================================================================
@@ -142,9 +149,7 @@ def local_rule_reservoir(hp, function, input_dim, seed):
     Win, W, bias = init_matrices(input_dim * K, 1, hp['connectivity'], K, w_distribution=stats.uniform(loc=-1, scale=2),
                                  seed=seed)
     if hp['connectivity'] > 0:
-        eigen = sparse.linalg.eigs(W, k=1, which="LM", maxiter=W.shape[0] * 20, tol=0.1, return_eigenvectors=False,
-                                   v0=np.ones(W.shape[0]))
-        W = W * hp['spectral_radius'] / max(abs(eigen))
+        W = scale_spectral_radius(W, hp['spectral_radius'])
     Win, bias = Win * hp['input_scaling'], bias * hp['bias_scaling']
     common = dict(local_rule="anti-oja", eta=hp['oja_eta'], synapse_normalization=False, bcm_theta=None,
                   leaking_rate=hp['leaky_rate'])
@@ -160,10 +165,10 @@ def learn_local(hp, function, pretrain, seed, jax):
     x = np.concatenate(pretrain).astype(float)
     start = time.time()
     if jax:
-        fit_reservoir(reservoir, x, warmup=LOCAL_WARMUP, rule_states="0.4")
+        fit_reservoir(reservoir, x, warmup=LOCAL_WARMUP, rule_states=RULE_STATES[function])
     else:
         if function == "ip-anti-oja":
-            reservoir.rule_states = "0.4"
+            reservoir.rule_states = RULE_STATES[function]
         reservoir.fit(x, warmup=LOCAL_WARMUP)
     return reservoir, time.time() - start
 
@@ -178,7 +183,8 @@ def classification_accuracy(reservoir, hp, train, test, Y_train, Y_test):
 def compare_local(dataset, function, data):
     pretrain, train, test, Y_train, Y_test, is_multivariate, _ = data
     hp = dict(retrieve_best_model(function, dataset, is_multivariate, verbosity=0).best_trial.params)
-    row = {"dataset": dataset, "function": function, "max_W_diff": 0.0, "max_ab_diff": np.nan}
+    row = {"dataset": dataset, "function": function, "rule_states": RULE_STATES[function], "max_W_diff": 0.0,
+           "max_ab_diff": np.nan}
     scores = {"NumPy": [], "JAX": []}
     times = {"NumPy": 0.0, "JAX": 0.0}
     for k in range(NB_TRIALS_LOCAL):
@@ -209,7 +215,7 @@ def main(datasets, functions):
             if function in LOCAL_FUNCTIONS:
                 try:
                     row = compare_local(dataset, function, data)
-                except KeyError:
+                except (KeyError, FileNotFoundError):
                     print(f"[compare] {dataset} {function}: no study, skipped", flush=True)
                     continue
                 local_rows.append(row)
@@ -221,7 +227,11 @@ def main(datasets, functions):
                 OUTPUT_LOCAL.parent.mkdir(parents=True, exist_ok=True)
                 pd.DataFrame(local_rows).to_csv(OUTPUT_LOCAL, index=False)
                 continue
-            row = compare(dataset, function, data)
+            try:
+                row = compare(dataset, function, data)
+            except (KeyError, FileNotFoundError):
+                print(f"[compare] {dataset} {function}: no study, skipped", flush=True)
+                continue
             rows.append(row)
             print(f"[compare] {dataset:20s} {function:9s} max|W diff| {row['max_W_diff']:.1e} | test (fit) "
                   + " | ".join(f"{name} {row[name + '_mean_%']:.2f}% ± {row[name + '_std_%']:.2f} "
