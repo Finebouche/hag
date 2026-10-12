@@ -2,6 +2,7 @@ import numpy as np
 import torch
 
 from hag.datasets.load_data import load_data
+from hag.hpo.utility import study_db_dir, study_db_filename
 from hag.models.activation_functions import tanh
 
 # Cross validation
@@ -105,10 +106,12 @@ if __name__ == '__main__':
                 base_train, base_val = (x_train_band, x_val_band) if is_multivariate else (x_train, x_val)
 
                 x_train_band = generate_multivariate_dataset(
-                    base_train, is_instances_classification, spectral_representation, hop=hop, win_length=win_length
+                    base_train, is_instances_classification, spectral_representation, hop=hop, win_length=win_length,
+                    sampling_rate=sampling_rate
                 )
                 x_val_band = generate_multivariate_dataset(
-                    base_val, is_instances_classification, spectral_representation, hop=hop, win_length=win_length
+                    base_val, is_instances_classification, spectral_representation, hop=hop, win_length=win_length,
+                    sampling_rate=sampling_rate
                 )
 
             if not is_instances_classification:
@@ -314,7 +317,9 @@ if __name__ == '__main__':
             sampler = TPESampler()
             sampler_name = "cmaes" if isinstance(sampler, CmaEsSampler) else "tpe"
             if dataset_name == "SPEECHCOMMANDS": sampler_name = "lstm_tpe"
-            url = f"sqlite:///{sampler_name}_{camel_to_snake(dataset_name)}_db.sqlite3"
+            # one database per dataset, in the folder of the studies (hag/hpo/corrected_studies)
+            study_db_dir().mkdir(parents=True, exist_ok=True)
+            url = f"sqlite:///{study_db_dir() / study_db_filename(sampler_name, dataset_name)}"
             uri = (
                 f"{url}"
                 "?cache=shared"  # allow multiple connections to share page cache

@@ -1,3 +1,4 @@
+import os
 import re
 import optuna
 from pathlib import Path
@@ -16,11 +17,21 @@ VALID_PREFIXES = {
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 LEGACY_STUDIES = PROJECT_ROOT / "hag" / "hpo" / "legacy_studies"
+# studies with the corrected preprocessing (sampling rate, 13 MFCC from 32 mel bands, see
+# hag.datasets.spectral_decomposition); the environment variable HAG_HPO_STUDIES redirects them (e.g. to the local memory
+# of a cluster node)
+CORRECTED_STUDIES = Path(os.environ.get("HAG_HPO_STUDIES", PROJECT_ROOT / "hag" / "hpo" / "corrected_studies"))
 
 
 def study_db_dir(dataset_name=None):
-    """Folder of the Optuna databases (the same for all datasets): hag/hpo/legacy_studies."""
-    return LEGACY_STUDIES
+    """Folder of the Optuna databases (the same for all datasets): hag/hpo/corrected_studies (HAG_HPO_STUDIES); the
+    studies of the earlier preprocessing are in LEGACY_STUDIES (db_dir of retrieve_best_model)."""
+    return CORRECTED_STUDIES
+
+
+def study_db_filename(prefix, dataset_name):
+    """Database of the studies of a dataset (prefix: sampler)."""
+    return f"{prefix}_{camel_to_snake(dataset_name)}_db.sqlite3"
 
 
 def camel_to_snake(name):
@@ -55,7 +66,7 @@ def retrieve_best_model(
         db_dir = study_db_dir(dataset_name)
     else:
         db_dir = Path(db_dir).expanduser().resolve()
-    db_filename = f"{prefix}_{camel_to_snake(dataset_name)}_db.sqlite3"
+    db_filename = study_db_filename(prefix, dataset_name)
     db_path = db_dir / db_filename
 
     if not db_path.exists():

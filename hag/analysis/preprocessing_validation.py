@@ -113,10 +113,12 @@ if __name__ == '__main__':
 
                     if spectral_representation in ["stft", "mfcc"]:
                         x_train_band = generate_multivariate_dataset(
-                            base_train, is_instances_classification, spectral_representation, hop=hop, win_length=win_length
+                            base_train, is_instances_classification, spectral_representation, hop=hop, win_length=win_length,
+                            sampling_rate=sampling_rate
                         )
                         x_val_band = generate_multivariate_dataset(
-                            base_val, is_instances_classification, spectral_representation, hop=hop, win_length=win_length
+                            base_val, is_instances_classification, spectral_representation, hop=hop, win_length=win_length,
+                            sampling_rate=sampling_rate
                         )
                     elif spectral_representation == "custom":
 
