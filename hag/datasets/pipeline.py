@@ -47,11 +47,11 @@ def prepare_data(dataset_name, spectral_representation, data_type="normal", nois
         if spectral_representation in ["stft", "mfcc"]:
             X_train_band = generate_multivariate_dataset(
                 base_train, is_instances_classification, spectral_representation, hop=hop, win_length=win_length,
-                mfcc_config=mfcc_config
+                mfcc_config=mfcc_config, sampling_rate=sampling_rate
             )
             X_test_band = generate_multivariate_dataset(
                 base_test, is_instances_classification, spectral_representation, hop=hop, win_length=win_length,
-                mfcc_config=mfcc_config
+                mfcc_config=mfcc_config, sampling_rate=sampling_rate
             )
         elif spectral_representation == "custom":
             peaks = extract_peak_frequencies(
