@@ -20,6 +20,97 @@ from hag.performances.esn_model_evaluation import (compute_score, fit_reservoir,
 N_JOBS = 1
 
 
+def build_reservoir_from_study(function_name, hyperparams, pretrain_data, is_instances_classification,
+                               random_projection_experiment=False, plasticity=True):
+    """
+    Reservoir of function_name built with hyperparams (e.g. the best trial of a study), its unsupervised learning (HAG,
+    IP, anti-Oja...) on pretrain_data, as in evaluate_dataset_on_test (matrices drawn with numpy's global RNG).
+    plasticity=False: control, the same matrices without the unsupervised learning (e.g. HAG's input matrix and bias
+    with its initial W). Returns (reservoir, W).
+    """
+    leaky_rate = 1
+    input_connectivity = 1
+    common_index = 1
+    if is_instances_classification:
+        common_size = pretrain_data[0].shape[common_index]
+    else:
+        common_size = pretrain_data.shape[common_index]
+
+    # We want the size of the models to be at least network_size
+    K = math.ceil(hyperparams['network_size'] / common_size)
+    n = common_size * K
+
+    use_block = function_name in ["diag_ee", "diag_ei"]
+
+    # UNSUPERVISED PRETRAINING
+    if function_name in ["random_ee", "diag_ee"]:
+        Win, W, bias = init_matrices(n, input_connectivity, hyperparams['connectivity'],  K, w_distribution=stats.uniform(loc=0, scale=1), use_block=use_block, seed=random.randint(0, 1000), random_projection_experiment=random_projection_experiment)
+    else:
+        Win, W, bias = init_matrices(n, input_connectivity, hyperparams['connectivity'],  K, w_distribution=stats.uniform(loc=-1, scale=2), use_block=use_block, seed=random.randint(0, 1000), random_projection_experiment=random_projection_experiment)
+    bias *= hyperparams['bias_scaling']
+    Win *= hyperparams['input_scaling']
+
+    if not plasticity:
+        pass  # (control: the matrices without the unsupervised learning)
+    elif function_name == "mean_hag":
+        W, (_, _, _) = run_algorithm(W, Win, bias, hyperparams['leaky_rate'], tanh, pretrain_data,
+                                     hyperparams['weight_increment'], hyperparams['target_rate'], hyperparams['rate_spread'], "mean_hag",
+                                     multiple_instances=is_instances_classification,
+                                     min_increment=hyperparams['min_increment'], max_increment=hyperparams['max_increment'], use_full_instance=hyperparams['use_full_instance'],
+                                     max_partners=np.inf, method="pearson", n_jobs=N_JOBS)
+    elif function_name == "var_hag":
+        W, (_, _, _) = run_algorithm(W, Win, bias, hyperparams['leaky_rate'], tanh, pretrain_data,
+                                     hyperparams['weight_increment'], hyperparams['variance_target'], hyperparams['variance_spread'], "var_hag",
+                                     multiple_instances=is_instances_classification,
+                                     min_increment=hyperparams['min_increment'], max_increment=hyperparams['max_increment'], use_full_instance=hyperparams['use_full_instance'],
+                                     max_partners=np.inf, method="pearson",
+                                     intrinsic_saturation=hyperparams['intrinsic_saturation'], intrinsic_coef=hyperparams['intrinsic_coef'],
+                                     n_jobs=N_JOBS)
+    elif function_name == "short-hag":
+        W, (_, _, _) = run_algorithm(W, Win, bias, hyperparams['leaky_rate'], tanh, pretrain_data,
+                                     hyperparams['weight_increment'], hyperparams['target_rate'], hyperparams['rate_spread'], "mean_hag",
+                                     multiple_instances=is_instances_classification,
+                                     min_increment=1, max_increment=1, use_full_instance=False,
+                                     max_partners=np.inf, method="hebbian", n_jobs=N_JOBS)
+    elif function_name == "hsp":
+        W, (_, _, _) = run_algorithm(W, Win, bias, hyperparams['leaky_rate'], tanh, pretrain_data,
+                                     hyperparams['weight_increment'], hyperparams['target_rate'], hyperparams['rate_spread'], "mean_hag",
+                                     multiple_instances=is_instances_classification,
+                                     min_increment=100, max_increment=100, use_full_instance=False,
+                                     max_partners=np.inf, method="random", n_jobs=N_JOBS)
+    elif function_name in ["random_ee", "random_ei", "diag_ee", "diag_ei", "ip_correct", "anti-oja", "ip-anti-oja"]:
+        eigen = sparse.linalg.eigs(W, k=1, which="LM", maxiter=W.shape[0] * 20, tol=0.1, return_eigenvectors=False, v0=np.ones(W.shape[0]))
+        W *= hyperparams['spectral_radius'] / max(abs(eigen))
+    else:
+        raise ValueError(f"Invalid function: {function_name}")
+
+    # unsupervised local rules
+    if is_instances_classification:
+        unsupervised_pretrain = np.concatenate(pretrain_data).astype(float)
+    else:
+        unsupervised_pretrain = pretrain_data.astype(float)
+    if not plasticity:
+        reservoir = init_reservoir(W, Win, bias, leaky_rate, tanh)
+    elif function_name == "ip_correct":
+        reservoir = init_ip_reservoir(W, Win, bias, mu=hyperparams['mu'], sigma=hyperparams['sigma'], learning_rate=hyperparams['learning_rate'],
+                                      leaking_rate=hyperparams['leaky_rate'])
+        fit_reservoir(reservoir, unsupervised_pretrain, warmup=100)
+    elif function_name == "anti-oja":
+        reservoir = init_local_rule_reservoir(W, Win, bias, local_rule="anti-oja", eta=hyperparams['oja_eta'],
+                                              synapse_normalization=False, bcm_theta=None,
+                                              leaking_rate=hyperparams['leaky_rate'], activation_function=tanh)
+        fit_reservoir(reservoir, unsupervised_pretrain, warmup=100)
+    elif function_name == "ip-anti-oja":
+        reservoir = init_ip_local_rule_reservoir(W, Win, bias, local_rule="anti-oja", eta=hyperparams['oja_eta'],
+                                                 synapse_normalization=False, bcm_theta=None,
+                                                 mu=hyperparams['mu'], sigma=hyperparams['sigma'], learning_rate=hyperparams['learning_rate'],
+                                                 leaking_rate=hyperparams['leaky_rate'])
+        fit_reservoir(reservoir, unsupervised_pretrain, warmup=100)
+    else:
+        reservoir = init_reservoir(W, Win, bias, leaky_rate, tanh)
+    return reservoir, W
+
+
 def evaluate_dataset_on_test(study, dataset_name, function_name, pretrain_data, train_data, test_data, Y_train, Y_test,
                              is_instances_classification, nb_trials=8, record_metrics=False,
                              random_projection_experiment=False, seed=None):
@@ -32,8 +123,6 @@ def evaluate_dataset_on_test(study, dataset_name, function_name, pretrain_data, 
         random.seed(seed)
     hyperparams = {param_name: param_value for param_name, param_value in study.best_trial.params.items()}
     print(hyperparams)
-    leaky_rate = 1
-    input_connectivity = 1
 
     # score for prediction
     if dataset_name == "Sunspot":
@@ -56,80 +145,8 @@ def evaluate_dataset_on_test(study, dataset_name, function_name, pretrain_data, 
         CEVs = []
         dcors = []
     for i in range(nb_trials):
-        common_index = 1
-        if is_instances_classification:
-            common_size = pretrain_data[0].shape[common_index]
-        else:
-            common_size = pretrain_data.shape[common_index]
-
-        # We want the size of the models to be at least network_size
-        K = math.ceil(hyperparams['network_size'] / common_size)
-        n = common_size * K
-
-        use_block = function_name in ["diag_ee", "diag_ei"]
-
-        # UNSUPERVISED PRETRAINING
-        if function_name in ["random_ee", "diag_ee"]:
-            Win, W, bias = init_matrices(n, input_connectivity, hyperparams['connectivity'],  K, w_distribution=stats.uniform(loc=0, scale=1), use_block=use_block, seed=random.randint(0, 1000), random_projection_experiment=random_projection_experiment)
-        else:
-            Win, W, bias = init_matrices(n, input_connectivity, hyperparams['connectivity'],  K, w_distribution=stats.uniform(loc=-1, scale=2), use_block=use_block, seed=random.randint(0, 1000), random_projection_experiment=random_projection_experiment)
-        bias *= hyperparams['bias_scaling']
-        Win *= hyperparams['input_scaling']
-
-        if function_name == "mean_hag":
-            W, (_, _, _) = run_algorithm(W, Win, bias, hyperparams['leaky_rate'], tanh, pretrain_data,
-                                         hyperparams['weight_increment'], hyperparams['target_rate'], hyperparams['rate_spread'], "mean_hag",
-                                         multiple_instances=is_instances_classification,
-                                         min_increment=hyperparams['min_increment'], max_increment=hyperparams['max_increment'], use_full_instance=hyperparams['use_full_instance'],
-                                         max_partners=np.inf, method="pearson", n_jobs=N_JOBS)
-        elif function_name == "var_hag":
-            W, (_, _, _) = run_algorithm(W, Win, bias, hyperparams['leaky_rate'], tanh, pretrain_data,
-                                         hyperparams['weight_increment'], hyperparams['variance_target'], hyperparams['variance_spread'], "var_hag",
-                                         multiple_instances=is_instances_classification,
-                                         min_increment=hyperparams['min_increment'], max_increment=hyperparams['max_increment'], use_full_instance=hyperparams['use_full_instance'],
-                                         max_partners=np.inf, method="pearson",
-                                         intrinsic_saturation=hyperparams['intrinsic_saturation'], intrinsic_coef=hyperparams['intrinsic_coef'],
-                                         n_jobs=N_JOBS)
-        elif function_name == "short-hag":
-            W, (_, _, _) = run_algorithm(W, Win, bias, hyperparams['leaky_rate'], tanh, pretrain_data,
-                                         hyperparams['weight_increment'], hyperparams['target_rate'], hyperparams['rate_spread'], "mean_hag",
-                                         multiple_instances=is_instances_classification,
-                                         min_increment=1, max_increment=1, use_full_instance=False,
-                                         max_partners=np.inf, method="hebbian", n_jobs=N_JOBS)
-        elif function_name == "hsp":
-            W, (_, _, _) = run_algorithm(W, Win, bias, hyperparams['leaky_rate'], tanh, pretrain_data,
-                                         hyperparams['weight_increment'], hyperparams['target_rate'], hyperparams['rate_spread'], "mean_hag",
-                                         multiple_instances=is_instances_classification,
-                                         min_increment=100, max_increment=100, use_full_instance=False,
-                                         max_partners=np.inf, method="random", n_jobs=N_JOBS)
-        elif function_name in ["random_ee", "random_ei", "diag_ee", "diag_ei", "ip_correct", "anti-oja", "ip-anti-oja"]:
-            eigen = sparse.linalg.eigs(W, k=1, which="LM", maxiter=W.shape[0] * 20, tol=0.1, return_eigenvectors=False, v0=np.ones(W.shape[0]))
-            W *= hyperparams['spectral_radius'] / max(abs(eigen))
-        else:
-            raise ValueError(f"Invalid function: {function_name}")
-
-        # unsupervised local rules
-        if is_instances_classification:
-            unsupervised_pretrain = np.concatenate(pretrain_data).astype(float)
-        else:
-            unsupervised_pretrain = pretrain_data.astype(float)
-        if function_name == "ip_correct":
-            reservoir = init_ip_reservoir(W, Win, bias, mu=hyperparams['mu'], sigma=hyperparams['sigma'], learning_rate=hyperparams['learning_rate'],
-                                          leaking_rate=hyperparams['leaky_rate'])
-            fit_reservoir(reservoir, unsupervised_pretrain, warmup=100)
-        elif function_name == "anti-oja":
-            reservoir = init_local_rule_reservoir(W, Win, bias, local_rule="anti-oja", eta=hyperparams['oja_eta'],
-                                                  synapse_normalization=False, bcm_theta=None,
-                                                  leaking_rate=hyperparams['leaky_rate'], activation_function=tanh)
-            fit_reservoir(reservoir, unsupervised_pretrain, warmup=100)
-        elif function_name == "ip-anti-oja":
-            reservoir = init_ip_local_rule_reservoir(W, Win, bias, local_rule="anti-oja", eta=hyperparams['oja_eta'],
-                                                     synapse_normalization=False, bcm_theta=None,
-                                                     mu=hyperparams['mu'], sigma=hyperparams['sigma'], learning_rate=hyperparams['learning_rate'],
-                                                     leaking_rate=hyperparams['leaky_rate'])
-            fit_reservoir(reservoir, unsupervised_pretrain, warmup=100)
-        else:
-            reservoir = init_reservoir(W, Win, bias, leaky_rate, tanh)
+        reservoir, W = build_reservoir_from_study(function_name, hyperparams, pretrain_data, is_instances_classification,
+                                                  random_projection_experiment)
         readout = init_readout(ridge_coef=RIDGE_COEF)
 
         # TRAINING and EVALUATION
