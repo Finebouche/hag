@@ -10,9 +10,8 @@ classification datasets:
      (random choices from their seed), same initial matrices and readout -> same accuracy up to the randomness of HAG's
      choices. The JAX node draws its random choices with Jax's generator: it can only be compared statistically.
   3. fit time of each implementation (W learning only, without the readout): first fit of a new instance and mean of
-     the next ones (the JAX fit is compiled at each call, about 0.2 to 0.5 s), and the speedup of the JAX node over the
-     NumPy node ("jax_speedup").
-The results are written to outputs/hag/analysis_results/hag_node_vs_run_algorithm.csv.
+     the next ones (the JAX fit is compiled at each call, about 0.2 to 0.5 s), and the speedup of each implementation
+     over run_algorithm.
 (Earlier results of this file: jax_hag_fit_time.csv, fit times of the two nodes; jax_hag_compilation.csv, compilation at
 each fit vs a compilation cache shared by the instances: 0.2 to 0.45 s saved per fit, -7 to -47 % on the small
 datasets, nothing on SPEECHCOMMANDS, identical W.)
@@ -30,7 +29,13 @@ phase (gains up to about 2 after 15000 steps, then back to about 0): the differe
 Both are deterministic:
 same learned parameters (max_W_diff, max_ab_diff for the IP gains and biases), test accuracy and learning time, for
 NB_TRIALS_LOCAL draws of the matrices (the NumPy learning can take hours on the larger datasets).
-The results are written to outputs/hag/analysis_results/local_plasticity_numpy_vs_jax.csv.
+
+All the results are written to outputs/hag/analysis_results/numpy_vs_jax.csv, one row per dataset, function and
+implementation ("implementation"; "backend" numpy or jax), compared with the reference implementation of its function
+("reference": run_algorithm for HAG, the NumPy learning for the local rules): max_W_diff (and max_ab_diff, IP gains and
+biases) with the same draws (empty when the random choices differ: JaxHAGReservoir), test accuracy (test_mean_%,
+test_std_%), fit time (first_fit_s: first fit of a new instance, with the JAX compilation; fit_s: mean of the next
+ones) and speedup = fit_s of the reference / fit_s.
 
 Run from the repository root:
   python -m hag.analysis.compare_jax [dataset ...] [--functions mean_hag,var_hag,anti-oja,ip-anti-oja]
@@ -67,8 +72,7 @@ DATA_SEED = 0      # draw of the pretraining instances among the train set
 NB_TRIALS_LOCAL = 3  # draws of the matrices for the local plasticity reservoirs
 LOCAL_WARMUP = 100   # as in HAG's evaluation
 RULE_STATES = {"anti-oja": "0.4", "ip-anti-oja": "0.3"}  # post-synaptic states of the local rules, see the docstring
-OUTPUT = ANALYSIS_RESULTS / "hag_node_vs_run_algorithm.csv"
-OUTPUT_LOCAL = ANALYSIS_RESULTS / "local_plasticity_numpy_vs_jax.csv"
+OUTPUT = ANALYSIS_RESULTS / "numpy_vs_jax.csv"
 # ===========================================================================
 
 
@@ -119,28 +123,39 @@ def test_accuracy(W, Win, bias, hp, train, test, Y_train, Y_test):
     return compute_score(Y_pred, Y_test, True)
 
 
+def fit_times_summary(times):
+    """(first fit, mean of the next fits) in seconds."""
+    return times[0], float(np.mean(times[1:])) if len(times) > 1 else times[0]
+
+
 def compare(dataset, function, data):
+    """Rows of the three HAG implementations: run_algorithm (reference), HAGReservoir and JaxHAGReservoir."""
     pretrain, train, test, Y_train, Y_test, is_multivariate, _ = data
     hp = dict(retrieve_best_model(function, dataset, is_multivariate, verbosity=0).best_trial.params)
-    # 1. same random draws -> same weights
+    # 1. same random draws -> same weights (run_algorithm vs HAGReservoir; the JAX node has its own random choices)
     w_diff = max(np.abs(W_run_algorithm(hp, function, pretrain, SEED + k)[0]
                         - W_node(hp, function, pretrain, SEED + k, global_rng=True)[0]).max() for k in range(N_W_CHECK))
-    row = {"dataset": dataset, "function": function, "max_W_diff": w_diff}
 
-    # 2. test accuracy: reference implementation vs nodes used as in reservoirpy
-    for name, learn in (("run_algorithm", lambda k: W_run_algorithm(hp, function, pretrain, SEED + k)),
-                        ("HAGReservoir", lambda k: W_node(hp, function, pretrain, SEED + k)),
-                        ("JaxHAGReservoir", lambda k: W_node(hp, function, pretrain, SEED + k, jax=True))):
+    # 2. and 3. test accuracy and fit time: reference implementation vs nodes used as in reservoirpy
+    rows = []
+    for name, backend, diff, learn in (
+            ("run_algorithm", "numpy", np.nan, lambda k: W_run_algorithm(hp, function, pretrain, SEED + k)),
+            ("HAGReservoir", "numpy", w_diff, lambda k: W_node(hp, function, pretrain, SEED + k)),
+            ("JaxHAGReservoir", "jax", np.nan, lambda k: W_node(hp, function, pretrain, SEED + k, jax=True))):
         fit_times, scores = [], []
         for k in range(NB_TRIALS):
             start = time.time()
             W, Win, bias = learn(k)  # (W as a NumPy array: the JAX computation is finished)
             fit_times.append(time.time() - start)
             scores.append(test_accuracy(W, Win, bias, hp, train, test, Y_train, Y_test))
-        row.update({f"{name}_mean_%": 100 * np.mean(scores), f"{name}_std_%": 100 * np.std(scores),
-                    f"{name}_first_fit_s": fit_times[0], f"{name}_fit_s": np.mean(fit_times[1:])})
-    row["jax_speedup"] = row["HAGReservoir_fit_s"] / row["JaxHAGReservoir_fit_s"]
-    return row
+        first, fit = fit_times_summary(fit_times)
+        rows.append({"dataset": dataset, "function": function, "implementation": name, "backend": backend,
+                     "reference": "run_algorithm", "rule_states": "", "max_W_diff": diff, "max_ab_diff": np.nan,
+                     "test_mean_%": 100 * np.mean(scores), "test_std_%": 100 * np.std(scores),
+                     "first_fit_s": first, "fit_s": fit})
+    for row in rows:
+        row["speedup"] = rows[0]["fit_s"] / row["fit_s"]
+    return rows
 
 
 def local_rule_reservoir(hp, function, input_dim, seed):
@@ -181,73 +196,63 @@ def classification_accuracy(reservoir, hp, train, test, Y_train, Y_test):
 
 
 def compare_local(dataset, function, data):
+    """Rows of the NumPy (reference) and JAX learnings of a local plasticity reservoir."""
     pretrain, train, test, Y_train, Y_test, is_multivariate, _ = data
     hp = dict(retrieve_best_model(function, dataset, is_multivariate, verbosity=0).best_trial.params)
-    row = {"dataset": dataset, "function": function, "rule_states": RULE_STATES[function], "max_W_diff": 0.0,
-           "max_ab_diff": np.nan}
-    scores = {"NumPy": [], "JAX": []}
-    times = {"NumPy": 0.0, "JAX": 0.0}
+    scores, times = {"NumPy": [], "JAX": []}, {"NumPy": [], "JAX": []}
+    w_diff, ab_diff = 0.0, np.nan
     for k in range(NB_TRIALS_LOCAL):
         learned = {}
         for name, jax in (("NumPy", False), ("JAX", True)):
             learned[name], duration = learn_local(hp, function, pretrain, SEED + k, jax)
-            times[name] += duration
+            times[name].append(duration)
             scores[name].append(classification_accuracy(learned[name], hp, train, test, Y_train, Y_test))
-        row["max_W_diff"] = max(row["max_W_diff"], np.abs(np.asarray(learned["NumPy"].W, dtype=float)
-                                                         - np.asarray(learned["JAX"].W, dtype=float)).max())
+        w_diff = max(w_diff, np.abs(np.asarray(learned["NumPy"].W, dtype=float)
+                                    - np.asarray(learned["JAX"].W, dtype=float)).max())
         if function == "ip-anti-oja":
-            ab_diff = max(np.abs(np.ravel(getattr(learned["NumPy"], name)) - np.ravel(getattr(learned["JAX"], name))).max()
-                          for name in ("a", "b"))
-            row["max_ab_diff"] = ab_diff if np.isnan(row["max_ab_diff"]) else max(row["max_ab_diff"], ab_diff)
-    for name in ("NumPy", "JAX"):
-        row.update({f"{name}_mean_%": 100 * np.mean(scores[name]), f"{name}_std_%": 100 * np.std(scores[name]),
-                    f"{name}_fit_time_s": times[name] / NB_TRIALS_LOCAL})
-    row["speedup"] = row["NumPy_fit_time_s"] / row["JAX_fit_time_s"]
-    return row
+            diff = max(np.abs(np.ravel(getattr(learned["NumPy"], name)) - np.ravel(getattr(learned["JAX"], name))).max()
+                       for name in ("a", "b"))
+            ab_diff = diff if np.isnan(ab_diff) else max(ab_diff, diff)
+    rows = []
+    for name, backend in (("NumPy", "numpy"), ("JAX", "jax")):
+        first, fit = fit_times_summary(times[name])
+        reference = name == "NumPy"
+        rows.append({"dataset": dataset, "function": function, "implementation": name, "backend": backend,
+                     "reference": "NumPy", "rule_states": RULE_STATES[function],
+                     "max_W_diff": np.nan if reference else w_diff, "max_ab_diff": np.nan if reference else ab_diff,
+                     "test_mean_%": 100 * np.mean(scores[name]), "test_std_%": 100 * np.std(scores[name]),
+                     "first_fit_s": first, "fit_s": fit})
+    for row in rows:
+        row["speedup"] = rows[0]["fit_s"] / row["fit_s"]
+    return rows
 
 
 def main(datasets, functions):
-    rows, local_rows = [], []
+    rows = []
     for dataset in datasets:
         random.seed(DATA_SEED)  # prepare_data draws the pretraining instances with numpy's global RNG
         data = prepare_data(dataset, "mfcc")
         for function in functions:
-            if function in LOCAL_FUNCTIONS:
-                try:
-                    row = compare_local(dataset, function, data)
-                except (KeyError, FileNotFoundError):
-                    print(f"[compare] {dataset} {function}: no study, skipped", flush=True)
-                    continue
-                local_rows.append(row)
-                ab = "" if np.isnan(row["max_ab_diff"]) else f" max|a, b diff| {row['max_ab_diff']:.1e}"
-                print(f"[compare] {dataset:20s} {function:11s} max|W diff| {row['max_W_diff']:.1e}{ab} | test NumPy "
-                      f"{row['NumPy_mean_%']:.2f}% ± {row['NumPy_std_%']:.2f} (fit {row['NumPy_fit_time_s']:.1f}s) | JAX "
-                      f"{row['JAX_mean_%']:.2f}% ± {row['JAX_std_%']:.2f} (fit {row['JAX_fit_time_s']:.1f}s) | "
-                      f"speedup x{row['speedup']:.0f}", flush=True)
-                OUTPUT_LOCAL.parent.mkdir(parents=True, exist_ok=True)
-                pd.DataFrame(local_rows).to_csv(OUTPUT_LOCAL, index=False)
-                continue
             try:
-                row = compare(dataset, function, data)
+                new_rows = (compare_local if function in LOCAL_FUNCTIONS else compare)(dataset, function, data)
             except (KeyError, FileNotFoundError):
                 print(f"[compare] {dataset} {function}: no study, skipped", flush=True)
                 continue
-            rows.append(row)
-            print(f"[compare] {dataset:20s} {function:9s} max|W diff| {row['max_W_diff']:.1e} | test (fit) "
-                  + " | ".join(f"{name} {row[name + '_mean_%']:.2f}% ± {row[name + '_std_%']:.2f} "
-                               f"({row[name + '_first_fit_s']:.2f}s then {row[name + '_fit_s']:.2f}s)"
-                               for name in ("run_algorithm", "HAGReservoir", "JaxHAGReservoir"))
-                  + f" | JAX speedup x{row['jax_speedup']:.1f}", flush=True)
+            rows += new_rows
+            for row in new_rows:
+                diff = "" if np.isnan(row["max_W_diff"]) else f" | max|W diff| {row['max_W_diff']:.1e}"
+                diff += "" if np.isnan(row["max_ab_diff"]) else f" max|a, b diff| {row['max_ab_diff']:.1e}"
+                print(f"[compare] {dataset:18s} {function:11s} {row['implementation']:15s} test "
+                      f"{row['test_mean_%']:.2f}% ± {row['test_std_%']:.2f} | fit {row['first_fit_s']:.2f}s then "
+                      f"{row['fit_s']:.2f}s (x{row['speedup']:.1f} vs {row['reference']}){diff}", flush=True)
             # saved after each comparison, so that an interrupted run keeps its results
             OUTPUT.parent.mkdir(parents=True, exist_ok=True)
             pd.DataFrame(rows).to_csv(OUTPUT, index=False)
 
-    if rows:
-        print(f"Results saved to {OUTPUT}")
-        if not pd.DataFrame(rows)["max_W_diff"].eq(0).all():
-            print("WARNING: the HAG implementations do not give the same weights")
-    if local_rows:
-        print(f"Results saved to {OUTPUT_LOCAL}")
+    print(f"Results saved to {OUTPUT}")
+    hag = pd.DataFrame([row for row in rows if row["implementation"] == "HAGReservoir"])
+    if len(hag) and not hag["max_W_diff"].eq(0).all():
+        print("WARNING: run_algorithm and HAGReservoir do not give the same weights")
 
 
 if __name__ == "__main__":
