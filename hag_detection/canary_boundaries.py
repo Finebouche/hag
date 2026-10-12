@@ -14,7 +14,8 @@ The ridge coefficient and the peak threshold are chosen on validation songs (tak
 readout is trained again on all train songs. Score: F1 of the boundaries matched one to one within TOLERANCE, plus the
 recall of the boundaries with and without silence between the two phrases.
 
-Usage: python -m hag_detection.canary_boundaries [conditions] [nb_seeds] [max_songs]
+Usage: python -m hag_detection.canary_boundaries [conditions] [nb_seeds] [max_songs] [network_size]
+network_size: number of neurons of the reservoirs instead of the study's (500); results in canary_boundaries_<size>.csv
 """
 import sys
 from pathlib import Path
@@ -39,12 +40,12 @@ SILENCE_GAP = 0.005  # s, phrases further apart than this are separated by a sil
 BUMP_STD = 0.025  # s
 TOLERANCE = 0.05  # s
 MIN_PEAK_DISTANCE = 0.1  # s
-RIDGES = 10.0 ** np.arange(-8, 3)
+RIDGES = 10.0 ** np.arange(-14, 3)
 THRESHOLDS = np.linspace(0.05, 0.95, 19)
 NB_PRETRAIN_PHRASES = 500
 STUDIES_DB = f"sqlite:///{LEGACY_STUDIES / 'tpe_canary_db.sqlite3'}"
 CONDITIONS = ["mfcc", "random_ee", "var_hag", "mean_hag", "mean_hag_proj"]
-OUTPUT = Path(__file__).resolve().parents[1] / "outputs" / "canary" / "boundaries.csv"
+OUTPUT = Path(__file__).resolve().parents[1] / "outputs" / "detection_results" / "canary_boundaries.csv"
 
 
 def load_songs(max_songs=None):
@@ -166,7 +167,7 @@ def ridge_run(states, Wout):
     return [np.hstack([x, np.ones((len(x), 1))]) @ Wout for x in states]
 
 
-def evaluate(condition, songs, train_songs, test_songs, frame, seed):
+def evaluate(condition, songs, train_songs, test_songs, frame, seed, network_size=None):
     np.random.seed(seed)
     if condition == "mfcc":
         states = {w: songs[w]["mfcc"] for w in songs}
@@ -174,6 +175,8 @@ def evaluate(condition, songs, train_songs, test_songs, frame, seed):
         function_name = condition.removesuffix("_proj")
         study = optuna.load_study(study_name=f"{function_name}_Canary_normal_multi", storage=STUDIES_DB)
         hyperparams = dict(study.best_trial.params)
+        if network_size is not None:
+            hyperparams["network_size"] = network_size
         reservoir, _ = build_reservoir_from_study(function_name, hyperparams, pretrain_phrases(songs, train_songs, frame),
                                                   True, plasticity=not condition.endswith("_proj"))
         waves = list(songs)
@@ -197,13 +200,16 @@ def evaluate(condition, songs, train_songs, test_songs, frame, seed):
 
     Wout = ridge_fit([states[w] for w in train_songs], [targets[w] for w in train_songs], ridge)
     result = scores(ridge_run([states[w] for w in test_songs], Wout), songs, test_songs, threshold, frame)
-    return dict(condition=condition, seed=seed, ridge=ridge, threshold=threshold, validation_f1=best[0], **result)
+    size = None if condition == "mfcc" else hyperparams["network_size"]
+    return dict(condition=condition, seed=seed, network_size=size, ridge=ridge, threshold=threshold, validation_f1=best[0], **result)
 
 
 def main():
     conditions = sys.argv[1].split(",") if len(sys.argv) > 1 else CONDITIONS
     nb_seeds = int(sys.argv[2]) if len(sys.argv) > 2 else 3
-    max_songs = int(sys.argv[3]) if len(sys.argv) > 3 else None
+    max_songs = int(sys.argv[3]) if len(sys.argv) > 3 and sys.argv[3] != "all" else None
+    network_size = int(sys.argv[4]) if len(sys.argv) > 4 else None
+    output = OUTPUT if network_size is None else OUTPUT.with_stem(f"{OUTPUT.stem}_{network_size}")
 
     songs, train_songs, test_songs = load_songs(max_songs)
     frame = compute_features(songs)
@@ -214,7 +220,7 @@ def main():
     results = []
     for condition in conditions:
         for seed in range(nb_seeds):
-            result = evaluate(condition, songs, train_songs, test_songs, frame, seed)
+            result = evaluate(condition, songs, train_songs, test_songs, frame, seed, network_size)
             print({k: round(v, 3) if isinstance(v, float) else v for k, v in result.items()}, flush=True)
             results.append(result)
 
@@ -222,9 +228,9 @@ def main():
     print(results.groupby("condition")[["f1", "precision", "recall", "recall_silence", "recall_no_silence"]]
           .agg(["mean", "std"]).round(3))
     if max_songs is None:
-        OUTPUT.parent.mkdir(parents=True, exist_ok=True)
-        results.to_csv(OUTPUT, index=False)
-        print("Saved to", OUTPUT)
+        output.parent.mkdir(parents=True, exist_ok=True)
+        results.to_csv(output, index=False)
+        print("Saved to", output)
 
 
 if __name__ == "__main__":

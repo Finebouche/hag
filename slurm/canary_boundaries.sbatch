@@ -1,7 +1,7 @@
 #!/bin/bash
 # Canary phrase boundary detection (python -m hag_detection.canary_boundaries [conditions] [nb_seeds]), results in
-# outputs/canary/boundaries.csv. Run from the repository root (a checkout of the detection branch), data in hag/datasets/Canary:
-#   sbatch slurm/canary_boundaries.sbatch [conditions] [nb_seeds]
+# outputs/detection_results/canary_boundaries.csv. Run from the repository root (a checkout of the detection branch), data in hag/datasets/Canary:
+#   sbatch slurm/canary_boundaries.sbatch [conditions] [nb_seeds] [max_songs|all] [network_size]
 #SBATCH --job-name=canary-boundaries
 #SBATCH --cpus-per-task=16
 #SBATCH --mem=64G
