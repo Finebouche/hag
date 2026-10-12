@@ -9,6 +9,31 @@ def update_reservoir(W, Win, u, r, leaky_rate, bias, activation_function):
     pre_s = (1 - leaky_rate) * r.flatten() + leaky_rate * (W @ r.flatten()) + (Win @ u.flatten()) + bias
     return activation_function(pre_s)
 
+
+def spectral_radius(W):
+    """
+    Largest absolute eigenvalue of W (sparse or dense) with ARPACK (fixed starting vector: reproducible), or with a
+    dense eigendecomposition when W has fewer connections than neurons (ARPACK then fails, or returns a wrong value, e.g.
+    a nonzero radius for a nilpotent W) or when ARPACK fails.
+    """
+    dense = lambda: W.toarray() if sparse.issparse(W) else np.asarray(W)
+    nb_connections = W.nnz if sparse.issparse(W) else np.count_nonzero(W)
+    if nb_connections < W.shape[0]:
+        return float(max(abs(np.linalg.eigvals(dense()))))
+    try:
+        eigen = sparse.linalg.eigs(W, k=1, which="LM", maxiter=W.shape[0] * 20, tol=0.1, return_eigenvectors=False,
+                                   v0=np.ones(W.shape[0]))
+    except (sparse.linalg.ArpackError, sparse.linalg.ArpackNoConvergence):
+        eigen = np.linalg.eigvals(dense())
+    return float(max(abs(eigen)))
+
+
+def scale_spectral_radius(W, target):
+    """W scaled to the spectral radius target, unchanged if its spectral radius is (numerically) 0: empty or nilpotent W."""
+    sr = spectral_radius(W)
+    return W * (target / sr) if sr > 1e-10 else W
+
+
 def init_matrices(n_neurons, input_connectivity, connectivity, K, spectral_radius=1, w_distribution=stats.uniform(loc=-1, scale=2),
                   win_distribution=stats.uniform(0, 1), use_block=False, seed=111, random_projection_experiment=False):
     # K is the number of times a single input is repeated to the models
@@ -58,11 +83,7 @@ def init_matrices(n_neurons, input_connectivity, connectivity, K, spectral_radiu
         # Set the spectral radius
         # source : p104 David Verstraeten : largest eigenvalue = spectral radius
         if connectivity > 0:
-            # fixed starting vector: ARPACK's default one is random, so W was not reproducible for a given seed
-            eigen = sparse.linalg.eigs(W, k=1, which="LM", maxiter=W.shape[0] * 20, tol=0.1, return_eigenvectors=False,
-                                       v0=np.ones(W.shape[0]))
-            sr = max(abs(eigen))
-            W *= spectral_radius / sr
+            W = scale_spectral_radius(W, spectral_radius)
 
     # Input matrix
     # We want the Win matrix to explicitly map each input directly to a specific segment of neurons,

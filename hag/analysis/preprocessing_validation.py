@@ -22,7 +22,7 @@ from sklearn.preprocessing import MinMaxScaler
 from hag.datasets.preprocessing import scale_data, add_noise
 
 # Pretraining
-from hag.models.reservoir import init_matrices
+from hag.models.reservoir import init_matrices, scale_spectral_radius
 from hag.hag.hag import run_algorithm
 
 # Evaluating
@@ -318,8 +318,7 @@ if __name__ == '__main__':
                                                              intrinsic_saturation=intrinsic_saturation, intrinsic_coef=intrinsic_coef,
                                                              n_jobs=nb_jobs_per_trial)
                             elif function_name in ["random_ee", "random_ei", "diag_ee", "diag_ei", "ip_correct", "anti-oja", "ip-anti-oja"]:
-                                eigen = sparse.linalg.eigs(W, k=1, which="LM", maxiter=W.shape[0] * 20, tol=0.1, return_eigenvectors=False, v0=np.ones(W.shape[0]))
-                                W *= sr / max(abs(eigen))
+                                W = scale_spectral_radius(W, sr)
                             else:
                                 raise ValueError(f"Invalid function: {function_name}")
 
