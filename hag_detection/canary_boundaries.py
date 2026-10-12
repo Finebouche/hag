@@ -45,7 +45,7 @@ THRESHOLDS = np.linspace(0.05, 0.95, 19)
 NB_PRETRAIN_PHRASES = 500
 STUDIES_DB = f"sqlite:///{LEGACY_STUDIES / 'tpe_canary_db.sqlite3'}"
 CONDITIONS = ["mfcc", "random_ee", "var_hag", "mean_hag", "mean_hag_proj"]
-OUTPUT = Path(__file__).resolve().parents[1] / "outputs" / "detection_results" / "canary_boundaries.csv"
+OUTPUT = Path(__file__).resolve().parents[1] / "outputs" / "detection" / "canary_boundaries.csv"
 
 
 def load_songs(max_songs=None):
