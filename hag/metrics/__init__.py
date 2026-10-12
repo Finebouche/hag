@@ -15,12 +15,15 @@ from .m_capacities import (
     memory_capacity,
 )
 
-from .network import (
-    state_to_color,
-    create_network,
-    draw_network,
-    animate_network,
-)
+try:  # network visualization needs graph_tool (conda only), not installed everywhere (e.g. PlaFRIM)
+    from .network import (
+        state_to_color,
+        create_network,
+        draw_network,
+        animate_network,
+    )
+except ImportError:
+    pass
 
 from .plots import (
     plot_readout,
