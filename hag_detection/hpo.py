@@ -29,7 +29,7 @@ from optuna.trial import TrialState
 from sklearn.model_selection import KFold
 
 from hag_detection.common import OUTPUTS, RIDGES, THRESHOLDS, load_dataset, pretrain_phrases, scores
-from hag_detection.models import PURE_MODELS, build, parts, states, suggest
+from hag_detection.models import PURE_MODELS, build, normal_equations, parts, readout_outputs, suggest
 
 STUDIES_DIR = Path(os.environ.get("HAG_DETECTION_STUDIES", OUTPUTS / "studies"))
 N_FOLDS = 3
@@ -56,19 +56,11 @@ def cross_validate(model, params, size, songs, train_songs, frame):
         val = [train_songs[i] for i in val_index]
         np.random.seed(CV_SEED + k)
         reservoirs = build(model, params, size, pretrain_phrases(songs, fit, frame))
-        fit_states = states(reservoirs, [songs[w]["mfcc"] for w in fit])
-        val_states = states(reservoirs, [songs[w]["mfcc"] for w in val])
-        dim = fit_states[0].shape[1] + 1
-        XtX, XtY = np.zeros((dim, dim)), np.zeros(dim)
-        for x, w in zip(fit_states, fit):
-            x = np.hstack([x, np.ones((len(x), 1), dtype=np.float32)]).astype(np.float64)
-            XtX += x.T @ x
-            XtY += x.T @ songs[w]["target"]
-        for r, ridge in enumerate(RIDGES):
-            Wout = np.linalg.solve(XtX + ridge * np.eye(dim), XtY)
-            for x, w in zip(val_states, val):
-                outputs[r, w] = x @ Wout[:-1] + Wout[-1]
-        del fit_states, val_states
+        XtX, XtY = normal_equations(reservoirs, songs, fit)
+        Wouts = [np.linalg.solve(XtX + ridge * np.eye(len(XtX)), XtY) for ridge in RIDGES]
+        for w, output in readout_outputs(reservoirs, songs, val, Wouts).items():
+            for r in range(len(RIDGES)):
+                outputs[r, w] = output[:, r]
 
     best = (-1.0, None, None)
     for r, ridge in enumerate(RIDGES):

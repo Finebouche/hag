@@ -34,13 +34,15 @@ WORKERS=${HAG_DETECTION_WORKERS:-4}
 THREADS=$((SLURM_CPUS_PER_TASK / WORKERS))
 export HAG_DETECTION_WORKERS=$WORKERS OMP_NUM_THREADS=$THREADS OPENBLAS_NUM_THREADS=$THREADS MKL_NUM_THREADS=$THREADS
 export XLA_FLAGS="--xla_cpu_multi_thread_eigen=false intra_op_parallelism_threads=$THREADS"
+# numba cache of librosa per job: the jobs writing it at the same time in the shared environment fail (stale file handle)
+export NUMBA_CACHE_DIR=/dev/shm/numba_cache_${SLURM_JOB_ID}_${SLURM_ARRAY_TASK_ID:-0}
 
 STUDIES=$PWD/outputs/detection/studies
 export HAG_DETECTION_STUDIES=/dev/shm/hag_detection_${SLURM_JOB_ID}_${SLURM_ARRAY_TASK_ID:-0}
 mkdir -p "$STUDIES" "$HAG_DETECTION_STUDIES" slurm/logs
 rsync -a "$STUDIES/" "$HAG_DETECTION_STUDIES/"
 sync_back() { rsync -a --update "$HAG_DETECTION_STUDIES/" "$STUDIES/"; }
-trap 'sync_back; rm -rf "$HAG_DETECTION_STUDIES"' EXIT
+trap 'sync_back; rm -rf "$HAG_DETECTION_STUDIES" "$NUMBA_CACHE_DIR"' EXIT
 trap 'exit 143' TERM
 (while true; do sleep 600; sync_back; done) &
 

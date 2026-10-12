@@ -28,7 +28,7 @@ from scipy.stats import wilcoxon
 
 from hag_detection.common import OUTPUTS, load_dataset, pretrain_phrases, scores
 from hag_detection.hpo import cross_validate, storage
-from hag_detection.models import ESN_MODELS, HAG_MODELS, PURE_MODELS, build, parts, states
+from hag_detection.models import ESN_MODELS, HAG_MODELS, PURE_MODELS, build, normal_equations, parts, readout_outputs
 
 SIZES = [250, 500, 1000]
 REFERENCE = "random_ee"
@@ -73,16 +73,10 @@ def conditions(size):
 def evaluate(model, params, size, ridge, threshold, songs, train_songs, test_songs, frame, seed):
     np.random.seed(seed)
     reservoirs = build(model, params, size, pretrain_phrases(songs, train_songs, frame))
-    train_states = states(reservoirs, [songs[w]["mfcc"] for w in train_songs])
-    dim = train_states[0].shape[1] + 1
-    XtX, XtY = np.zeros((dim, dim)), np.zeros(dim)
-    for x, w in zip(train_states, train_songs):
-        x = np.hstack([x, np.ones((len(x), 1), dtype=np.float32)]).astype(np.float64)
-        XtX += x.T @ x
-        XtY += x.T @ songs[w]["target"]
-    del train_states
-    Wout = np.linalg.solve(XtX + ridge * np.eye(dim), XtY)
-    outputs = [x @ Wout[:-1] + Wout[-1] for x in states(reservoirs, [songs[w]["mfcc"] for w in test_songs])]
+    XtX, XtY = normal_equations(reservoirs, songs, train_songs)
+    Wout = np.linalg.solve(XtX + ridge * np.eye(len(XtX)), XtY)
+    test_outputs = readout_outputs(reservoirs, songs, test_songs, [Wout])
+    outputs = [test_outputs[w][:, 0] for w in test_songs]
     return scores(outputs, songs, test_songs, threshold, frame)
 
 

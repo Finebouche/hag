@@ -102,3 +102,37 @@ def states(reservoirs, inputs):
         return [np.asarray(x, dtype=np.float32) for x in inputs]
     runs = [run_reservoir(reservoir, inputs, reset=True) for reservoir in reservoirs]
     return [np.hstack([np.asarray(run[k], dtype=np.float32) for run in runs]) for k in range(len(inputs))]
+
+
+CHUNK = 32  # songs per batched run: the states of all the songs at once do not fit in memory with 1000 neurons
+
+
+def state_chunks(reservoirs, songs, waves, chunk=CHUNK):
+    """(waves, states) by chunks of songs of similar lengths (less padding in the batched JAX runs)."""
+    order = sorted(waves, key=lambda w: len(songs[w]["mfcc"]))
+    for i in range(0, len(order), chunk):
+        part = order[i:i + chunk]
+        yield part, states(reservoirs, [songs[w]["mfcc"] for w in part])
+
+
+def normal_equations(reservoirs, songs, waves):
+    """(XtX, XtY) of the ridge readout (with bias) on the boundary targets of the songs, accumulated by chunks."""
+    XtX, XtY = None, None
+    for part, part_states in state_chunks(reservoirs, songs, waves):
+        for x, w in zip(part_states, part):
+            x = np.hstack([x, np.ones((len(x), 1), dtype=np.float32)]).astype(np.float64)
+            if XtX is None:
+                XtX, XtY = np.zeros((x.shape[1], x.shape[1])), np.zeros(x.shape[1])
+            XtX += x.T @ x
+            XtY += x.T @ songs[w]["target"]
+    return XtX, XtY
+
+
+def readout_outputs(reservoirs, songs, waves, Wouts):
+    """{wave: (T, len(Wouts)) outputs of the ridge readouts Wouts (columns, with bias)} on the songs, by chunks."""
+    Wouts = np.column_stack(Wouts)
+    outputs = {}
+    for part, part_states in state_chunks(reservoirs, songs, waves):
+        for x, w in zip(part_states, part):
+            outputs[w] = x.astype(np.float64) @ Wouts[:-1] + Wouts[-1]
+    return outputs
