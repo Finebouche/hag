@@ -50,7 +50,7 @@ from hag.performances.esn_model_evaluation import (compute_score, fit_reservoir,
 from scipy import sparse
 
 # =============================== PARAMETERS ===============================
-DATASETS = ["JapaneseVowels", "CatsDogs", "FSDD", "SpokenArabicDigits", "SPEECHCOMMANDS"]
+DATASETS = ["JapaneseVowels", "CatsDogs", "FSDD"]
 FUNCTIONS = ["mean_hag", "var_hag", "anti-oja", "ip-anti-oja"]
 HAG_FUNCTIONS = ["mean_hag", "var_hag"]
 LOCAL_FUNCTIONS = ["anti-oja", "ip-anti-oja"]
