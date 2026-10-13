@@ -11,7 +11,9 @@ regression on the one-hot labels (centered statistics, hag_detection.models.norm
 by the same 3-fold cross-validation by song on the train songs (out-of-fold frame accuracy), then trained on all the
 train songs and scored on the test songs for each seed (paired comparisons as hag_detection.evaluate).
 
-Results: outputs/detection/syllables.csv and syllables_comparisons.csv.
+Results: outputs/detection/syllables.csv and syllables_comparisons.csv; with HAG_DETECTION_TASK=syllables, the reservoirs
+of the syllable studies (hag_detection.hpo optimized on the frame accuracy) and syllables_hpo.csv,
+syllables_hpo_comparisons.csv.
 Usage:
   python -m hag_detection.syllables [sizes] [nb_seeds] [max_songs]   all the conditions (default 250,500,1000, 10 seeds)
   python -m hag_detection.syllables run <condition> <size> [nb_seeds]   one condition (one job of slurm/submit_syllables.sh),
@@ -28,7 +30,7 @@ from sklearn.model_selection import KFold
 from hag.datasets.load_categorical_forecasting import download_canary_if_needed
 from hag_detection.common import OUTPUTS, RIDGES, load_dataset, pretrain_phrases
 from hag_detection.evaluate import SIZES, compare, conditions
-from hag_detection.hpo import CV_SEED, FOLD_SEED, N_FOLDS
+from hag_detection.hpo import CV_SEED, FOLD_SEED, N_FOLDS, TASK
 from hag_detection.models import build, normal_equations, ridge_readout, state_chunks
 
 SILENCE = "SIL"
@@ -93,7 +95,8 @@ def evaluate(model, params, size, ridge, songs, train_songs, test_songs, frame, 
     return dict(frame_accuracy=correct[0] / total, frame_accuracy_without_silence=correct_sound[0] / total_sound)
 
 
-PARTS = OUTPUTS / "syllables_parts"
+NAME = "syllables_hpo" if TASK == "syllables" else "syllables"  # reservoirs of the syllable or of the boundary studies
+PARTS = OUTPUTS / f"{NAME}_parts"
 
 
 def all_conditions(sizes):
@@ -127,9 +130,9 @@ def save(results):
     pd.set_option("display.width", 200)
     print(comparisons.round(4).to_string(index=False))
     OUTPUTS.mkdir(parents=True, exist_ok=True)
-    results.to_csv(OUTPUTS / "syllables.csv", index=False)
-    comparisons.to_csv(OUTPUTS / "syllables_comparisons.csv", index=False)
-    print("Saved to", OUTPUTS / "syllables.csv", "and", OUTPUTS / "syllables_comparisons.csv")
+    results.to_csv(OUTPUTS / f"{NAME}.csv", index=False)
+    comparisons.to_csv(OUTPUTS / f"{NAME}_comparisons.csv", index=False)
+    print("Saved to", OUTPUTS / f"{NAME}.csv", "and", OUTPUTS / f"{NAME}_comparisons.csv")
 
 
 def main():

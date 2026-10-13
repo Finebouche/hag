@@ -13,6 +13,10 @@ Studies: "<model>_<size>" (see hag_detection.models), one SQLite database each i
 (HAG_DETECTION_STUDIES, default outputs/detection/studies). The joint optimization of a hybrid "<hag>+<esn>" of SIZE
 neurons starts with (enqueued trial) the best parameters of the studies "<hag>_<SIZE/2>" and "<esn>_<SIZE/2>".
 
+With HAG_DETECTION_TASK=syllables, the objective is instead the out-of-fold frame accuracy of the syllable
+classification (hag_detection.syllables.choose_ridge: same folds, ridge coefficient chosen on the out-of-fold frames),
+in the studies "syllables_<model>_<size>".
+
 Usage: python -m hag_detection.hpo <model> <size> [n_trials] [max_songs]
   workers: HAG_DETECTION_WORKERS processes (default 1) optimizing the same study.
 """
@@ -36,6 +40,21 @@ N_FOLDS = 3
 FOLD_SEED = 0
 CV_SEED = 1000  # matrices of fold k drawn with np.random.seed(CV_SEED + k), the same for all the trials
 N_TRIALS = 400
+TASK = os.environ.get("HAG_DETECTION_TASK", "boundaries")  # "boundaries" or "syllables"
+
+
+def study_name_of(model, size):
+    return f"{'syllables_' if TASK == 'syllables' else ''}{model}_{size}"
+
+
+def load_task_dataset(max_songs=None):
+    """(songs, train songs, frame, classes): classes of the syllable classification, None for the boundaries."""
+    songs, train_songs, _, frame = load_dataset(max_songs)
+    classes = None
+    if TASK == "syllables":
+        from hag_detection.syllables import add_frame_labels
+        classes = add_frame_labels(songs, frame)
+    return songs, train_songs, frame, classes
 
 
 def storage(study_name):
@@ -72,11 +91,16 @@ def cross_validate(model, params, size, songs, train_songs, frame):
     return best
 
 
-def objective_function(model, size, songs, train_songs, frame):
+def objective_function(model, size, songs, train_songs, frame, classes=None):
     length = max_phrase_length(songs, train_songs, frame)
 
     def objective(trial):
         params = suggest(trial, model, length)
+        if TASK == "syllables":
+            from hag_detection.syllables import choose_ridge
+            ridge, accuracy = choose_ridge(model, params, size, songs, train_songs, frame, classes)
+            trial.set_user_attr("ridge", ridge)
+            return accuracy
         f1, ridge, threshold = cross_validate(model, params, size, songs, train_songs, frame)
         trial.set_user_attr("ridge", ridge)
         trial.set_user_attr("threshold", threshold)
@@ -88,7 +112,8 @@ def initial_trial(model, size):
     """Best parameters of the parts of a hybrid, each optimized alone with SIZE / 2 neurons (prefixed)."""
     params = {}
     for part, prefix in parts(model):
-        study = optuna.load_study(study_name=f"{part}_{size // 2}", storage=storage(f"{part}_{size // 2}"))
+        name = study_name_of(part, size // 2)
+        study = optuna.load_study(study_name=name, storage=storage(name))
         params.update({prefix + key: value for key, value in study.best_trial.params.items()})
     return params
 
@@ -103,11 +128,11 @@ def stop_after_failures(max_failures=10):
 
 
 def worker(model, size, n_trials, max_songs, worker_index):
-    songs, train_songs, _, frame = load_dataset(max_songs)
-    study_name = f"{model}_{size}"
+    songs, train_songs, frame, classes = load_task_dataset(max_songs)
+    study_name = study_name_of(model, size)
     study = optuna.load_study(study_name=study_name, storage=storage(study_name),
                               sampler=TPESampler(constant_liar=True, seed=worker_index))
-    study.optimize(objective_function(model, size, songs, train_songs, frame), gc_after_trial=True, catch=(Exception,),
+    study.optimize(objective_function(model, size, songs, train_songs, frame, classes), gc_after_trial=True, catch=(Exception,),
                    callbacks=[MaxTrialsCallback(n_trials, states=(TrialState.COMPLETE,)), stop_after_failures()])
 
 
@@ -120,15 +145,15 @@ def main():
         if part not in PURE_MODELS:
             raise ValueError(f"Unknown model {part}, expected one of {PURE_MODELS} or hybrids <hag>+<esn>")
 
-    study_name = f"{model}_{size}"
+    study_name = study_name_of(model, size)
     study = optuna.create_study(study_name=study_name, storage=storage(study_name), direction="maximize",
                                 load_if_exists=True)
     if "+" in model and not study.trials:
         # the starting trial is run here, alone: several workers would take the enqueued trial at the same time (the
         # second one then fails when it reports it: "Cannot tell a COMPLETE trial")
         study.enqueue_trial(initial_trial(model, size))
-        songs, train_songs, _, frame = load_dataset(max_songs)
-        study.optimize(objective_function(model, size, songs, train_songs, frame), n_trials=1)
+        songs, train_songs, frame, classes = load_task_dataset(max_songs)
+        study.optimize(objective_function(model, size, songs, train_songs, frame, classes), n_trials=1)
         del songs
     done = len([t for t in study.trials if t.state == TrialState.COMPLETE])
     print(f"{study_name}: {done} / {n_trials} trials done, {n_workers} workers", flush=True)
@@ -137,8 +162,10 @@ def main():
 
     study = optuna.load_study(study_name=study_name, storage=storage(study_name))
     best = study.best_trial
-    print(f"best trial {best.number}: F1 {best.value:.4f}, ridge {best.user_attrs['ridge']:.0e}, "
-          f"threshold {best.user_attrs['threshold']:.2f}, {best.params}")
+    threshold = best.user_attrs.get("threshold")
+    print(f"best trial {best.number}: {'frame accuracy' if TASK == 'syllables' else 'F1'} {best.value:.4f}, ridge "
+          f"{best.user_attrs['ridge']:.0e}" + (f", threshold {threshold:.2f}" if threshold is not None else "")
+          + f", {best.params}")
 
 
 if __name__ == "__main__":

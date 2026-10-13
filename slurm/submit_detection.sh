@@ -4,7 +4,9 @@
 #   2. joint optimization of the hybrids <hag>+<esn> at each size of HYBRID_SIZES, starting from the parts optimized
 #      alone at half the size (after 1);
 #   3. final evaluation with NB_SEEDS seeds and the paired comparisons (after 2).
-# N_TRIALS trials per study (Optuna, TPE). Usage: bash slurm/submit_detection.sh
+# N_TRIALS trials per study (Optuna, TPE). With HAG_DETECTION_TASK=syllables, the studies optimize the frame accuracy
+# of the syllable classification ("syllables_<model>_<size>") and the final evaluation is slurm/submit_syllables.sh.
+# Usage: [HAG_DETECTION_TASK=syllables] bash slurm/submit_detection.sh
 set -euo pipefail
 N_TRIALS=${N_TRIALS:-400}
 NB_SEEDS=${NB_SEEDS:-10}
@@ -42,7 +44,14 @@ hybrid=$(sbatch --parsable "${NODES[@]}" --array=0-$((n - 1))%$MAX_RUNNING --job
     --dependency=afterok:$pure --export=ALL,HAG_DETECTION_TASKS="$HYBRID_TASKS" slurm/detection.sbatch "$N_TRIALS")
 echo "joint hybrids: job array $hybrid ($n studies, $HYBRID_TASKS), after $pure"
 
-evaluation=$(sbatch --parsable "${NODES[@]}" --job-name=detection-evaluate --dependency=afterok:$hybrid \
-    --export=ALL,HAG_DETECTION_MODE=evaluate,HAG_DETECTION_WORKERS=1 --output=slurm/logs/%x-%j.out \
-    slurm/detection.sbatch "$(IFS=,; echo "${SIZES[*]}")" "$NB_SEEDS")
-echo "final evaluation: job $evaluation, after $hybrid"
+if [ "${HAG_DETECTION_TASK:-boundaries}" = syllables ]; then
+    # syllable classification: one job per condition, submitted once the studies exist (slurm/submit_syllables.sh)
+    evaluation=$(sbatch --parsable "${NODES[@]}" --cpus-per-task=1 --mem=4G --time=00:30:00 --dependency=afterok:$hybrid \
+        --job-name=submit-syllables --output=slurm/logs/%x-%j.out --wrap="bash slurm/submit_syllables.sh $(IFS=,; echo "${SIZES[*]}") $NB_SEEDS")
+    echo "final evaluation (syllable classification, one job per condition): submitted by job $evaluation, after $hybrid"
+else
+    evaluation=$(sbatch --parsable "${NODES[@]}" --job-name=detection-evaluate --dependency=afterok:$hybrid \
+        --export=ALL,HAG_DETECTION_MODE=evaluate,HAG_DETECTION_WORKERS=1 --output=slurm/logs/%x-%j.out \
+        slurm/detection.sbatch "$(IFS=,; echo "${SIZES[*]}")" "$NB_SEEDS")
+    echo "final evaluation: job $evaluation, after $hybrid"
+fi

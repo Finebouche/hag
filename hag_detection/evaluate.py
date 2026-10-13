@@ -27,7 +27,7 @@ import pandas as pd
 from scipy.stats import wilcoxon
 
 from hag_detection.common import OUTPUTS, load_dataset, pretrain_phrases, scores
-from hag_detection.hpo import cross_validate, storage
+from hag_detection.hpo import cross_validate, storage, study_name_of
 from hag_detection.models import (ESN_MODELS, HAG_MODELS, PURE_MODELS, build, normal_equations, parts, readout_outputs,
                                   ridge_readout)
 
@@ -51,23 +51,23 @@ def conditions(size):
         if trial is None:
             print(f"  (no study {study_name}: {condition} skipped)")
         else:
-            result.append((condition, model, trial.params, trial.user_attrs["ridge"], trial.user_attrs["threshold"]))
+            result.append((condition, model, trial.params, trial.user_attrs["ridge"], trial.user_attrs.get("threshold")))
 
     for model in PURE_MODELS:
-        from_study(model, model, f"{model}_{size}")
+        from_study(model, model, study_name_of(model, size))
     for hag in HAG_MODELS:
-        trial = best_trial(f"{hag}_{size}")
+        trial = best_trial(study_name_of(hag, size))
         if trial is not None:
             result.append((f"{hag}_proj", f"{hag}_proj", trial.params, None, None))
     for hag in HAG_MODELS:
         for esn in ESN_MODELS:
             hybrid = f"{hag}+{esn}"
-            halves = [best_trial(f"{part}_{size // 2}") for part, _ in parts(hybrid)]
+            halves = [best_trial(study_name_of(part, size // 2)) for part, _ in parts(hybrid)]
             if all(trial is not None for trial in halves):
                 params = {prefix + key: value for (_, prefix), trial in zip(parts(hybrid), halves)
                           for key, value in trial.params.items()}
                 result.append((hybrid, hybrid, params, None, None))
-            from_study(f"{hybrid}_joint", hybrid, f"{hybrid}_{size}")
+            from_study(f"{hybrid}_joint", hybrid, study_name_of(hybrid, size))
     return result
 
 
