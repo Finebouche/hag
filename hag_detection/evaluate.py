@@ -28,7 +28,8 @@ from scipy.stats import wilcoxon
 
 from hag_detection.common import OUTPUTS, load_dataset, pretrain_phrases, scores
 from hag_detection.hpo import cross_validate, storage
-from hag_detection.models import ESN_MODELS, HAG_MODELS, PURE_MODELS, build, normal_equations, parts, readout_outputs
+from hag_detection.models import (ESN_MODELS, HAG_MODELS, PURE_MODELS, build, normal_equations, parts, readout_outputs,
+                                  ridge_readout)
 
 SIZES = [250, 500, 1000]
 REFERENCE = "random_ee"
@@ -73,21 +74,20 @@ def conditions(size):
 def evaluate(model, params, size, ridge, threshold, songs, train_songs, test_songs, frame, seed):
     np.random.seed(seed)
     reservoirs = build(model, params, size, pretrain_phrases(songs, train_songs, frame))
-    XtX, XtY = normal_equations(reservoirs, songs, train_songs)
-    Wout = np.linalg.solve(XtX + ridge * np.eye(len(XtX)), XtY)
+    Wout = ridge_readout(normal_equations(reservoirs, songs, train_songs), ridge)
     test_outputs = readout_outputs(reservoirs, songs, test_songs, [Wout])
     outputs = [test_outputs[w][:, 0] for w in test_songs]
     return scores(outputs, songs, test_songs, threshold, frame)
 
 
-def compare(results, nb_bootstrap=10000):
-    """Paired comparisons by seed of the F1 (condition A - condition B), for each size."""
+def compare(results, nb_bootstrap=10000, metric="f1"):
+    """Paired comparisons by seed of the metric (condition A - condition B), for each size."""
     rows = []
     rng = np.random.default_rng(0)
     mfcc = results[results.condition == "mfcc"]
     for size, by_size in results[results.condition != "mfcc"].groupby("network_size"):
         by_size = pd.concat([by_size, mfcc])
-        f1 = by_size.pivot_table(index="seed", columns="condition", values="f1")
+        f1 = by_size.pivot_table(index="seed", columns="condition", values=metric)
         pairs = [(c, REFERENCE) for c in f1.columns if c != REFERENCE]
         pairs += [(hag, f"{hag}_proj") for hag in HAG_MODELS]
         for hag in HAG_MODELS:

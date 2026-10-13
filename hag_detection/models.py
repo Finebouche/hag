@@ -115,17 +115,42 @@ def state_chunks(reservoirs, songs, waves, chunk=CHUNK):
         yield part, states(reservoirs, [songs[w]["mfcc"] for w in part])
 
 
-def normal_equations(reservoirs, songs, waves):
-    """(XtX, XtY) of the ridge readout (with bias) on the boundary targets of the songs, accumulated by chunks."""
-    XtX, XtY = None, None
+def normal_equations(reservoirs, songs, waves, target="target"):
+    """
+    Centered statistics of the ridge readout on the targets songs[w][target] (T,) or (T, k), accumulated song by song:
+    (scatter matrix of the states, cross-scatter with the targets, mean state, mean target). Each song gives its centered
+    statistics, combined with the formula of the parallel variance (Chan et al.): no subtraction of n * mean mean^T from
+    the uncentered X^T X, which loses the precision of nearly dependent states with a large mean (the readout then
+    depends on rounding errors with a small ridge).
+    """
+    Sxx = Sxy = x_mean = y_mean = None
+    total = 0
     for part, part_states in state_chunks(reservoirs, songs, waves):
         for x, w in zip(part_states, part):
-            x = np.hstack([x, np.ones((len(x), 1), dtype=np.float32)]).astype(np.float64)
-            if XtX is None:
-                XtX, XtY = np.zeros((x.shape[1], x.shape[1])), np.zeros(x.shape[1])
-            XtX += x.T @ x
-            XtY += x.T @ songs[w]["target"]
-    return XtX, XtY
+            x, y = np.asarray(x, dtype=np.float64), np.asarray(songs[w][target], dtype=np.float64)
+            n, xm, ym = len(x), x.mean(axis=0), y.mean(axis=0)
+            xc, yc = x - xm, y - ym
+            if Sxx is None:
+                Sxx, Sxy, x_mean, y_mean = np.zeros((x.shape[1], x.shape[1])), np.zeros((x.shape[1],) + y.shape[1:]), xm, ym
+                Sxx += xc.T @ xc
+                Sxy += xc.T @ yc
+                total = n
+                continue
+            new_total = total + n
+            dx, dy = xm - x_mean, ym - y_mean
+            Sxx += xc.T @ xc + (total * n / new_total) * np.outer(dx, dx)
+            Sxy += xc.T @ yc + (total * n / new_total) * (np.outer(dx, dy) if dy.ndim else dx * dy)
+            x_mean = x_mean + dx * n / new_total
+            y_mean = y_mean + dy * n / new_total
+            total = new_total
+    return Sxx, Sxy, x_mean, y_mean
+
+
+def ridge_readout(statistics, ridge):
+    """Ridge readout (W stacked on its bias, as a last row) from the centered statistics of normal_equations."""
+    Sxx, Sxy, x_mean, y_mean = statistics
+    W = np.linalg.solve(Sxx + ridge * np.eye(len(Sxx)), Sxy)
+    return np.vstack([W, (y_mean - x_mean @ W)[None]]) if W.ndim == 2 else np.append(W, y_mean - x_mean @ W)
 
 
 def readout_outputs(reservoirs, songs, waves, Wouts):

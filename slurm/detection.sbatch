@@ -3,7 +3,9 @@
 #   - HAG_DETECTION_MODE=hpo (default): hyperparameter optimization python -m hag_detection.hpo <model> <size>
 #     [n_trials], HAG_DETECTION_WORKERS processes sharing the cores; in a job array, "<model> <size>" is the line
 #     SLURM_ARRAY_TASK_ID (from 0) of the file HAG_DETECTION_TASKS;
-#   - HAG_DETECTION_MODE=evaluate: final evaluation python -m hag_detection.evaluate [sizes] [nb_seeds].
+#   - HAG_DETECTION_MODE=evaluate: final evaluation python -m hag_detection.evaluate [sizes] [nb_seeds];
+#   - HAG_DETECTION_MODE=syllables: frame-by-frame syllable classification python -m hag_detection.syllables [sizes]
+#     [nb_seeds] (reservoirs of the detection studies).
 # The Optuna databases are in /dev/shm during the job (SQLite does not support the network file systems well, and the
 # suroit nodes have no local disk), copied from and back to outputs/detection/studies (every 10 minutes and at the
 # end, without replacing more recent files). Submit everything with slurm/submit_detection.sh.
@@ -50,6 +52,8 @@ echo "[slurm] job ${SLURM_JOB_ID} ${SLURM_ARRAY_TASK_ID:-}: ${HAG_DETECTION_MODE
     "$SLURM_CPUS_PER_TASK cores, $WORKERS workers"
 if [ "${HAG_DETECTION_MODE:-hpo}" = evaluate ]; then
     python -m hag_detection.evaluate "$@"
+elif [ "${HAG_DETECTION_MODE:-hpo}" = syllables ]; then
+    python -m hag_detection.syllables "$@"
 else
     python -m hag_detection.hpo "$@"
 fi
