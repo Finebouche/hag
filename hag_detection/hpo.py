@@ -124,7 +124,12 @@ def main():
     study = optuna.create_study(study_name=study_name, storage=storage(study_name), direction="maximize",
                                 load_if_exists=True)
     if "+" in model and not study.trials:
+        # the starting trial is run here, alone: several workers would take the enqueued trial at the same time (the
+        # second one then fails when it reports it: "Cannot tell a COMPLETE trial")
         study.enqueue_trial(initial_trial(model, size))
+        songs, train_songs, _, frame = load_dataset(max_songs)
+        study.optimize(objective_function(model, size, songs, train_songs, frame), n_trials=1)
+        del songs
     done = len([t for t in study.trials if t.state == TrialState.COMPLETE])
     print(f"{study_name}: {done} / {n_trials} trials done, {n_workers} workers", flush=True)
     if done < n_trials:
