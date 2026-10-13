@@ -53,6 +53,8 @@ echo "[slurm] job ${SLURM_JOB_ID} ${SLURM_ARRAY_TASK_ID:-}: ${HAG_DETECTION_MODE
 if [ "${HAG_DETECTION_MODE:-hpo}" = evaluate ]; then
     python -m hag_detection.evaluate "$@"
 elif [ "${HAG_DETECTION_MODE:-hpo}" = syllables ]; then
+    # in a job array: one condition ("<condition> <size>" of HAG_DETECTION_TASKS)
+    if [ -n "${HAG_DETECTION_TASKS:-}" ]; then set -- run "$@"; fi
     python -m hag_detection.syllables "$@"
 else
     python -m hag_detection.hpo "$@"
