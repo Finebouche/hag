@@ -91,7 +91,9 @@ def run(directory, seeds):
             print(f"seed {seed} ensemble failed: {error!r}", flush=True)
         pd.DataFrame(rows).to_csv(directory / "canapy_frame_accuracy.csv", index=False)
     results = pd.DataFrame(rows)
-    print(results.groupby("annotator").frame_accuracy.agg(["mean", "std", "count"]).mul(100).round(2))
+    summary = results.groupby("annotator").frame_accuracy.agg(["mean", "std"]).mul(100).round(2)
+    summary["seeds"] = results.groupby("annotator").size()
+    print(summary)
 
 
 if __name__ == "__main__":
