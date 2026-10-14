@@ -64,9 +64,12 @@ def run(directory, seeds):
 
     rows = []
     for seed in seeds:
+        # canapy's Config returns copies of its sections on attribute access (config.misc.seed = ... would change a
+        # copy): the values are set by key, in default_config itself, which the corpora use too
         config = default_config
-        config.misc.seed = seed
-        config.transforms.training.test_ratio = 0.0  # train on our train songs (canapy keeps one for itself)
+        config["misc"]["seed"] = seed
+        config["transforms"]["training"]["test_ratio"] = 0.0  # train on our train songs (canapy keeps one for itself)
+        assert config.misc.seed == seed and config.transforms.training.test_ratio == 0.0
         train = Corpus.from_directory(audio_directory=directory / "train" / "audio",
                                       annots_directory=directory / "train" / "annotations",
                                       spec_directory=directory / "spec_train")
