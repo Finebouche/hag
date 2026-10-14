@@ -23,7 +23,7 @@ from hag.performances.esn_model_evaluation import init_reservoir, run_reservoir,
 from hag.performances.evaluation_esn import build_reservoir_from_study
 
 HAG_MODELS = ("mean_hag", "var_hag")
-ESN_MODELS = ("random_ee", "random_ee_dense")
+ESN_MODELS = ("random_ee", "random_ee_dense", "random_ei")  # random_ei: excitatory and inhibitory weights
 PURE_MODELS = HAG_MODELS + ESN_MODELS
 
 
@@ -34,13 +34,20 @@ def parts(model):
     return [(model, "")]
 
 
-def suggest(trial, model, max_phrase_length):
-    """Parameters of the model (pure or hybrid) suggested by an Optuna trial, same ranges as hag.hpo.hpo_esn."""
+def suggest(trial, model, max_phrase_length, input_gains=False):
+    """
+    Parameters of the model (pure or hybrid) suggested by an Optuna trial, same ranges as hag.hpo.hpo_esn. With
+    input_gains, each reservoir also has a gain for each group of features: the MFCC (input_scaling) and, relative to
+    them, their deltas (delta_gain) and delta-deltas (delta2_gain), as canapy (per-group input scaling of its ESN).
+    """
     params = {}
     for part, prefix in parts(model):
         def name(key):
             return prefix + key
         params[name("input_scaling")] = trial.suggest_float(name("input_scaling"), 0.01, 0.2, step=0.005)
+        if input_gains:
+            params[name("delta_gain")] = trial.suggest_float(name("delta_gain"), 0.01, 100, log=True)
+            params[name("delta2_gain")] = trial.suggest_float(name("delta2_gain"), 0.01, 100, log=True)
         params[name("bias_scaling")] = trial.suggest_float(name("bias_scaling"), 0, 0.2, step=0.005)
         if part in HAG_MODELS:
             params[name("weight_increment")] = trial.suggest_float(name("weight_increment"), 0.001, 0.1, step=0.001)
@@ -65,17 +72,36 @@ def suggest(trial, model, max_phrase_length):
     return params
 
 
+class Reservoirs(list):
+    """Reservoirs of a model, with the gains of each one on its input features (None: no gain)."""
+    input_gains = ()
+
+
+def feature_gains(hyperparams, n_features):
+    """Gain of each feature: 1 for the MFCC, delta_gain and delta2_gain for their deltas (the three groups of equal
+    size of the MFCC + delta + delta-delta features), None without these parameters."""
+    if "delta_gain" not in hyperparams:
+        return None
+    group = n_features // 3
+    return np.concatenate([np.ones(group), np.full(group, hyperparams["delta_gain"]),
+                           np.full(n_features - 2 * group, hyperparams["delta2_gain"])])
+
+
 def build(model, params, size, pretrain):
     """Reservoirs of the model with SIZE neurons in all (None for "mfcc"), matrices drawn with numpy's global RNG."""
     if model == "mfcc":
         return None
+    original_pretrain = pretrain
     plasticity = not model.endswith("_proj")
     model = model.removesuffix("_proj")
     model_parts = parts(model)
-    reservoirs = []
+    reservoirs, gains_of_reservoirs = Reservoirs(), []
     for part, prefix in model_parts:
         hyperparams = {key[len(prefix):]: value for key, value in params.items() if key.startswith(prefix)
                        and ":" not in key[len(prefix):]}
+        gains = feature_gains(hyperparams, original_pretrain[0].shape[1])
+        gains_of_reservoirs.append(gains)
+        pretrain = original_pretrain if gains is None else np.array([p * gains for p in original_pretrain], dtype=object)
         hyperparams.update(network_size=size // len(model_parts), leaky_rate=1, input_connectivity=1)
         if part in HAG_MODELS:
             hyperparams["connectivity"] = 0
@@ -93,6 +119,7 @@ def build(model, params, size, pretrain):
         if to_jax_node(reservoir) is None:
             raise RuntimeError(f"{part}: no reservoirpy.jax equivalent, it would run in NumPy")
         reservoirs.append(reservoir)
+    reservoirs.input_gains = tuple(gains_of_reservoirs)
     return reservoirs
 
 
@@ -100,7 +127,9 @@ def states(reservoirs, inputs):
     """States (float32) of the reservoirs on each input series, concatenated (the inputs themselves without reservoir)."""
     if reservoirs is None:
         return [np.asarray(x, dtype=np.float32) for x in inputs]
-    runs = [run_reservoir(reservoir, inputs, reset=True) for reservoir in reservoirs]
+    gains = getattr(reservoirs, "input_gains", ()) or (None,) * len(reservoirs)
+    runs = [run_reservoir(reservoir, inputs if g is None else [x * g for x in inputs], reset=True)
+            for reservoir, g in zip(reservoirs, gains)]
     return [np.hstack([np.asarray(run[k], dtype=np.float32) for run in runs]) for k in range(len(inputs))]
 
 

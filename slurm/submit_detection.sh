@@ -6,15 +6,17 @@
 #   3. final evaluation with NB_SEEDS seeds and the paired comparisons (after 2).
 # N_TRIALS trials per study (Optuna, TPE). With HAG_DETECTION_TASK=syllables, the studies optimize the frame accuracy
 # of the syllable classification ("syllables_<model>_<size>") and the final evaluation is slurm/submit_syllables.sh.
-# Usage: [HAG_DETECTION_TASK=syllables] bash slurm/submit_detection.sh
+# With HAG_DETECTION_INPUT_GAINS=1 (syllables), the gain of each group of input features is searched too.
+# Usage: [HAG_DETECTION_TASK=syllables] [HAG_DETECTION_INPUT_GAINS=1] [PURE="..."] [HYBRIDS="..."] bash slurm/submit_detection.sh
 set -euo pipefail
 N_TRIALS=${N_TRIALS:-400}
 NB_SEEDS=${NB_SEEDS:-10}
 MAX_RUNNING=${MAX_RUNNING:-12}
 SIZES=(250 500 1000)
 HYBRID_SIZES=(500 1000)
-PURE=(mean_hag var_hag random_ee random_ee_dense)
-HYBRIDS=(mean_hag+random_ee mean_hag+random_ee_dense var_hag+random_ee var_hag+random_ee_dense)
+# models (space-separated lists, PURE and HYBRIDS environment variables)
+read -r -a PURE <<< "${PURE:-mean_hag var_hag random_ee random_ee_dense}"
+read -r -a HYBRIDS <<< "${HYBRIDS:-mean_hag+random_ee mean_hag+random_ee_dense var_hag+random_ee var_hag+random_ee_dense}"
 NODES=(--constraint="zen4|zen3|zonda" --exclude="sirocco[21-25],enbata[01-02]")
 cd "$(dirname "$0")/.."
 mkdir -p slurm/logs slurm/tasks outputs/detection/studies

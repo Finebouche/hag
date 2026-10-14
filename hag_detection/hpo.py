@@ -15,7 +15,8 @@ neurons starts with (enqueued trial) the best parameters of the studies "<hag>_<
 
 With HAG_DETECTION_TASK=syllables, the objective is instead the out-of-fold frame accuracy of the syllable
 classification (hag_detection.syllables.choose_ridge: same folds, ridge coefficient chosen on the out-of-fold frames),
-in the studies "syllables_<model>_<size>".
+in the studies "syllables_<model>_<size>" ("syllables_gains_<model>_<size>" with HAG_DETECTION_INPUT_GAINS=1: gain of
+each group of input features in the search, hag_detection.models.suggest).
 
 Usage: python -m hag_detection.hpo <model> <size> [n_trials] [max_songs]
   workers: HAG_DETECTION_WORKERS processes (default 1) optimizing the same study.
@@ -41,10 +42,13 @@ FOLD_SEED = 0
 CV_SEED = 1000  # matrices of fold k drawn with np.random.seed(CV_SEED + k), the same for all the trials
 N_TRIALS = 400
 TASK = os.environ.get("HAG_DETECTION_TASK", "boundaries")  # "boundaries" or "syllables"
+# gain of each group of input features (MFCC, deltas, delta-deltas) in the search, syllable studies "syllables_gains_*"
+INPUT_GAINS = TASK == "syllables" and os.environ.get("HAG_DETECTION_INPUT_GAINS") == "1"
 
 
 def study_name_of(model, size):
-    return f"{'syllables_' if TASK == 'syllables' else ''}{model}_{size}"
+    prefix = "syllables_gains_" if INPUT_GAINS else "syllables_" if TASK == "syllables" else ""
+    return f"{prefix}{model}_{size}"
 
 
 def load_task_dataset(max_songs=None):
@@ -95,7 +99,7 @@ def objective_function(model, size, songs, train_songs, frame, classes=None):
     length = max_phrase_length(songs, train_songs, frame)
 
     def objective(trial):
-        params = suggest(trial, model, length)
+        params = suggest(trial, model, length, input_gains=INPUT_GAINS)
         if TASK == "syllables":
             from hag_detection.syllables import choose_ridge
             ridge, accuracy = choose_ridge(model, params, size, songs, train_songs, frame, classes)
