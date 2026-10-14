@@ -5,7 +5,9 @@
 #     SLURM_ARRAY_TASK_ID (from 0) of the file HAG_DETECTION_TASKS;
 #   - HAG_DETECTION_MODE=evaluate: final evaluation python -m hag_detection.evaluate [sizes] [nb_seeds];
 #   - HAG_DETECTION_MODE=syllables: frame-by-frame syllable classification python -m hag_detection.syllables [sizes]
-#     [nb_seeds] (reservoirs of the detection studies).
+#     [nb_seeds] (reservoirs of the detection studies);
+#   - HAG_DETECTION_MODE=certainty: certainty along the phrases python -m hag_detection.certainty [size] [conditions]
+#     [nb_seeds].
 # The Optuna databases are in /dev/shm during the job (SQLite does not support the network file systems well, and the
 # suroit nodes have no local disk), copied from and back to outputs/detection/studies (every 10 minutes and at the
 # end, without replacing more recent files). Submit everything with slurm/submit_detection.sh.
@@ -52,6 +54,8 @@ echo "[slurm] job ${SLURM_JOB_ID} ${SLURM_ARRAY_TASK_ID:-}: ${HAG_DETECTION_MODE
     "$SLURM_CPUS_PER_TASK cores, $WORKERS workers"
 if [ "${HAG_DETECTION_MODE:-hpo}" = evaluate ]; then
     python -m hag_detection.evaluate "$@"
+elif [ "${HAG_DETECTION_MODE:-hpo}" = certainty ]; then
+    python -m hag_detection.certainty "$@"
 elif [ "${HAG_DETECTION_MODE:-hpo}" = syllables ]; then
     # in a job array: one condition ("<condition> <size>" of HAG_DETECTION_TASKS)
     if [ -n "${HAG_DETECTION_TASKS:-}" ]; then set -- run "$@"; fi
