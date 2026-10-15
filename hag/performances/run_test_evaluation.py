@@ -7,9 +7,13 @@ One row per dataset and function (mean and standard deviation of the nb_trials s
 outputs/hag/test_results/test_results_<classification|prediction>_corrected.csv (the results of the earlier
 preprocessing stay in test_results_<...>.csv).
 
+HAG_TEST_RESULTS (environment variable): another file to add the rows to, e.g. one file per job when several jobs run at
+the same time (slurm/submit_test_evaluation.sh), concatenated afterwards.
+
 Usage: python -m hag.performances.run_test_evaluation [datasets] [functions] [nb_trials]
   e.g. python -m hag.performances.run_test_evaluation JapaneseVowels,CatsDogs mean_hag,var_hag 8
 """
+import os
 import sys
 from datetime import datetime
 from pathlib import Path
@@ -59,7 +63,7 @@ def main():
                          "Nb Trials": nb_trials, "Date": datetime.now().strftime("%Y-%m-%d")})
 
         kind = "classification" if is_instances_classification else "prediction"
-        file_name = TEST_RESULTS / f"test_results_{kind}_corrected.csv"
+        file_name = Path(os.environ.get("HAG_TEST_RESULTS", TEST_RESULTS / f"test_results_{kind}_corrected.csv"))
         file_name.parent.mkdir(parents=True, exist_ok=True)
         results = pd.DataFrame(rows)
         if file_name.exists():

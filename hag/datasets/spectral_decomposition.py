@@ -1,3 +1,4 @@
+import os
 import warnings
 
 import numpy as np
@@ -37,6 +38,9 @@ def generate_multivariate_dataset(
     g_std = 8.0 # standard deviation for Gaussian window in samples
     window = gaussian(win_length, std=g_std, sym=True)
 
+    # HAG_MFCC_LEGACY: earlier MFCC, read here (not in the joblib workers, which may have been started before)
+    legacy_mfcc = bool(os.environ.get("HAG_MFCC_LEGACY"))
+
     def compute_instance_spectrogram(x):
         if spectral_representation == "stft":
             Sx = np.abs(stft(x, hop_length=hop, win_length=win_length, n_fft=win_length, window=window))
@@ -49,6 +53,10 @@ def generate_multivariate_dataset(
                 Sx = mfcc(y=x, **config)
             if add_deltas:
                 Sx = np.concatenate([Sx, delta(Sx, mode="wrap"), delta(Sx, order=2, mode="wrap")], axis=-2)
+        elif spectral_representation == "mfcc" and legacy_mfcc:
+            # earlier preprocessing (before the MFCC fix), for comparisons only: librosa's defaults, 20 MFCC from 128 mel
+            # bands, and a sampling rate assumed at 22050 Hz whatever the real one
+            Sx = np.abs(mfcc(y=x, hop_length=hop, win_length=win_length, n_fft=win_length, window=window))
         elif spectral_representation == "mfcc":
             sr = {} if sampling_rate is None else {"sr": sampling_rate}
             Sx = np.abs(mfcc(y=x, hop_length=hop, win_length=win_length, n_fft=win_length, window=window,

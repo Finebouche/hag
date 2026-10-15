@@ -22,7 +22,7 @@ from hag.models.activation_functions import tanh
 
 # Preprocessing
 from hag.datasets.spectral_decomposition import generate_multivariate_dataset
-from hag.datasets.load_categorical_forecasting import canary_mfcc_config
+from hag.datasets.mfcc_configs import dataset_mfcc_config
 from sklearn.preprocessing import MinMaxScaler
 from hag.datasets.preprocessing import scale_data, add_noise, flexible_indexing
 
@@ -64,7 +64,7 @@ if __name__ == '__main__':
 
         spectral_representation = "mfcc" if is_instances_classification else "stft"
         # dataset-specific MFCC (None -> default hop / win_length below)
-        mfcc_config = canary_mfcc_config(sampling_rate) if dataset_name == "Canary" else None
+        mfcc_config = dataset_mfcc_config(dataset_name, sampling_rate)
 
         # Define noise parameter
         noise_std = 0.001

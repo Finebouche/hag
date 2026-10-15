@@ -30,7 +30,8 @@ Both are deterministic:
 same learned parameters (max_W_diff, max_ab_diff for the IP gains and biases), test accuracy and learning time, for
 NB_TRIALS_LOCAL draws of the matrices (the NumPy learning can take hours on the larger datasets).
 
-All the results are written to outputs/hag/analysis_results/numpy_vs_jax.csv, one row per dataset, function and
+All the results are added to outputs/hag/analysis_results/numpy_vs_jax.csv (the rows of a dataset and function compared
+again replace their previous ones, the others are kept), one row per dataset, function and
 implementation ("implementation"; "backend" numpy or jax), compared with the reference implementation of its function
 ("reference": run_algorithm for HAG, the NumPy learning for the local rules): max_W_diff (and max_ab_diff, IP gains and
 biases) with the same draws (empty when the random choices differ: JaxHAGReservoir), test accuracy (test_mean_%,
@@ -61,7 +62,7 @@ from hag.performances.esn_model_evaluation import (compute_score, fit_reservoir,
 from scipy import sparse
 
 # =============================== PARAMETERS ===============================
-DATASETS = ["JapaneseVowels", "CatsDogs", "FSDD"]
+DATASETS = ["JapaneseVowels", "CatsDogs", "FSDD", "SpokenArabicDigits", "SPEECHCOMMANDS"]  # "JapaneseVowels", "CatsDogs", "FSDD", "SpokenArabicDigits", "SPEECHCOMMANDS"
 FUNCTIONS = ["mean_hag", "var_hag", "anti-oja", "ip-anti-oja"]
 HAG_FUNCTIONS = ["mean_hag", "var_hag"]
 LOCAL_FUNCTIONS = ["anti-oja", "ip-anti-oja"]
@@ -227,6 +228,17 @@ def compare_local(dataset, function, data):
     return rows
 
 
+def save(new_rows):
+    """Add the rows to OUTPUT, replacing the previous rows of the same dataset and function."""
+    new = pd.DataFrame(new_rows)
+    if OUTPUT.exists():
+        old = pd.read_csv(OUTPUT)
+        replaced = old.set_index(["dataset", "function"]).index.isin(new.set_index(["dataset", "function"]).index)
+        new = pd.concat([old[~replaced], new], ignore_index=True)
+    OUTPUT.parent.mkdir(parents=True, exist_ok=True)
+    new.to_csv(OUTPUT, index=False)
+
+
 def main(datasets, functions):
     rows = []
     for dataset in datasets:
@@ -246,8 +258,7 @@ def main(datasets, functions):
                       f"{row['test_mean_%']:.2f}% ± {row['test_std_%']:.2f} | fit {row['first_fit_s']:.2f}s then "
                       f"{row['fit_s']:.2f}s (x{row['speedup']:.1f} vs {row['reference']}){diff}", flush=True)
             # saved after each comparison, so that an interrupted run keeps its results
-            OUTPUT.parent.mkdir(parents=True, exist_ok=True)
-            pd.DataFrame(rows).to_csv(OUTPUT, index=False)
+            save(new_rows)
 
     print(f"Results saved to {OUTPUT}")
     hag = pd.DataFrame([row for row in rows if row["implementation"] == "HAGReservoir"])
