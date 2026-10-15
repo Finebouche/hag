@@ -15,8 +15,7 @@ def standard_mfcc_config(sampling_rate):
     """
     Usual MFCC of speech recognition: 25 ms windows every 10 ms, FFT on the next power of 2, 40 mel bands from 20 Hz
     to the Nyquist frequency, 20 MFCC. (The generic MFCC uses 6 ms windows every 3 ms at 16 kHz, 51 frequencies,
-    13 MFCC: on SPEECHCOMMANDS, var_hag loses 6.7 points of test accuracy with them compared with the earlier
-    20 MFCC, hag.analysis.speechcommands_preprocessing.)
+    13 MFCC: too short windows and too few coefficients for these datasets.)
     """
     win_length = round(0.025 * sampling_rate)
     return dict(sr=sampling_rate, n_mfcc=20, n_mels=40, win_length=win_length, hop_length=round(0.010 * sampling_rate),

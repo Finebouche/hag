@@ -1,2 +1,0 @@
-dataset,function,hyperparameters,preprocessing,features,test_mean_percent,test_std_percent,validation_score,nb_trials
-SPEECHCOMMANDS,var_hag,legacy study,legacy,20,30.124943207632892,0.5561106731045888,0.302784816805382,8
