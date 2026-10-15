@@ -33,6 +33,10 @@ export HAG_HPO_PARALLEL_STUDIES=${HAG_HPO_PARALLEL_STUDIES:-4}
 THREADS=$((SLURM_CPUS_PER_TASK / HAG_HPO_PARALLEL_STUDIES))
 export HAG_HPO_JOBS_PER_TRIAL=$THREADS OMP_NUM_THREADS=$THREADS OPENBLAS_NUM_THREADS=$THREADS MKL_NUM_THREADS=$THREADS
 export XLA_FLAGS="--xla_cpu_multi_thread_eigen=false intra_op_parallelism_threads=$THREADS"
+# GPU nodes (LSTM, GRU): no GPU allocation by Slurm on PlaFRIM, each job takes one of the GPUs of its node
+if command -v nvidia-smi >/dev/null 2>&1 && [ -z "${CUDA_VISIBLE_DEVICES:-}" ]; then
+    export CUDA_VISIBLE_DEVICES=$((SLURM_ARRAY_TASK_ID % $(nvidia-smi -L | wc -l)))
+fi
 # numba cache of librosa per job: jobs writing it at the same time in the shared environment fail (stale file handle)
 export NUMBA_CACHE_DIR=/dev/shm/numba_cache_${SLURM_JOB_ID}_${SLURM_ARRAY_TASK_ID}
 

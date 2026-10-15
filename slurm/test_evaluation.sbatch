@@ -21,6 +21,10 @@ micromamba activate hag_env
 set -u
 cd "$SLURM_SUBMIT_DIR"
 export PYTHONPATH=$PWD  # this checkout, not the editable install of ~/hag
+# GPU nodes (LSTM, GRU): no GPU allocation by Slurm on PlaFRIM, each job takes one of the GPUs of its node
+if command -v nvidia-smi >/dev/null 2>&1 && [ -z "${CUDA_VISIBLE_DEVICES:-}" ]; then
+    export CUDA_VISIBLE_DEVICES=$((SLURM_ARRAY_TASK_ID % $(nvidia-smi -L | wc -l)))
+fi
 export NUMBA_CACHE_DIR=/dev/shm/numba_cache_${SLURM_JOB_ID}_${SLURM_ARRAY_TASK_ID}
 trap 'rm -rf "$NUMBA_CACHE_DIR"' EXIT
 mkdir -p outputs/hag/test_results/parts
