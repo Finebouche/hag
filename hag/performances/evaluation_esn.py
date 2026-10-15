@@ -31,7 +31,7 @@ def build_reservoir_from_study(function_name, hyperparams, pretrain_data, is_ins
     plasticity=False: control, the same matrices without the unsupervised learning (e.g. HAG's input matrix and bias
     with its initial W). Returns (reservoir, W).
     """
-    leaky_rate = 1
+    leaky_rate = hyperparams.get('leaky_rate', 1)
     input_connectivity = hyperparams.get('input_connectivity', 1)
     common_index = 1
     if is_instances_classification:
