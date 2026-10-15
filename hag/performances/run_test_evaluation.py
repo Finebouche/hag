@@ -4,8 +4,7 @@ scores" cell of 2.test_analysis.ipynb: for each dataset and function, nb_trials 
 its study, trained on the train set and scored on the test set.
 
 One row per dataset and function (mean and standard deviation of the nb_trials scores), added to
-outputs/hag/test_results/test_results_<classification|prediction>_corrected.csv (the results of the earlier
-preprocessing stay in test_results_<...>.csv).
+outputs/hag/test_results/test_results_<classification|prediction>_corrected.csv.
 
 HAG_TEST_RESULTS (environment variable): another file to add the rows to, e.g. one file per job when several jobs run at
 the same time (slurm/submit_test_evaluation.sh), concatenated afterwards.

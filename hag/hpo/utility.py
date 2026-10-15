@@ -16,7 +16,6 @@ VALID_PREFIXES = {
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
-LEGACY_STUDIES = PROJECT_ROOT / "hag" / "hpo" / "legacy_studies"
 # studies with the corrected preprocessing (sampling rate, 13 MFCC from 32 mel bands, see
 # hag.datasets.spectral_decomposition); the environment variable HAG_HPO_STUDIES redirects them (e.g. to the local memory
 # of a cluster node)
@@ -24,8 +23,7 @@ CORRECTED_STUDIES = Path(os.environ.get("HAG_HPO_STUDIES", PROJECT_ROOT / "hag" 
 
 
 def study_db_dir(dataset_name=None):
-    """Folder of the Optuna databases (the same for all datasets): hag/hpo/corrected_studies (HAG_HPO_STUDIES); the
-    studies of the earlier preprocessing are in LEGACY_STUDIES (db_dir of retrieve_best_model)."""
+    """Folder of the Optuna databases (the same for all datasets): hag/hpo/corrected_studies (HAG_HPO_STUDIES)."""
     return CORRECTED_STUDIES
 
 
