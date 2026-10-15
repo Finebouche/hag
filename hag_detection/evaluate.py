@@ -27,7 +27,7 @@ import pandas as pd
 from scipy.stats import wilcoxon
 
 from hag_detection.common import OUTPUTS, load_dataset, pretrain_phrases, scores
-from hag_detection.hpo import cross_validate, storage, study_name_of
+from hag_detection.hpo import cross_validate, storage, study_exists, study_name_of
 from hag_detection.models import (ESN_MODELS, HAG_MODELS, PURE_MODELS, build, normal_equations, parts, readout_outputs,
                                   ridge_readout)
 
@@ -36,6 +36,8 @@ REFERENCE = "random_ee"
 
 
 def best_trial(study_name):
+    if not study_exists(study_name):  # (without creating an empty database)
+        return None
     try:
         return optuna.load_study(study_name=study_name, storage=storage(study_name)).best_trial
     except (KeyError, ValueError):

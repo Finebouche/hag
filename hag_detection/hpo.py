@@ -69,6 +69,11 @@ def storage(study_name):
     return f"sqlite:///{STUDIES_DIR / study_name}.sqlite3"
 
 
+def study_exists(study_name):
+    """Whether the database of the study exists (opening a missing SQLite database creates it, empty)."""
+    return (STUDIES_DIR / f"{study_name}.sqlite3").exists()
+
+
 def max_phrase_length(songs, train_songs, frame):
     return max(int(end / frame) + 1 - int(start / frame) for w in train_songs for start, end, _ in songs[w]["phrases"])
 
@@ -120,6 +125,8 @@ def initial_trial(model, size):
     params = {}
     for part, prefix in parts(model):
         name = study_name_of(part, size // 2)
+        if not study_exists(name):
+            raise FileNotFoundError(f"No study {name}: the parts of the hybrid {model} are optimized first")
         study = optuna.load_study(study_name=name, storage=storage(name))
         params.update({prefix + key: value for key, value in study.best_trial.params.items()})
     return params
