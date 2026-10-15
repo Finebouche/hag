@@ -10,7 +10,9 @@ nb_trials reservoirs per dataset and function (mean and standard deviation over 
 SEED before each of the two.
 
 One row per dataset and function in outputs/hag/metrics.csv (the rows computed replace the previous ones of the same
-dataset and function), and the same rounded to 5 decimals in metrics_rounded.csv.
+dataset and function, saved after each function), and the same rounded to 5 decimals in metrics_rounded.csv.
+HAG_METRICS_JOBS (environment variable): processes of the distance correlation (slurm/analysis.sbatch: the cores of the
+job).
 
 Usage: python -m hag.analysis.reservoir_metrics [datasets] [functions] [nb_trials]
   e.g. python -m hag.analysis.reservoir_metrics JapaneseVowels,CatsDogs,FSDD
@@ -68,7 +70,6 @@ def main():
     functions = sys.argv[2].split(",") if len(sys.argv) > 2 else FUNCTIONS
     nb_trials = int(sys.argv[3]) if len(sys.argv) > 3 else NB_TRIALS
 
-    rows = []
     for dataset_name in datasets:
         np.random.seed(SEED)  # pretraining instances drawn by prepare_data
         data = prepare_data(dataset_name, "mfcc", visualize=False)
@@ -82,8 +83,12 @@ def main():
             for key, values in metrics.items():
                 row[f"{key}_mean"], row[f"{key}_std"] = float(np.mean(values)), float(np.std(values))
             print(row, flush=True)
-            rows.append(row)
+            save([row])
+    print(f"Results saved to {OUTPUT} and {OUTPUT_ROUNDED}")
 
+
+def save(rows):
+    """Add the rows to OUTPUT (and OUTPUT_ROUNDED), replacing those of the same dataset and function."""
     new = pd.DataFrame(rows).set_index(["dataset", "function_name"])
     if OUTPUT.exists():
         previous = pd.read_csv(OUTPUT).set_index(["dataset", "function_name"])
@@ -92,7 +97,6 @@ def main():
     OUTPUT.parent.mkdir(parents=True, exist_ok=True)
     new.to_csv(OUTPUT, index=False)
     new.round(5).to_csv(OUTPUT_ROUNDED, index=False)
-    print(f"Results saved to {OUTPUT} and {OUTPUT_ROUNDED}")
 
 
 if __name__ == "__main__":

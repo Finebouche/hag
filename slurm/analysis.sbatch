@@ -20,6 +20,7 @@ micromamba activate hag_env
 set -u
 cd "$SLURM_SUBMIT_DIR"
 export PYTHONPATH=$PWD  # this checkout, not the editable install of ~/hag
+export HAG_METRICS_JOBS=$SLURM_CPUS_PER_TASK  # distance correlation of hag.analysis.reservoir_metrics
 # numba cache of librosa per job: jobs writing it at the same time in the shared environment fail (stale file handle)
 export NUMBA_CACHE_DIR=/dev/shm/numba_cache_${SLURM_JOB_ID}
 trap 'rm -rf "$NUMBA_CACHE_DIR"' EXIT
