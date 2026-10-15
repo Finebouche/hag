@@ -16,7 +16,8 @@ neurons starts with (enqueued trial) the best parameters of the studies "<hag>_<
 With HAG_DETECTION_TASK=syllables, the objective is instead the out-of-fold frame accuracy of the syllable
 classification (hag_detection.syllables.choose_ridge: same folds, ridge coefficient chosen on the out-of-fold frames),
 in the studies "syllables_<model>_<size>" ("syllables_gains_<model>_<size>" with HAG_DETECTION_INPUT_GAINS=1: gain of
-each group of input features in the search, hag_detection.models.suggest).
+each group of input features in the search, hag_detection.models.suggest; "syllables_gains_leak_<model>_<size>" with
+HAG_DETECTION_LEAK=1 too: leak rate of each reservoir in the search, instead of 1).
 
 Usage: python -m hag_detection.hpo <model> <size> [n_trials] [max_songs]
   workers: HAG_DETECTION_WORKERS processes (default 1) optimizing the same study.
@@ -44,11 +45,13 @@ N_TRIALS = 400
 TASK = os.environ.get("HAG_DETECTION_TASK", "boundaries")  # "boundaries" or "syllables"
 # gain of each group of input features (MFCC, deltas, delta-deltas) in the search, syllable studies "syllables_gains_*"
 INPUT_GAINS = TASK == "syllables" and os.environ.get("HAG_DETECTION_INPUT_GAINS") == "1"
+LEAK = TASK == "syllables" and os.environ.get("HAG_DETECTION_LEAK") == "1"
+# prefix of the studies and of the results of the syllable classification
+SYLLABLES_PREFIX = "syllables_" + "gains_" * INPUT_GAINS + "leak_" * LEAK if TASK == "syllables" else ""
 
 
 def study_name_of(model, size):
-    prefix = "syllables_gains_" if INPUT_GAINS else "syllables_" if TASK == "syllables" else ""
-    return f"{prefix}{model}_{size}"
+    return f"{SYLLABLES_PREFIX}{model}_{size}"
 
 
 def load_task_dataset(max_songs=None):
@@ -99,7 +102,7 @@ def objective_function(model, size, songs, train_songs, frame, classes=None):
     length = max_phrase_length(songs, train_songs, frame)
 
     def objective(trial):
-        params = suggest(trial, model, length, input_gains=INPUT_GAINS)
+        params = suggest(trial, model, length, input_gains=INPUT_GAINS, leak=LEAK)
         if TASK == "syllables":
             from hag_detection.syllables import choose_ridge
             ridge, accuracy = choose_ridge(model, params, size, songs, train_songs, frame, classes)

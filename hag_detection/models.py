@@ -34,11 +34,12 @@ def parts(model):
     return [(model, "")]
 
 
-def suggest(trial, model, max_phrase_length, input_gains=False):
+def suggest(trial, model, max_phrase_length, input_gains=False, leak=False):
     """
     Parameters of the model (pure or hybrid) suggested by an Optuna trial, same ranges as hag.hpo.hpo_esn. With
     input_gains, each reservoir also has a gain for each group of features: the MFCC (input_scaling) and, relative to
     them, their deltas (delta_gain) and delta-deltas (delta2_gain), as canapy (per-group input scaling of its ESN).
+    With leak, each reservoir has its leak rate (1 otherwise; canapy: 0.1), used by the HAG learning too.
     """
     params = {}
     for part, prefix in parts(model):
@@ -48,6 +49,8 @@ def suggest(trial, model, max_phrase_length, input_gains=False):
         if input_gains:
             params[name("delta_gain")] = trial.suggest_float(name("delta_gain"), 0.01, 100, log=True)
             params[name("delta2_gain")] = trial.suggest_float(name("delta2_gain"), 0.01, 100, log=True)
+        if leak:
+            params[name("leaky_rate")] = trial.suggest_float(name("leaky_rate"), 0.01, 1, log=True)
         params[name("bias_scaling")] = trial.suggest_float(name("bias_scaling"), 0, 0.2, step=0.005)
         if part in HAG_MODELS:
             params[name("weight_increment")] = trial.suggest_float(name("weight_increment"), 0.001, 0.1, step=0.001)
@@ -102,7 +105,8 @@ def build(model, params, size, pretrain):
         gains = feature_gains(hyperparams, original_pretrain[0].shape[1])
         gains_of_reservoirs.append(gains)
         pretrain = original_pretrain if gains is None else np.array([p * gains for p in original_pretrain], dtype=object)
-        hyperparams.update(network_size=size // len(model_parts), leaky_rate=1, input_connectivity=1)
+        hyperparams.setdefault("leaky_rate", 1)
+        hyperparams.update(network_size=size // len(model_parts), input_connectivity=1)
         if part in HAG_MODELS:
             hyperparams["connectivity"] = 0
         if part in HAG_MODELS and plasticity:
@@ -110,8 +114,8 @@ def build(model, params, size, pretrain):
             node = hag_reservoir_from_hyperparameters(hyperparams, part, pretrain[0].shape[1],
                                                       seed=int(np.random.randint(0, 2 ** 31 - 2 ** 16)), jax=True)
             node.fit(list(pretrain))
-            reservoir = init_reservoir(np.asarray(node.W), np.asarray(node.Win), np.ravel(np.asarray(node.bias)), 1,
-                                       tanh)
+            reservoir = init_reservoir(np.asarray(node.W), np.asarray(node.Win), np.ravel(np.asarray(node.bias)),
+                                       hyperparams["leaky_rate"], tanh)
         else:
             reservoir, _ = build_reservoir_from_study(part.removesuffix("_dense"), hyperparams, pretrain, True,
                                                       random_projection_experiment=part.endswith("_dense"),
