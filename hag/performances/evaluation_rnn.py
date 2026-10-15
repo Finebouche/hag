@@ -205,7 +205,9 @@ def evaluate_dataset_on_test_rnn(
 
         # Train
         optimizer = torch.optim.Adam(model.parameters(), lr=lr)
-        model = torch.compile(model)
+        if DEVICE.type == "cuda":
+            # (on CPU, the compilation of each new sequence length costs more than it saves, as in hag.hpo.hpo_rnn)
+            model = torch.compile(model)
         # train for a few epochs
         for _ in range(epochs):
             _ = lstm_train(model, train_loader, criterion, optimizer, task_type=task_type)

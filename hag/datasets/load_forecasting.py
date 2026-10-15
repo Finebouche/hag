@@ -153,7 +153,6 @@ def load_sunspot_dataset(step_ahead=5, visualize=True):
     X_train, X_test, Y_train, Y_test = to_forecasting(
         sunspots_d,
         forecast=step_ahead,
-        axis=0,
         test_size=test_size,
     )
 

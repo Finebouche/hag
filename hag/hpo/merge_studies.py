@@ -1,32 +1,34 @@
 """
 Merge the databases of the studies optimized by separate jobs (one database per function, see
-slurm/hpo_classification.sbatch: hag/hpo/corrected_studies/parts/<dataset>/<function>/) into the database of the dataset
-(hag/hpo/corrected_studies/tpe_<dataset>_db.sqlite3). A study already in the database of the dataset is replaced by the
-one of the part if the part has more completed trials (e.g. a study started locally and continued on PlaFRIM).
+slurm/hpo_classification.sbatch: hag/hpo/corrected_studies/parts/<dataset>/[<variant>/]<function>/) into the databases of
+the dataset, the one of the same name in hag/hpo/corrected_studies (tpe_<dataset>_db.sqlite3, or the database of a
+variant, hag.hpo.utility.study_variant). A study already in the database of the dataset is replaced by the one of the part
+if the part has more completed trials (e.g. a study started locally and continued on PlaFRIM).
 
-Usage: python -m hag.hpo.merge_studies <dataset>
+Usage: python -m hag.hpo.merge_studies <dataset> [variant]  (the parts of the default studies without variant)
 """
 import sys
 
 import optuna
 from optuna.trial import TrialState
 
-from hag.hpo.utility import study_db_dir, study_db_filename
+from hag.hpo.utility import study_db_dir
 
 
 def completed(study):
     return sum(t.state == TrialState.COMPLETE for t in study.trials)
 
 
-def main(dataset):
+def main(dataset, variant=""):
     optuna.logging.set_verbosity(optuna.logging.WARNING)
-    target = f"sqlite:///{study_db_dir() / study_db_filename('tpe', dataset)}"
-    parts = sorted((study_db_dir() / "parts" / dataset).glob("*/*.sqlite3"))
+    folder = study_db_dir() / "parts" / dataset
+    parts = sorted((folder / variant if variant else folder).glob("*/*.sqlite3"))
     if not parts:
         raise FileNotFoundError(f"No database in {study_db_dir() / 'parts' / dataset}")
-    existing = {s.study_name for s in optuna.get_all_study_summaries(target)} if (
-        study_db_dir() / study_db_filename('tpe', dataset)).exists() else set()
     for part in parts:
+        target_path = study_db_dir() / part.name
+        target = f"sqlite:///{target_path}"
+        existing = {s.study_name for s in optuna.get_all_study_summaries(target)} if target_path.exists() else set()
         url = f"sqlite:///{part}"
         for summary in optuna.get_all_study_summaries(url):
             name = summary.study_name
@@ -42,4 +44,4 @@ def main(dataset):
 
 
 if __name__ == "__main__":
-    main(sys.argv[1])
+    main(*sys.argv[1:3])

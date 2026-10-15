@@ -1,5 +1,10 @@
+import os
+import sys
+import traceback
+
 import numpy as np
 import torch
+from joblib import Parallel, delayed
 
 from hag.datasets.load_data import load_data
 from hag.hpo.utility import study_db_dir, study_db_filename
@@ -11,6 +16,7 @@ from hag.datasets.preprocessing import flexible_indexing
 
 # Preprocessing
 from hag.datasets.spectral_decomposition import generate_multivariate_dataset
+from hag.datasets.mfcc_configs import dataset_mfcc_config
 from sklearn.preprocessing import MinMaxScaler
 from hag.datasets.preprocessing import scale_data, add_noise
 
@@ -40,7 +46,11 @@ if __name__ == '__main__':
 
     step_ahead=5
     # can be "JapaneseVowels", "CatsDogs", "FSDD", "SpokenArabicDigits", "SPEECHCOMMANDS", "MackeyGlass", "Sunspot_daily", "Lorenz", "Henon", "NARMA"
-    for dataset_name in ["JapaneseVowels", "CatsDogs", "FSDD"]:
+    # datasets and functions: arguments (comma-separated), e.g.
+    #   python -m hag.hpo.hpo_rnn JapaneseVowels,CatsDogs lstm_last,gru
+    datasets = sys.argv[1].split(",") if len(sys.argv) > 1 else ["JapaneseVowels", "CatsDogs", "FSDD"]
+    function_names = sys.argv[2].split(",") if len(sys.argv) > 2 else ["lstm_last", "gru"]
+    for dataset_name in datasets:
         # score for prediction
         start_step = 500
         end_step = 1500
@@ -53,6 +63,8 @@ if __name__ == '__main__':
          use_spectral_representation, groups) = load_data(dataset_name, step_ahead, visualize=False)
 
         spectral_representation = "mfcc" if is_instances_classification else "stft"
+        # dataset-specific MFCC, as in hpo_esn.py (None -> default hop / win_length below)
+        mfcc_config = dataset_mfcc_config(dataset_name, sampling_rate)
 
         # Define noise parameter
         noise_std = 0.001
@@ -107,11 +119,11 @@ if __name__ == '__main__':
 
                 x_train_band = generate_multivariate_dataset(
                     base_train, is_instances_classification, spectral_representation, hop=hop, win_length=win_length,
-                    sampling_rate=sampling_rate
+                    mfcc_config=mfcc_config, sampling_rate=sampling_rate
                 )
                 x_val_band = generate_multivariate_dataset(
                     base_val, is_instances_classification, spectral_representation, hop=hop, win_length=win_length,
-                    sampling_rate=sampling_rate
+                    mfcc_config=mfcc_config, sampling_rate=sampling_rate
                 )
 
             if not is_instances_classification:
@@ -189,15 +201,17 @@ if __name__ == '__main__':
         max_length = max([len(x) for fold in X_train_band for x in fold])
         print(f"Average length: {avg_length}, Min length: {min_length}, Max length: {max_length}")
 
-        nb_jobs_per_trial = 10
+        # cores: HAG_HPO_PARALLEL_STUDIES processes (trials of a study in parallel) x nb_jobs_per_trial torch threads each
+        nb_jobs_per_trial = int(os.environ.get("HAG_HPO_JOBS_PER_TRIAL", 3))
         variate_type = "multi"  # "multi" ou "uni"
         if variate_type == "uni" and is_multivariate:
             raise ValueError(f"Invalid variable type: {variate_type}")
 
         # "random_ee", "random_ei", "diag_ee", "diag_ei", "var_hag", "mean_hag", "ip_correct", "anti-oja", "ip-anti-oja",
         # "lstm_last", "rnn"
-        for function_name in ["gru"]:
+        for function_name in function_names:
             def objective(trial):
+                torch.set_num_threads(nb_jobs_per_trial)
                 # 1) HYPERPARAMETERS TO OPTIMIZE
                 num_layers = trial.suggest_int('num_layers', 1, 1)
                 dropout = trial.suggest_float('dropout', 0.0, 0.5)
@@ -288,7 +302,9 @@ if __name__ == '__main__':
                                       bidirectional=bidirectional,
                                       ).to(DEVICE)
 
-                    model = torch.compile(model)
+                    if DEVICE.type == "cuda":
+                        # (on CPU, the compilation of each new sequence length costs more than it saves)
+                        model = torch.compile(model)
                     optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
 
                     # train for a few epochs
@@ -314,21 +330,14 @@ if __name__ == '__main__':
 
             print("Start optuna")
 
-            sampler = TPESampler()
+            # constant_liar: the processes of the study take into account each other's running trials
+            sampler = TPESampler(constant_liar=True)
             sampler_name = "cmaes" if isinstance(sampler, CmaEsSampler) else "tpe"
-            if dataset_name == "SPEECHCOMMANDS": sampler_name = "lstm_tpe"
-            # one database per dataset, in the folder of the studies (hag/hpo/corrected_studies)
+            # one database per dataset (with the reservoirs' studies), in the folder of the studies
+            # (hag/hpo/corrected_studies)
             study_db_dir().mkdir(parents=True, exist_ok=True)
             url = f"sqlite:///{study_db_dir() / study_db_filename(sampler_name, dataset_name)}"
-            uri = (
-                f"{url}"
-                "?cache=shared"  # allow multiple connections to share page cache
-                "&journal_mode=WAL"  # enable write-ahead log
-            )
-            storage = optuna.storages.RDBStorage(
-                url=uri,
-                heartbeat_interval=None,   # disable heartbeats
-            )
+            storage = optuna.storages.RDBStorage(url=url, engine_kwargs={"pool_size": 20, "connect_args": {"timeout": 10}})
             print(url)
             study_name = function_name + "_" + dataset_name + "_" + data_type + "_" + variate_type
             print(study_name)
@@ -339,17 +348,25 @@ if __name__ == '__main__':
             completed_trials = len([trial for trial in study.trials if trial.state == optuna.trial.TrialState.COMPLETE])
 
             # Parallelized
-            n_parallel_studies = 10
-            # trials_per_process = (N_TRIALS - completed_trials) // n_parallel_studies
-            # # Use joblib to parallelize the optimization
-            # def optimize_study(n_trials_per_process):
-            #     study = optuna.create_study(storage=storage, sampler=sampler, study_name=study_name, direction=direction, load_if_exists=True)
-            #     study.optimize(objective, n_trials=n_trials_per_process - completed_trials)
-            # Parallel(n_jobs=n_parallel_studies)(
-            #     delayed(optimize_study)(trials_per_process) for _ in range(n_parallel_studies)
-            # )
+            n_parallel_studies = int(os.environ.get("HAG_HPO_PARALLEL_STUDIES", 4))
+            trials_per_process = (N_TRIALS - completed_trials) // n_parallel_studies
+            # Use joblib to parallelize the optimization
+            def optimize_study(n_trials_per_process):
+                try:
+                    study = optuna.create_study(storage=storage, sampler=sampler, study_name=study_name, direction=direction, load_if_exists=True)
+                    study.optimize(objective, n_trials=n_trials_per_process)
+                except Exception as e:
+                    print(f"Worker failed but continuing: {e}")
+                    print(traceback.format_exc())
+                    return None
 
-            # Not Parallelized
+            print(f"Completed trials: {completed_trials}/{N_TRIALS}")
+            if completed_trials < N_TRIALS and trials_per_process > 0:
+                Parallel(n_jobs=n_parallel_studies)(
+                    delayed(optimize_study)(trials_per_process) for _ in range(n_parallel_studies)
+                )
+
+            # Not Parallelized: the trials left (failed workers, remainder of the division)
             while completed_trials < N_TRIALS:
                 # get the number of trials already done that have been completed
                 completed_trials = len([trial for trial in study.trials if trial.state == optuna.trial.TrialState.COMPLETE])

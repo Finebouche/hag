@@ -27,6 +27,14 @@ def study_db_dir(dataset_name=None):
     return CORRECTED_STUDIES
 
 
+def study_variant(sampler="tpe", representation=None, dense_input=False):
+    """Prefix of the database of a variant of the studies (hag.hpo.hpo_esn): the sampler ("tpe", "cmaes"), and for the
+    comparison of the input strategies "<rdn|mod>-proj_<sampler>_<representation>" (dense or block input matrix)."""
+    if representation is None and not dense_input:
+        return sampler
+    return f"{'rdn' if dense_input else 'mod'}-proj_{sampler}_{representation or 'mfcc'}"
+
+
 def study_db_filename(prefix, dataset_name):
     """Database of the studies of a dataset (prefix: sampler)."""
     return f"{prefix}_{camel_to_snake(dataset_name)}_db.sqlite3"

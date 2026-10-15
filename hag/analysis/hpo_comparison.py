@@ -188,8 +188,7 @@ sampler_hatching = {
 functions = [f for f in functions_order if f in df["Function"].unique()]
 samplers = ["tpe", "cmaes"]
 
-datasets = df["Dataset"].unique()
-datasets.sort()
+datasets = sorted(df["Dataset"].unique())
 
 x = np.arange(len(datasets))
 width = 0.08
