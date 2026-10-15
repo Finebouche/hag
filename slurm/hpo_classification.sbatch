@@ -8,6 +8,8 @@
 # network file systems well), copied back every 10 minutes and at the end. A job stopped by its time limit can be
 # resubmitted: the study resumes with its completed trials. Submit with slurm/submit_hpo_classification.sh.
 # HAG_HPO_MODULE: the module of the optimization, hag.hpo.hpo_esn (default) or hag.hpo.hpo_rnn (LSTM, GRU).
+# HAG_HPO_VARIANT: the variant of the studies (sampler, input strategy, see hag.hpo.hpo_esn), its parts in
+# hag/hpo/corrected_studies/parts/<dataset>/<variant>/<function>/.
 #SBATCH --job-name=hpo-classification
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
@@ -40,7 +42,7 @@ fi
 # numba cache of librosa per job: jobs writing it at the same time in the shared environment fail (stale file handle)
 export NUMBA_CACHE_DIR=/dev/shm/numba_cache_${SLURM_JOB_ID}_${SLURM_ARRAY_TASK_ID}
 
-PART=$PWD/hag/hpo/corrected_studies/parts/$HAG_HPO_DATASET/$FUNCTION
+PART=$PWD/hag/hpo/corrected_studies/parts/$HAG_HPO_DATASET/${HAG_HPO_VARIANT:+$HAG_HPO_VARIANT/}$FUNCTION
 export HAG_HPO_STUDIES=/dev/shm/hag_hpo_${SLURM_JOB_ID}_${SLURM_ARRAY_TASK_ID}
 mkdir -p "$PART" "$HAG_HPO_STUDIES" slurm/logs
 rsync -a "$PART/" "$HAG_HPO_STUDIES/"

@@ -29,7 +29,7 @@ def build_reservoir_from_study(function_name, hyperparams, pretrain_data, is_ins
     with its initial W). Returns (reservoir, W).
     """
     leaky_rate = 1
-    input_connectivity = 1
+    input_connectivity = hyperparams.get('input_connectivity', 1)
     common_index = 1
     if is_instances_classification:
         common_size = pretrain_data[0].shape[common_index]
