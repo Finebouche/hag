@@ -7,6 +7,7 @@
 # (python -m hag.hpo.merge_studies <dataset>). The database is in /dev/shm during the job (SQLite does not support the
 # network file systems well), copied back every 10 minutes and at the end. A job stopped by its time limit can be
 # resubmitted: the study resumes with its completed trials. Submit with slurm/submit_hpo_classification.sh.
+# HAG_HPO_MODULE: the module of the optimization, hag.hpo.hpo_esn (default) or hag.hpo.hpo_rnn (LSTM, GRU).
 #SBATCH --job-name=hpo-classification
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
@@ -46,4 +47,4 @@ trap 'exit 143' TERM
 
 echo "[slurm] job $SLURM_JOB_ID $SLURM_ARRAY_TASK_ID: $HAG_HPO_DATASET $FUNCTION, on $(hostname)," \
     "$SLURM_CPUS_PER_TASK cores, $HAG_HPO_PARALLEL_STUDIES parallel studies x $THREADS threads"
-python -m hag.hpo.hpo_esn "$HAG_HPO_DATASET" "$FUNCTION"
+python -m "${HAG_HPO_MODULE:-hag.hpo.hpo_esn}" "$HAG_HPO_DATASET" "$FUNCTION"

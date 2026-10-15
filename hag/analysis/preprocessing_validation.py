@@ -17,6 +17,7 @@ from hag.datasets.preprocessing import flexible_indexing
 
 # Preprocessing
 from hag.datasets.spectral_decomposition import generate_multivariate_dataset
+from hag.datasets.mfcc_configs import dataset_mfcc_config
 from hag.datasets.peak_centered_decomposition import process_instance_func, extract_peak_frequencies
 from sklearn.preprocessing import MinMaxScaler
 from hag.datasets.preprocessing import scale_data, add_noise
@@ -49,6 +50,8 @@ if __name__ == '__main__':
         (is_instances_classification, is_multivariate, sampling_rate,
          X_train_raw, X_test_raw, Y_train_raw, Y_test,
          use_spectral_representation, groups) = load_data(dataset_name, step_ahead, visualize=False)
+        # dataset-specific MFCC, as in hpo_esn.py (None -> default hop / win_length below)
+        mfcc_config = dataset_mfcc_config(dataset_name, sampling_rate)
 
         # Define noise parameter
         noise_std = 0.001
@@ -114,11 +117,11 @@ if __name__ == '__main__':
                     if spectral_representation in ["stft", "mfcc"]:
                         x_train_band = generate_multivariate_dataset(
                             base_train, is_instances_classification, spectral_representation, hop=hop, win_length=win_length,
-                            sampling_rate=sampling_rate
+                            mfcc_config=mfcc_config, sampling_rate=sampling_rate
                         )
                         x_val_band = generate_multivariate_dataset(
                             base_val, is_instances_classification, spectral_representation, hop=hop, win_length=win_length,
-                            sampling_rate=sampling_rate
+                            mfcc_config=mfcc_config, sampling_rate=sampling_rate
                         )
                     elif spectral_representation == "custom":
 
