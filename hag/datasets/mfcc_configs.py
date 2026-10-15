@@ -1,14 +1,17 @@
 """
 Dataset-specific MFCC (librosa.feature.mfcc arguments, plus "deltas" to append delta and delta-delta features), used
 instead of the generic MFCC of hag.datasets.spectral_decomposition (window of 100 samples, hop of 50, 13 MFCC from
-32 mel bands) by hag.datasets.pipeline.prepare_data and hag.hpo.hpo_esn.
+32 mel bands) by hag.datasets.pipeline.prepare_data and hag.hpo.hpo_esn. The datasets of raw audio (AUDIO_DATASETS)
+all have the standard MFCC; the canary songs have the one of canapy.
 """
 import math
 
 from hag.datasets.load_categorical_forecasting import canary_mfcc_config
 
+AUDIO_DATASETS = ("SPEECHCOMMANDS", "FSDD", "CatsDogs")
 
-def speech_mfcc_config(sampling_rate):
+
+def standard_mfcc_config(sampling_rate):
     """
     Usual MFCC of speech recognition: 25 ms windows every 10 ms, FFT on the next power of 2, 40 mel bands from 20 Hz
     to the Nyquist frequency, 20 MFCC. (The generic MFCC uses 6 ms windows every 3 ms at 16 kHz, 51 frequencies,
@@ -24,6 +27,6 @@ def dataset_mfcc_config(dataset_name, sampling_rate):
     """MFCC configuration of the dataset, None for the generic MFCC."""
     if dataset_name == "Canary":
         return canary_mfcc_config(sampling_rate)
-    if dataset_name == "SPEECHCOMMANDS":
-        return speech_mfcc_config(sampling_rate)
+    if dataset_name in AUDIO_DATASETS:
+        return standard_mfcc_config(sampling_rate)
     return None
