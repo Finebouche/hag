@@ -17,11 +17,12 @@ import re
 from sklearn.model_selection import StratifiedKFold, TimeSeriesSplit, StratifiedGroupKFold
 
 from hag.datasets.load_data import load_data
-from hag.hpo.utility import study_db_dir, study_db_filename
+from hag.hpo.utility import study_db_dir, study_db_filename, study_variant
 from hag.models.activation_functions import tanh
 
 # Preprocessing
 from hag.datasets.spectral_decomposition import generate_multivariate_dataset
+from hag.datasets.peak_centered_decomposition import process_instance_func, extract_peak_frequencies
 from hag.datasets.mfcc_configs import dataset_mfcc_config
 from sklearn.preprocessing import MinMaxScaler
 from hag.datasets.preprocessing import scale_data, add_noise, flexible_indexing
@@ -40,6 +41,15 @@ from hag.performances.esn_model_evaluation import train_model_for_prediction, in
 activation_function = tanh
 
 SEED = 923984
+
+# Variants of the studies (environment variables), each in its own database (hag.hpo.utility.study_variant):
+#   HAG_HPO_SAMPLER: "tpe" (default) or "cmaes" (comparison of the samplers, hag.analysis.hpo_comparison);
+#   HAG_HPO_REPRESENTATION: input representation, "mfcc", "custom" (peak-centered bands) or "none" (the raw signal),
+#   HAG_HPO_INPUT: "block" (each feature to its own block of neurons, default) or "dense" (random input matrix of
+#   searched connectivity) (comparison of the input strategies, hag.analysis.input_matrix_impact).
+SAMPLER = os.environ.get("HAG_HPO_SAMPLER", "tpe")
+REPRESENTATION = os.environ.get("HAG_HPO_REPRESENTATION") or None
+DENSE_INPUT = os.environ.get("HAG_HPO_INPUT", "block") == "dense"
 
 if __name__ == '__main__':
 
@@ -62,7 +72,7 @@ if __name__ == '__main__':
          X_train_raw, _, Y_train_raw, _,
          use_spectral_representation, groups) = load_data(dataset_name, step_ahead, visualize=False)
 
-        spectral_representation = "mfcc" if is_instances_classification else "stft"
+        spectral_representation = REPRESENTATION or ("mfcc" if is_instances_classification else "stft")
         # dataset-specific MFCC (None -> default hop / win_length below)
         mfcc_config = dataset_mfcc_config(dataset_name, sampling_rate)
 
@@ -117,14 +127,26 @@ if __name__ == '__main__':
                 # choose the right source tensors
                 base_train, base_val = (x_train_band, x_val_band) if is_multivariate else (x_train, x_val)
 
-                x_train_band = generate_multivariate_dataset(
-                    base_train, is_instances_classification, spectral_representation, hop=hop, win_length=win_length,
-                    mfcc_config=mfcc_config, sampling_rate=sampling_rate
-                )
-                x_val_band = generate_multivariate_dataset(
-                    base_val, is_instances_classification, spectral_representation, hop=hop, win_length=win_length,
-                    mfcc_config=mfcc_config, sampling_rate=sampling_rate
-                )
+                if spectral_representation in ["stft", "mfcc"]:
+                    x_train_band = generate_multivariate_dataset(
+                        base_train, is_instances_classification, spectral_representation, hop=hop, win_length=win_length,
+                        mfcc_config=mfcc_config, sampling_rate=sampling_rate
+                    )
+                    x_val_band = generate_multivariate_dataset(
+                        base_val, is_instances_classification, spectral_representation, hop=hop, win_length=win_length,
+                        mfcc_config=mfcc_config, sampling_rate=sampling_rate
+                    )
+                elif spectral_representation == "custom":
+                    # bands centered on the peak frequencies of the train signals of the fold
+                    peaks = extract_peak_frequencies(input_data=base_train, is_instances_classification=is_instances_classification,
+                                                     sampling_rate=sampling_rate, threshold=1e-5, smooth=True, window_length=10,
+                                                     nperseg=1024, visualize=False)
+                    x_train_band = process_instance_func(base_train, is_instances_classification, sampling_rate, peaks)
+                    x_val_band = process_instance_func(base_val, is_instances_classification, sampling_rate, peaks)
+                elif spectral_representation == "none":
+                    x_train_band, x_val_band = base_train, base_val
+                else:
+                    raise ValueError(f"Invalid spectral representation: {spectral_representation}")
 
             if not is_instances_classification:
                 x_train_band = x_train_band[edge_cut:-edge_cut]
@@ -214,7 +236,8 @@ if __name__ == '__main__':
                 input_scaling = trial.suggest_float('input_scaling', 0.01, 0.2, step=0.005)
                 bias_scaling = trial.suggest_float('bias_scaling', 0, 0.2, step=0.005)
                 leaky_rate = trial.suggest_float('leaky_rate', 1, 1)
-                input_connectivity = trial.suggest_float('input_connectivity', 1, 1)
+                input_connectivity = (trial.suggest_float('input_connectivity', 0, 1) if DENSE_INPUT else
+                                      trial.suggest_float('input_connectivity', 1, 1))
 
                 # MEAN-HAG, HSP
                 if function_name in ("mean_hag", "hsp", "short-hag"):
@@ -280,10 +303,10 @@ if __name__ == '__main__':
                     # INITIALISATION AND UNSUPERVISED PRETRAINING
                     if function_name in ["random_ee", "diag_ee"]:
                         Win, W, bias = init_matrices(n, input_connectivity, connectivity, K, w_distribution=stats.uniform(loc=0, scale=1),
-                                                     use_block=use_block, seed=random.randint(0, 1000), random_projection_experiment=False)
+                                                     use_block=use_block, seed=random.randint(0, 1000), random_projection_experiment=DENSE_INPUT)
                     else:
                         Win, W, bias = init_matrices(n, input_connectivity, connectivity, K, w_distribution=stats.uniform(loc=-1, scale=2),
-                                                     use_block=use_block, seed=random.randint(0, 1000), random_projection_experiment=False)
+                                                     use_block=use_block, seed=random.randint(0, 1000), random_projection_experiment=DENSE_INPUT)
                     bias *= bias_scaling
                     Win *= input_scaling
 
@@ -368,11 +391,11 @@ if __name__ == '__main__':
             print("Start optuna")
 
             # constant_liar: the processes of the study take into account each other's running trials
-            sampler = TPESampler(constant_liar=True)
-            sampler_name = "cmaes" if isinstance(sampler, CmaEsSampler) else "tpe"
-            # one database per dataset, in the folder of the studies (hag/hpo/corrected_studies)
+            sampler = CmaEsSampler() if SAMPLER == "cmaes" else TPESampler(constant_liar=True)
+            # one database per dataset and variant, in the folder of the studies (hag/hpo/corrected_studies)
+            variant = study_variant(SAMPLER, REPRESENTATION, DENSE_INPUT)
             study_db_dir().mkdir(parents=True, exist_ok=True)
-            url = f"sqlite:///{study_db_dir() / study_db_filename(sampler_name, dataset_name)}"
+            url = f"sqlite:///{study_db_dir() / study_db_filename(variant, dataset_name)}"
             storage = optuna.storages.RDBStorage(url=url, engine_kwargs={"pool_size": 20, "connect_args": {"timeout": 10}})
             print(url)
             study_name = function_name + "_" + dataset_name + "_" + data_type + "_" + variate_type

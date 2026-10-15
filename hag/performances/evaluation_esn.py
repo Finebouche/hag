@@ -3,6 +3,7 @@ Test evaluation of the reservoirs of HAG's study (random ESNs, IP, anti-Oja, IP 
 reservoirs built with the best hyperparameters of a study, trained on the train set, scored on the test set.
 """
 import math
+import os
 
 import numpy as np
 from numpy import random
@@ -18,6 +19,8 @@ from hag.performances.esn_model_evaluation import (compute_score, fit_reservoir,
                                                    train_model_for_classification, train_model_for_prediction)
 
 N_JOBS = 1
+# processes of the distance correlation of record_metrics (one per pair of neurons, 125 000 pairs for 500 neurons)
+METRICS_JOBS = int(os.environ.get("HAG_METRICS_JOBS", 1))
 
 
 def build_reservoir_from_study(function_name, hyperparams, pretrain_data, is_instances_classification,
@@ -28,8 +31,8 @@ def build_reservoir_from_study(function_name, hyperparams, pretrain_data, is_ins
     plasticity=False: control, the same matrices without the unsupervised learning (e.g. HAG's input matrix and bias
     with its initial W). Returns (reservoir, W).
     """
-    leaky_rate = 1
-    input_connectivity = 1
+    leaky_rate = hyperparams.get('leaky_rate', 1)
+    input_connectivity = hyperparams.get('input_connectivity', 1)
     common_index = 1
     if is_instances_classification:
         common_size = pretrain_data[0].shape[common_index]
@@ -156,7 +159,7 @@ def evaluate_dataset_on_test(study, dataset_name, function_name, pretrain_data, 
             sr = spectral_radius(W)
             pearson_correlation, _ = pearson(states_history_multi, num_windows=1, size_window=len(states_history_multi), step_size=1, show_progress=False)
             CEV = squared_uncoupled_dynamics_alternative(states_history_multi, num_windows=1, size_window=len(states_history_multi), step_size=1, show_progress=True)
-            dcor = distance_correlation(states_history_multi, num_windows=1, size_window=len(states_history_multi), step_size=1, show_progress=True, method="auto", nb_jobs=N_JOBS)
+            dcor = distance_correlation(states_history_multi, num_windows=1, size_window=len(states_history_multi), step_size=1, show_progress=True, method="auto", nb_jobs=METRICS_JOBS)
 
             spectral_radii.append(sr)
             pearson_correlations.append(pearson_correlation[0])

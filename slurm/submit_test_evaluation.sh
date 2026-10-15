@@ -9,13 +9,20 @@ shift
 FUNCTIONS=("$@")
 [ ${#FUNCTIONS[@]} -eq 0 ] && FUNCTIONS=(random_ee random_ei ip_correct anti-oja ip-anti-oja mean_hag var_hag)
 NODES=(--constraint="zen4|zen3|zonda" --exclude="sirocco[21-25],enbata[01-02]")
+# recurrent networks only (LSTM, GRU, RNN): on the A100 nodes (sirocco21-25)
+rnn_only=1
+for function in "${FUNCTIONS[@]}"; do
+    case $function in lstm_last|gru|rnn) ;; *) rnn_only=0 ;; esac
+done
+EVAL_NODES=("${NODES[@]}")
+[ $rnn_only = 1 ] && EVAL_NODES=(--constraint="nvidia&ampere" --cpus-per-task=16 --mem=64G)
 cd "$(dirname "$0")/.."
 mkdir -p slurm/logs slurm/tasks outputs/hag/test_results/parts
 
 TASKS=slurm/tasks/test_${DATASET}_$(date +%Y%m%d_%H%M%S).txt
 printf "%s\n" "${FUNCTIONS[@]}" > "$TASKS"
 n=${#FUNCTIONS[@]}
-array=$(sbatch --parsable "${NODES[@]}" --array=0-$((n - 1)) --job-name="test-$DATASET" \
+array=$(sbatch --parsable "${EVAL_NODES[@]}" --array=0-$((n - 1)) --job-name="test-$DATASET" \
     --export=ALL,HAG_TEST_DATASET="$DATASET",HAG_TEST_FUNCTIONS="$TASKS" slurm/test_evaluation.sbatch)
 echo "$DATASET: test evaluation, job array $array ($n functions, $TASKS)"
 
