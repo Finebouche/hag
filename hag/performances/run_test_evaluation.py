@@ -22,6 +22,9 @@ from pathlib import Path
 
 import numpy as np
 import pandas as pd
+# (Triton, loaded by torch._dynamo when the LSTM and GRU are trained, crashes if TensorFlow is loaded before it: it
+# reads the WAV files of FSDD and SPEECHCOMMANDS)
+import torch._dynamo  # noqa: F401
 
 from hag.datasets.pipeline import prepare_data
 from hag.hpo.utility import retrieve_best_model, study_db_dir
