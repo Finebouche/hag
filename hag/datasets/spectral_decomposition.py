@@ -7,6 +7,12 @@ from librosa.feature import mfcc, delta
 from typing import Sequence, Union
 from scipy.signal.windows import gaussian
 
+# default MFCC: 13 coefficients (spectral envelope) from 32 mel bands (the 51 frequency bins of a 100-sample window
+# leave no mel band empty at 8 and 16 kHz, unlike librosa's default of 128 bands)
+N_MFCC = 13
+N_MELS = 32
+
+
 # ------------------------ Spectral dataset maker ----------------------
 def generate_multivariate_dataset(
         X: Union[np.ndarray, Sequence[np.ndarray]],
@@ -17,9 +23,12 @@ def generate_multivariate_dataset(
         nb_jobs: int = -1,
         verbosity: int = 1,
         mfcc_config: dict = None,
+        sampling_rate: float = None,
     ):
     # mfcc_config: dataset-specific librosa.feature.mfcc arguments (sr, n_mfcc, n_fft, win_length, hop_length, fmin,
     # fmax, lifter...) plus "deltas" (bool) to append delta and delta-delta features. Overrides hop and win_length.
+    # sampling_rate: sampling rate of the signals (Hz), for the mel scale of the default MFCC (librosa assumes 22050 Hz
+    # without it)
     if spectral_representation == "mfcc" and mfcc_config is not None:
         print("Using MFCC config:", mfcc_config)
     else:
@@ -41,7 +50,9 @@ def generate_multivariate_dataset(
             if add_deltas:
                 Sx = np.concatenate([Sx, delta(Sx, mode="wrap"), delta(Sx, order=2, mode="wrap")], axis=-2)
         elif spectral_representation == "mfcc":
-            Sx = np.abs(mfcc(y = x, hop_length=hop, win_length=win_length, n_fft=win_length, window=window))
+            sr = {} if sampling_rate is None else {"sr": sampling_rate}
+            Sx = np.abs(mfcc(y=x, hop_length=hop, win_length=win_length, n_fft=win_length, window=window,
+                             n_mfcc=N_MFCC, n_mels=N_MELS, **sr))
         return np.hstack(Sx).T if is_instances_classification else Sx.T
 
     if is_instances_classification:  # classification -> Multiple instances

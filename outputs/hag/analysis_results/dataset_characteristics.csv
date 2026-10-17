@@ -1,0 +1,11 @@
+dataset_name,tot_pretrain_length,tot_train_length,tot_test_length,origin_dim,nb_dupication,reservoir_size,final_dim,nb_class,min_sample_size,max_sample_size,avg_sample_size
+MackeyGlass,14800,14800,4800,51,10,510,51,0,,,
+Lorenz,14800,14800,4800,153,4,612,153,0,,,
+Sunspot_daily,66327,66327,7192,51,10,510,51,0,,,
+Henon,14800,14800,4800,102,5,510,102,0,,,
+NARMA,14800,14800,4795,51,10,510,51,0,,,
+CatsDogs,15252,15252,15252,20,25,500,20,2,93.0,93.0,93.0
+FSDD,23963,97089,35661,20,25,500,20,10,15.0,229.0,44.25
+JapaneseVowels,4274,4274,5687,12,42,504,12,9,7.0,29.0,15.5640625
+SPEECHCOMMANDS,49377,9389638,1092260,20,25,500,20,35,22.0,101.0,99.04561131636886
+SpokenArabicDigits,32500,428935,142935,13,39,507,13,10,65.0,65.0,65.0

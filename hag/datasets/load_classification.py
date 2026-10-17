@@ -345,10 +345,16 @@ def load_aoen_dataset(dataset_name, seed=None):
     return X_train_raw, Y_train_raw, X_test_raw, Y_test, groups, meta_data
 
 
+# Sampling rate of the aeon datasets: CatsDogs is Kaggle's audio-cats-and-dogs (WAV at 16 kHz), truncated to its
+# shortest recording (14773 samples) without resampling as far as its description says; 10000 by default for the
+# others (SpokenArabicDigits is already MFCC: its sampling rate is not used)
+AEON_SAMPLING_RATES = {"CatsDogs": 16000}
+
+
 def load_dataset_classification(name, visualize=True, seed=FSDD_SPLIT_SEED):
     if name in ["SpokenArabicDigits", "CatsDogs", "LSST", "ECG5000", "AbnormalHeartbeat"]:
         X_train, Y_train, X_test, Y_test, groups, meta_data = load_aoen_dataset(name, seed)
-        sampling_rate = 10000
+        sampling_rate = AEON_SAMPLING_RATES.get(name, 10000)
 
         is_multivariate = X_train[0].shape[1] != 1
         use_spectral_representation = is_multivariate

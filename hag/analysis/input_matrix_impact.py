@@ -124,7 +124,8 @@ def get_dataset_policy(dataset_name: str) -> dict[str, bool]:
     Infer dataset policy once and cache it.
 
     Rules:
-    - If 'none' loads -> non-spectral-only
+    - If 'none' loads -> spectral-only if the dataset is already spectral (multivariate, e.g. JapaneseVowels: MFCC
+      only), else all the representations
     - Else if 'mfcc' loads -> spectral-only
     - Else -> fail
     """
@@ -135,7 +136,7 @@ def get_dataset_policy(dataset_name: str) -> dict[str, bool]:
         out = _load_dataset(dataset_name, "none")
         data_cache[(dataset_name, "none")] = out
         policy = {
-            "spectral_only": False,
+            "spectral_only": bool(out[5]),
             "is_instances_classification": bool(out[6]),
         }
         dataset_policy_cache[dataset_name] = policy
@@ -191,7 +192,8 @@ def expected_keys_for_representation(
 ) -> set[tuple[str, str, str, str]]:
     return {
         (str(dataset_name), str(function_name), str(mapping_label), str(representation))
-        for _, mapping_label in MAPPINGS
+        for random_projection_experiment, mapping_label in MAPPINGS
+        if representation != "none" or random_projection_experiment
         for function_name in FUNCTIONS
     }
 
@@ -445,6 +447,10 @@ if __name__ == "__main__":
 
             for random_projection_experiment, mapping_label in MAPPINGS:
                 print(f"--- Mapping: {mapping_label} ---")
+
+                # no study of the raw signal with the modular mapping (hag.hpo.hpo_esn variants, as in the HPO)
+                if representation == "none" and not random_projection_experiment:
+                    continue
 
                 for function_name in FUNCTIONS:
                     key = (

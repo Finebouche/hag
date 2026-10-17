@@ -5,7 +5,7 @@ and pretraining instances.
 import numpy as np
 from sklearn.preprocessing import MinMaxScaler
 
-from hag.datasets.load_categorical_forecasting import canary_mfcc_config
+from hag.datasets.mfcc_configs import dataset_mfcc_config
 from hag.datasets.load_data import load_data as load_dataset
 from hag.datasets.peak_centered_decomposition import extract_peak_frequencies, process_instance_func
 from hag.datasets.preprocessing import scale_data
@@ -38,7 +38,7 @@ def prepare_data(dataset_name, spectral_representation, data_type="normal", nois
     hop = 50 if is_instances_classification else 1
     win_length = edge_cut = 100
     # dataset-specific MFCC, as in hpo_esn.py (None -> default hop / win_length)
-    mfcc_config = canary_mfcc_config(sampling_rate) if dataset_name == "Canary" else None
+    mfcc_config = dataset_mfcc_config(dataset_name, sampling_rate)
     if is_multivariate and use_spectral_representation:
         print("Data is already spectral, nothing to do")
     else:
@@ -47,11 +47,11 @@ def prepare_data(dataset_name, spectral_representation, data_type="normal", nois
         if spectral_representation in ["stft", "mfcc"]:
             X_train_band = generate_multivariate_dataset(
                 base_train, is_instances_classification, spectral_representation, hop=hop, win_length=win_length,
-                mfcc_config=mfcc_config
+                mfcc_config=mfcc_config, sampling_rate=sampling_rate
             )
             X_test_band = generate_multivariate_dataset(
                 base_test, is_instances_classification, spectral_representation, hop=hop, win_length=win_length,
-                mfcc_config=mfcc_config
+                mfcc_config=mfcc_config, sampling_rate=sampling_rate
             )
         elif spectral_representation == "custom":
             peaks = extract_peak_frequencies(
