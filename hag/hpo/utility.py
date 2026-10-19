@@ -5,7 +5,7 @@ from pathlib import Path
 
 VALID_FUNCTION_NAMES = {
     "mean_hag", "var_hag", "random_ee", "random_ei", "diag_ee", "diag_ei",
-    "ip_correct", "anti-oja", "ip-anti-oja",
+    "ip", "anti-oja", "ip-anti-oja",
     "lstm_last", "rnn", "rnn-mean_hag", "gru", "short-hag", "hsp"
 }
 VALID_PREFIXES = {

@@ -25,3 +25,4 @@ dist/
 /outputs/hag/hag_matrices
 /outputs/rl/archives/
 .pytest_cache/
+CLAUDE.md

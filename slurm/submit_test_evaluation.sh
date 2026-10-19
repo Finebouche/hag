@@ -7,7 +7,7 @@ set -euo pipefail
 DATASET=$1
 shift
 FUNCTIONS=("$@")
-[ ${#FUNCTIONS[@]} -eq 0 ] && FUNCTIONS=(random_ee random_ei ip_correct anti-oja ip-anti-oja mean_hag var_hag)
+[ ${#FUNCTIONS[@]} -eq 0 ] && FUNCTIONS=(random_ee random_ei ip anti-oja ip-anti-oja mean_hag var_hag)
 NODES=(--constraint="zen4|zen3|zonda" --exclude="sirocco[21-25],enbata[01-02]")
 # recurrent networks only (LSTM, GRU, RNN): on the A100 nodes (sirocco21-25)
 rnn_only=1

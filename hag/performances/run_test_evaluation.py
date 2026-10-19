@@ -22,6 +22,9 @@ from pathlib import Path
 
 import numpy as np
 import pandas as pd
+# (Triton, loaded by torch._dynamo when the LSTM and GRU are trained, crashes if TensorFlow is loaded before it: it
+# reads the WAV files of FSDD and SPEECHCOMMANDS)
+import torch._dynamo  # noqa: F401
 
 from hag.datasets.pipeline import prepare_data
 from hag.hpo.utility import retrieve_best_model, study_db_dir
@@ -29,7 +32,7 @@ from hag.performances.evaluation_esn import evaluate_dataset_on_test
 from hag.performances.evaluation_rnn import evaluate_dataset_on_test_rnn
 
 DATASETS = ["JapaneseVowels", "CatsDogs"]
-FUNCTIONS = ["random_ee", "random_ei", "ip_correct", "anti-oja", "ip-anti-oja", "mean_hag", "var_hag"]
+FUNCTIONS = ["random_ee", "random_ei", "ip", "anti-oja", "ip-anti-oja", "mean_hag", "var_hag"]
 RNN_FUNCTIONS = ("lstm_last", "gru", "rnn")
 SPECTRAL_DATASETS = {"CatsDogs", "JapaneseVowels", "FSDD", "SpokenArabicDigits", "SPEECHCOMMANDS", "Canary"}
 SEED = 0
