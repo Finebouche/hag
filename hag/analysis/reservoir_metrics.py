@@ -29,7 +29,7 @@ from hag.performances.esn_model_evaluation import run_reservoir
 from hag.performances.evaluation_esn import build_reservoir_from_study, evaluate_dataset_on_test
 
 DATASETS = ["JapaneseVowels", "CatsDogs", "FSDD"]
-FUNCTIONS = ["random_ee", "random_ei", "ip_correct", "anti-oja", "ip-anti-oja", "mean_hag", "var_hag"]
+FUNCTIONS = ["random_ee", "random_ei", "ip", "anti-oja", "ip-anti-oja", "mean_hag", "var_hag"]
 NB_TRIALS = 4
 SEED = 0
 OUTPUT = PROJECT_ROOT / "outputs" / "hag" / "metrics.csv"

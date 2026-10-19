@@ -29,3 +29,4 @@ outputs/rl_results/**/rl_curves/
 outputs/rl_results/**/*.sqlite3
 /outputs/rl/archives/
 .pytest_cache/
+CLAUDE.md

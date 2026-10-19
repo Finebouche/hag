@@ -27,7 +27,7 @@ NOISE_STD = 0.001
 FUNCTIONS = [
     "random_ee",
     "random_ei",
-    "ip_correct",
+    "ip",
     "anti-oja",
     "ip-anti-oja",
     "var_hag",

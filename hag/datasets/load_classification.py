@@ -1,5 +1,4 @@
 from pathlib import Path
-import tensorflow as tf
 import numpy as np
 import matplotlib.pyplot as plt
 import pandas as pd
@@ -32,6 +31,7 @@ def _require_path(path: Path, message: str | None = None) -> Path:
 
 
 def process_audio(file_path):
+    import tensorflow as tf  # (imported only to read the WAV files: before Triton, it crashes torch on GPU)
     filename = tf.strings.split(file_path, '/')[-1]
     label = tf.strings.split(filename, '_')[0]
     speaker = tf.strings.split(filename, '_')[1]
@@ -64,6 +64,7 @@ def download_speechcommands_if_needed() -> Path:
 
 
 def load_SPEECHCOMMANDS():
+    import tensorflow as tf  # (imported only to read the WAV files: before Triton, it crashes torch on GPU)
     base_dir = download_speechcommands_if_needed()
 
     testing_list = base_dir / "testing_list.txt"
@@ -174,6 +175,7 @@ FSDD_SPLIT_SEED = 1111
 
 
 def load_FSDD_dataset(data_dir: Path, test_split=1 / 3, seed=None, visualize=False):
+    import tensorflow as tf  # (imported only to read the WAV files: before Triton, it crashes torch on GPU)
     data_dir = _require_path(
         Path(data_dir),
         f"FSDD recordings folder not found: {data_dir}"

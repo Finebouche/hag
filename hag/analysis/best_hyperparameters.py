@@ -13,7 +13,7 @@ import pandas as pd
 from hag.hpo.utility import PROJECT_ROOT, retrieve_best_model
 
 DATASETS = ["JapaneseVowels", "CatsDogs", "FSDD", "SpokenArabicDigits", "SPEECHCOMMANDS"]
-FUNCTIONS = ["random_ee", "random_ei", "ip_correct", "anti-oja", "ip-anti-oja", "mean_hag", "var_hag", "lstm_last", "gru"]
+FUNCTIONS = ["random_ee", "random_ei", "ip", "anti-oja", "ip-anti-oja", "mean_hag", "var_hag", "lstm_last", "gru"]
 OUTPUT_DIR = PROJECT_ROOT / "outputs" / "hag" / "best_hyperparameters"
 
 
