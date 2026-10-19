@@ -1,6 +1,6 @@
 dataset,function_name,ridge,network_size,input_scaling,bias_scaling,leaky_rate,input_connectivity,connectivity,spectral_radius,mu,sigma,learning_rate
-JapaneseVowels,ip_correct,-1,500,0.165,0.005,1.0,1.0,0.30935,0.87,0.00302,0.56595,2.01771e-05
-CatsDogs,ip_correct,1,500,0.12,0.005,1.0,1.0,0.87429,0.78,0.33942,0.27049,0.00215
-FSDD,ip_correct,-3,500,0.135,0.165,1.0,1.0,0.66701,0.97,0.07738,0.08677,2.12560e-06
-SpokenArabicDigits,ip_correct,-5,500,0.01,0.09,1.0,1.0,0.05349,1.6,0.43036,0.55169,3.49183e-04
-SPEECHCOMMANDS,ip_correct,-11,500,0.065,0.045,1.0,1.0,0.21486,1.55,0.41985,0.18986,5.68681e-05
+JapaneseVowels,ip,-1,500,0.165,0.005,1.0,1.0,0.30935,0.87,0.00302,0.56595,2.01771e-05
+CatsDogs,ip,1,500,0.12,0.005,1.0,1.0,0.87429,0.78,0.33942,0.27049,0.00215
+FSDD,ip,-3,500,0.135,0.165,1.0,1.0,0.66701,0.97,0.07738,0.08677,2.12560e-06
+SpokenArabicDigits,ip,-5,500,0.01,0.09,1.0,1.0,0.05349,1.6,0.43036,0.55169,3.49183e-04
+SPEECHCOMMANDS,ip,-11,500,0.065,0.045,1.0,1.0,0.21486,1.55,0.41985,0.18986,5.68681e-05
