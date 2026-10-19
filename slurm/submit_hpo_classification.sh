@@ -16,7 +16,7 @@ if [ ${#FUNCTIONS[@]} -eq 0 ]; then
     if [ "$MODULE" = hag.hpo.hpo_rnn ]; then
         FUNCTIONS=(lstm_last gru)
     else
-        FUNCTIONS=(random_ee random_ei var_hag mean_hag ip_correct anti-oja ip-anti-oja)
+        FUNCTIONS=(random_ee random_ei var_hag mean_hag ip anti-oja ip-anti-oja)
     fi
 fi
 NODES=(--constraint="zen4|zen3|zonda" --exclude="sirocco[21-25],enbata[01-02]")

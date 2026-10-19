@@ -60,7 +60,7 @@ if __name__ == '__main__':
     #   python -m hag.hpo.hpo_esn JapaneseVowels,CatsDogs mean_hag,var_hag
     datasets = sys.argv[1].split(",") if len(sys.argv) > 1 else ["FSDD"]
     function_names = (sys.argv[2].split(",") if len(sys.argv) > 2 else
-                      ["random_ee", "random_ei", "var_hag", "mean_hag", "ip_correct", "anti-oja", "ip-anti-oja"])
+                      ["random_ee", "random_ei", "var_hag", "mean_hag", "ip", "anti-oja", "ip-anti-oja"])
     for dataset_name in datasets:
         # score for prediction
         start_step, end_step = 500, 1500
@@ -224,7 +224,7 @@ if __name__ == '__main__':
             raise ValueError(f"Invalid variable type: {variate_type}")
 
 
-        # "random_ee", "random_ei", "diag_ee", "diag_ei", "var_hag", "mean_hag", "ip_correct", "anti-oja", "ip-anti-oja"
+        # "random_ee", "random_ei", "diag_ee", "diag_ei", "var_hag", "mean_hag", "ip", "anti-oja", "ip-anti-oja"
         for function_name in function_names:
             def objective(trial):
                 # COMMON
@@ -249,14 +249,14 @@ if __name__ == '__main__':
                     variance_spread = trial.suggest_float('variance_spread', 0.001, 0.05, step=0.002)
                     intrinsic_saturation = trial.suggest_float('intrinsic_saturation', 0.8, 0.98, step=0.02)
                     intrinsic_coef = trial.suggest_float('intrinsic_coef', 0.8, 0.98, step=0.02)
-                elif function_name in ["random_ee", "random_ei", "diag_ee", "diag_ei", "ip_correct", "anti-oja", "ip-anti-oja"]:
+                elif function_name in ["random_ee", "random_ei", "diag_ee", "diag_ei", "ip", "anti-oja", "ip-anti-oja"]:
                     connectivity = trial.suggest_float('connectivity', 0, 1)
                     sr = trial.suggest_float('spectral_radius', 0.4, 1.6, step=0.01)
                 else:
                     raise ValueError(f"Invalid function name: {function_name}")
 
                 # IP
-                if function_name in ["ip_correct", "ip-anti-oja"]:
+                if function_name in ["ip", "ip-anti-oja"]:
                     mu = trial.suggest_float('mu', 0, 1)
                     sigma = trial.suggest_float('sigma', 0, 1)
                     learning_rate = trial.suggest_float('learning_rate', 1e-6, 1e-1, log=True)
@@ -337,7 +337,7 @@ if __name__ == '__main__':
                                                      multiple_instances=is_instances_classification,
                                                      min_increment=100, max_increment=100, use_full_instance=False,
                                                      max_partners=np.inf, method="random", n_jobs=1)
-                    elif function_name in ["random_ee", "random_ei", "diag_ee", "diag_ei", "ip_correct", "anti-oja", "ip-anti-oja"]:
+                    elif function_name in ["random_ee", "random_ei", "diag_ee", "diag_ei", "ip", "anti-oja", "ip-anti-oja"]:
                         W = scale_spectral_radius(W, sr)
                     else:
                         raise ValueError(f"Invalid function: {function_name}")
@@ -347,7 +347,7 @@ if __name__ == '__main__':
                         unsupervised_pretrain = np.concatenate(pretrain_data).astype(float)
                     else:
                         unsupervised_pretrain = pretrain_data.astype(float)
-                    if function_name == "ip_correct":
+                    if function_name == "ip":
                         reservoir = init_ip_reservoir(W, Win, bias, mu=mu, sigma=sigma, learning_rate=learning_rate, leaking_rate=leaky_rate)
                         fit_reservoir(reservoir, unsupervised_pretrain, warmup=100)
                     elif function_name == "anti-oja":

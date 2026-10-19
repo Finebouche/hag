@@ -81,7 +81,7 @@ def build_reservoir_from_study(function_name, hyperparams, pretrain_data, is_ins
                                      multiple_instances=is_instances_classification,
                                      min_increment=100, max_increment=100, use_full_instance=False,
                                      max_partners=np.inf, method="random", n_jobs=N_JOBS)
-    elif function_name in ["random_ee", "random_ei", "diag_ee", "diag_ei", "ip_correct", "anti-oja", "ip-anti-oja"]:
+    elif function_name in ["random_ee", "random_ei", "diag_ee", "diag_ei", "ip", "anti-oja", "ip-anti-oja"]:
         W = scale_spectral_radius(W, hyperparams['spectral_radius'])
     else:
         raise ValueError(f"Invalid function: {function_name}")
@@ -93,7 +93,7 @@ def build_reservoir_from_study(function_name, hyperparams, pretrain_data, is_ins
         unsupervised_pretrain = pretrain_data.astype(float)
     if not plasticity:
         reservoir = init_reservoir(W, Win, bias, leaky_rate, tanh)
-    elif function_name == "ip_correct":
+    elif function_name == "ip":
         reservoir = init_ip_reservoir(W, Win, bias, mu=hyperparams['mu'], sigma=hyperparams['sigma'], learning_rate=hyperparams['learning_rate'],
                                       leaking_rate=hyperparams['leaky_rate'])
         fit_reservoir(reservoir, unsupervised_pretrain, warmup=100)

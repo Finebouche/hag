@@ -16,7 +16,7 @@ _purples = color_palette("Purples", 3)
 function_mapping = {
     'random_ee':    'E-ESN',
     'random_ei':    'ESN',
-    'ip_correct':   'IP',
+    'ip':           'IP',
     'anti-oja':     'Anti-Oja',
     'ip-anti-oja':  'IP +\nAnti-Oja',
     'mean_hag':     'mean HAG',

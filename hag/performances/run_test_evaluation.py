@@ -32,7 +32,7 @@ from hag.performances.evaluation_esn import evaluate_dataset_on_test
 from hag.performances.evaluation_rnn import evaluate_dataset_on_test_rnn
 
 DATASETS = ["JapaneseVowels", "CatsDogs"]
-FUNCTIONS = ["random_ee", "random_ei", "ip_correct", "anti-oja", "ip-anti-oja", "mean_hag", "var_hag"]
+FUNCTIONS = ["random_ee", "random_ei", "ip", "anti-oja", "ip-anti-oja", "mean_hag", "var_hag"]
 RNN_FUNCTIONS = ("lstm_last", "gru", "rnn")
 SPECTRAL_DATASETS = {"CatsDogs", "JapaneseVowels", "FSDD", "SpokenArabicDigits", "SPEECHCOMMANDS", "Canary"}
 SEED = 0
