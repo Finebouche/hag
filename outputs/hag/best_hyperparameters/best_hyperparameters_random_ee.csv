@@ -2,5 +2,6 @@ dataset,function_name,ridge,network_size,input_scaling,bias_scaling,leaky_rate,i
 JapaneseVowels,random_ee,-8,500,0.17,0.045,1.0,1.0,0.23328,0.82
 CatsDogs,random_ee,0,500,0.04,0.12,1.0,1.0,0.33492,0.91
 FSDD,random_ee,-9,500,0.045,0.05,1.0,1.0,0.00387,0.62
-SpokenArabicDigits,random_ee,-12,500,0.015,0.085,1.0,1.0,0.01435,0.92
+SpokenArabicDigits,random_ee,-10,500,0.02,0.16,1.0,1.0,0.00385,0.9
 SPEECHCOMMANDS,random_ee,-9,500,0.065,0.075,1.0,1.0,0.00511,0.74
+Canary,random_ee,-12,500,0.06,0.07,1.0,1.0,0.05677,0.95
