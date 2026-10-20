@@ -480,7 +480,8 @@ if __name__ == "__main__":
 
                     new_rows.append(row)
                     existing_keys.add(key)
+                    # saved after each configuration: a job stopped by its time limit resumes from there
+                    write_results_csv(previous_results, new_rows)
 
-    write_results_csv(previous_results, new_rows)
     create_heatmaps()
 
