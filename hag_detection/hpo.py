@@ -74,10 +74,6 @@ def study_exists(study_name):
     return (STUDIES_DIR / f"{study_name}.sqlite3").exists()
 
 
-def max_phrase_length(songs, train_songs, frame):
-    return max(int(end / frame) + 1 - int(start / frame) for w in train_songs for start, end, _ in songs[w]["phrases"])
-
-
 def cross_validate(model, params, size, songs, train_songs, frame):
     """(out-of-fold F1, ridge, threshold) of the model on the train songs, see the module docstring."""
     folds = KFold(n_splits=N_FOLDS, shuffle=True, random_state=FOLD_SEED).split(train_songs)
@@ -104,7 +100,7 @@ def cross_validate(model, params, size, songs, train_songs, frame):
 
 
 def objective_function(model, size, songs, train_songs, frame, classes=None):
-    length = max_phrase_length(songs, train_songs, frame)
+    length = max(int(end / frame) + 1 - int(start / frame) for w in train_songs for start, end, _ in songs[w]["phrases"])
 
     def objective(trial):
         params = suggest(trial, model, length, input_gains=INPUT_GAINS, leak=LEAK)
@@ -144,8 +140,7 @@ def stop_after_failures(max_failures=10):
 def worker(model, size, n_trials, max_songs, worker_index):
     songs, train_songs, frame, classes = load_task_dataset(max_songs)
     study_name = study_name_of(model, size)
-    study = optuna.load_study(study_name=study_name, storage=storage(study_name),
-                              sampler=TPESampler(constant_liar=True, seed=worker_index))
+    study = optuna.load_study(study_name=study_name, storage=storage(study_name), sampler=TPESampler(constant_liar=True, seed=worker_index))
     study.optimize(objective_function(model, size, songs, train_songs, frame, classes), gc_after_trial=True, catch=(Exception,),
                    callbacks=[MaxTrialsCallback(n_trials, states=(TrialState.COMPLETE,)), stop_after_failures()])
 
