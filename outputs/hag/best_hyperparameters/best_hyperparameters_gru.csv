@@ -2,5 +2,5 @@ dataset,function_name,num_layers,dropout,learning_rate,batch_size,epochs,hidden_
 JapaneseVowels,gru,1,0.28508,0.0074,16,20,256,True
 CatsDogs,gru,1,0.11163,2.25165e-04,8,14,256,True
 FSDD,gru,1,0.10679,0.00506,8,15,256,True
-SpokenArabicDigits,gru,1,0.23749,0.00323,32,20,352,True
+SpokenArabicDigits,gru,1,0.09897,0.00162,8,19,480,True
 SPEECHCOMMANDS,gru,1,0.17485,9.06388e-04,64,18,512,True

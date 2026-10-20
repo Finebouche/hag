@@ -291,18 +291,20 @@ def load_aoen_dataset(dataset_name, seed=None):
 
         return X_train_unprocessed, Y_train_raw, X_test_unprocessed, Y_test_raw, None
 
+    # original variable-length versions (SpokenArabicDigits: 4 to 93 frames), not aeon's "_eq" ones, resampled to
+    # a common length (65 frames)
     try:
         X_train_unprocessed, Y_train_raw, meta_data = load_classification(
             dataset_name,
             return_metadata=True,
-            load_equal_length=True,
+            load_equal_length=False,
             load_no_missing=True,
             split="train",
         )
         X_test_unprocessed, Y_test_raw, meta_data = load_classification(
             dataset_name,
             return_metadata=True,
-            load_equal_length=True,
+            load_equal_length=False,
             load_no_missing=True,
             split="test",
         )
