@@ -19,6 +19,10 @@ in the studies "syllables_<model>_<size>" ("syllables_gains_<model>_<size>" with
 each group of input features in the search, hag_detection.models.suggest; "syllables_gains_leak_<model>_<size>" with
 HAG_DETECTION_LEAK=1 too: leak rate of each reservoir in the search, instead of 1).
 
+With HAG_DETECTION_TASK=next_phrase, the objective is the out-of-fold accuracy of the prediction of the next phrase
+(hag_detection.next_phrase.choose_ridge: same folds), in the studies "next_phrase_<model>_<size>" (and the same
+"gains_" and "leak_" variants).
+
 Usage: python -m hag_detection.hpo <model> <size> [n_trials] [max_songs]
   workers: HAG_DETECTION_WORKERS processes (default 1) optimizing the same study.
 """
@@ -42,25 +46,29 @@ N_FOLDS = 3
 FOLD_SEED = 0
 CV_SEED = 1000  # matrices of fold k drawn with np.random.seed(CV_SEED + k), the same for all the trials
 N_TRIALS = 400
-TASK = os.environ.get("HAG_DETECTION_TASK", "boundaries")  # "boundaries" or "syllables"
-# gain of each group of input features (MFCC, deltas, delta-deltas) in the search, syllable studies "syllables_gains_*"
-INPUT_GAINS = TASK == "syllables" and os.environ.get("HAG_DETECTION_INPUT_GAINS") == "1"
-LEAK = TASK == "syllables" and os.environ.get("HAG_DETECTION_LEAK") == "1"
-# prefix of the studies and of the results of the syllable classification
-SYLLABLES_PREFIX = "syllables_" + "gains_" * INPUT_GAINS + "leak_" * LEAK if TASK == "syllables" else ""
+TASK = os.environ.get("HAG_DETECTION_TASK", "boundaries")  # "boundaries", "syllables" or "next_phrase"
+# gain of each group of input features (MFCC, deltas, delta-deltas) in the search, studies "<task>_gains_*"
+INPUT_GAINS = TASK != "boundaries" and os.environ.get("HAG_DETECTION_INPUT_GAINS") == "1"
+LEAK = TASK != "boundaries" and os.environ.get("HAG_DETECTION_LEAK") == "1"
+# prefix of the studies and of the results of the syllable classification and of the next-phrase prediction
+STUDY_PREFIX = f"{TASK}_" + "gains_" * INPUT_GAINS + "leak_" * LEAK if TASK != "boundaries" else ""
 
 
 def study_name_of(model, size):
-    return f"{SYLLABLES_PREFIX}{model}_{size}"
+    return f"{STUDY_PREFIX}{model}_{size}"
 
 
 def load_task_dataset(max_songs=None):
-    """(songs, train songs, frame, classes): classes of the syllable classification, None for the boundaries."""
+    """(songs, train songs, frame, classes): classes of the syllable classification or of the next-phrase prediction,
+    None for the boundaries."""
     songs, train_songs, _, frame = load_dataset(max_songs)
     classes = None
     if TASK == "syllables":
         from hag_detection.syllables import add_frame_labels
         classes = add_frame_labels(songs, frame)
+    elif TASK == "next_phrase":
+        from hag_detection.next_phrase import prepare
+        classes = prepare(songs, train_songs, frame)
     return songs, train_songs, frame, classes
 
 
@@ -106,6 +114,11 @@ def objective_function(model, size, songs, train_songs, frame, classes=None):
         params = suggest(trial, model, length, input_gains=INPUT_GAINS, leak=LEAK)
         if TASK == "syllables":
             from hag_detection.syllables import choose_ridge
+            ridge, accuracy = choose_ridge(model, params, size, songs, train_songs, frame, classes)
+            trial.set_user_attr("ridge", ridge)
+            return accuracy
+        if TASK == "next_phrase":
+            from hag_detection.next_phrase import choose_ridge
             ridge, accuracy = choose_ridge(model, params, size, songs, train_songs, frame, classes)
             trial.set_user_attr("ridge", ridge)
             return accuracy
@@ -172,7 +185,7 @@ def main():
     study = optuna.load_study(study_name=study_name, storage=storage(study_name))
     best = study.best_trial
     threshold = best.user_attrs.get("threshold")
-    print(f"best trial {best.number}: {'frame accuracy' if TASK == 'syllables' else 'F1'} {best.value:.4f}, ridge "
+    print(f"best trial {best.number}: {dict(syllables='frame accuracy', next_phrase='accuracy').get(TASK, 'F1')} {best.value:.4f}, ridge "
           f"{best.user_attrs['ridge']:.0e}" + (f", threshold {threshold:.2f}" if threshold is not None else "")
           + f", {best.params}")
 

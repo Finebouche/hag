@@ -30,7 +30,7 @@ from sklearn.model_selection import KFold
 from hag.datasets.load_categorical_forecasting import download_canary_if_needed
 from hag_detection.common import OUTPUTS, RIDGES, load_dataset, pretrain_phrases
 from hag_detection.evaluate import SIZES, compare, conditions
-from hag_detection.hpo import CV_SEED, FOLD_SEED, N_FOLDS, SYLLABLES_PREFIX, TASK
+from hag_detection.hpo import CV_SEED, FOLD_SEED, N_FOLDS, STUDY_PREFIX, TASK
 from hag_detection.models import build, normal_equations, ridge_readout, state_chunks
 
 SILENCE = "SIL"
@@ -96,7 +96,7 @@ def evaluate(model, params, size, ridge, songs, train_songs, test_songs, frame, 
 
 
 # reservoirs of the syllable studies (with the input gains, the leak rate) or of the boundary studies
-NAME = f"{SYLLABLES_PREFIX}hpo" if TASK == "syllables" else "syllables"
+NAME = f"{STUDY_PREFIX}hpo" if TASK == "syllables" else "syllables"
 PARTS = OUTPUTS / f"{NAME}_parts"
 
 

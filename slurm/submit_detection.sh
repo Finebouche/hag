@@ -6,15 +6,18 @@
 #   3. final evaluation with NB_SEEDS seeds and the paired comparisons (after 2).
 # N_TRIALS trials per study (Optuna, TPE). With HAG_DETECTION_TASK=syllables, the studies optimize the frame accuracy
 # of the syllable classification ("syllables_<model>_<size>") and the final evaluation is slurm/submit_syllables.sh.
-# With HAG_DETECTION_INPUT_GAINS=1 (syllables), the gain of each group of input features is searched too, and with
-# HAG_DETECTION_LEAK=1 (syllables), the leak rate of each reservoir.
-# Usage: [HAG_DETECTION_TASK=syllables] [HAG_DETECTION_INPUT_GAINS=1] [HAG_DETECTION_LEAK=1] [PURE="..."] [HYBRIDS="..."] bash slurm/submit_detection.sh
+# With HAG_DETECTION_TASK=next_phrase, they optimize the accuracy of the prediction of the next phrase
+# ("next_phrase_<model>_<size>") and the final evaluation is slurm/submit_next_phrase.sh.
+# With HAG_DETECTION_INPUT_GAINS=1 (syllables, next_phrase), the gain of each group of input features is searched too,
+# and with HAG_DETECTION_LEAK=1 (syllables, next_phrase), the leak rate of each reservoir.
+# Usage: [HAG_DETECTION_TASK=syllables|next_phrase] [HAG_DETECTION_INPUT_GAINS=1] [HAG_DETECTION_LEAK=1] [PURE="..."]
+#        [HYBRIDS="..."] [SIZES="..."] [HYBRID_SIZES="..."] bash slurm/submit_detection.sh
 set -euo pipefail
 N_TRIALS=${N_TRIALS:-400}
 NB_SEEDS=${NB_SEEDS:-10}
 MAX_RUNNING=${MAX_RUNNING:-12}
-SIZES=(250 500 1000)
-HYBRID_SIZES=(500 1000)
+read -r -a SIZES <<< "${SIZES:-250 500 1000}"
+read -r -a HYBRID_SIZES <<< "${HYBRID_SIZES:-500 1000}"
 # models (space-separated lists, PURE and HYBRIDS environment variables)
 read -r -a PURE <<< "${PURE:-mean_hag var_hag random_ee random_ee_dense}"
 read -r -a HYBRIDS <<< "${HYBRIDS:-mean_hag+random_ee mean_hag+random_ee_dense var_hag+random_ee var_hag+random_ee_dense}"
@@ -52,6 +55,10 @@ if [ "${HAG_DETECTION_TASK:-boundaries}" = syllables ]; then
     evaluation=$(sbatch --parsable "${NODES[@]}" --cpus-per-task=1 --mem=4G --time=00:30:00 --dependency=afterok:$hybrid \
         --job-name=submit-syllables --output=slurm/logs/%x-%j.out --wrap="bash slurm/submit_syllables.sh $(IFS=,; echo "${SIZES[*]}") $NB_SEEDS")
     echo "final evaluation (syllable classification, one job per condition): submitted by job $evaluation, after $hybrid"
+elif [ "${HAG_DETECTION_TASK:-boundaries}" = next_phrase ]; then
+    evaluation=$(sbatch --parsable "${NODES[@]}" --cpus-per-task=1 --mem=4G --time=00:30:00 --dependency=afterok:$hybrid \
+        --job-name=submit-next-phrase --output=slurm/logs/%x-%j.out --wrap="bash slurm/submit_next_phrase.sh $(IFS=,; echo "${SIZES[*]}") $NB_SEEDS")
+    echo "final evaluation (next phrase, one job per condition): submitted by job $evaluation, after $hybrid"
 else
     evaluation=$(sbatch --parsable "${NODES[@]}" --job-name=detection-evaluate --dependency=afterok:$hybrid \
         --export=ALL,HAG_DETECTION_MODE=evaluate,HAG_DETECTION_WORKERS=1 --output=slurm/logs/%x-%j.out \
