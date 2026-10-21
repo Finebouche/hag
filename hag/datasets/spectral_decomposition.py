@@ -2,8 +2,8 @@ import warnings
 
 import numpy as np
 from joblib import Parallel, delayed
-from librosa import stft
-from librosa.feature import mfcc, delta
+from librosa import power_to_db, stft
+from librosa.feature import delta, melspectrogram, mfcc
 from typing import Sequence, Union
 from scipy.signal.windows import gaussian
 
@@ -36,10 +36,22 @@ def generate_multivariate_dataset(
     # ---- Gaussian window (symmetric) with std in samples (computed once) --------------------------------------------
     g_std = 8.0 # standard deviation for Gaussian window in samples
     window = gaussian(win_length, std=g_std, sym=True)
+    # prediction: causal frames, frame t made of the win_length samples up to t (zero padding on the left), weighted by
+    # the rising half of the Gaussian (largest weight on sample t). Centered frames (librosa's default) contain the
+    # samples after t, among which the target (t + step_ahead).
+    causal = not is_instances_classification
+    if causal:
+        if mfcc_config is not None:
+            raise ValueError("No causal frames for a dataset-specific MFCC (mfcc_config): classification only")
+        window = gaussian(2 * win_length - 1, std=g_std, sym=True)[:win_length]
+
+    def frames_input(x):
+        return np.pad(x, (win_length - 1, 0)) if causal else x
 
     def compute_instance_spectrogram(x):
         if spectral_representation == "stft":
-            Sx = np.abs(stft(x, hop_length=hop, win_length=win_length, n_fft=win_length, window=window))
+            Sx = np.abs(stft(frames_input(x), hop_length=hop, win_length=win_length, n_fft=win_length, window=window,
+                             center=not causal))
         elif spectral_representation == "mfcc" and mfcc_config is not None:
             config = dict(mfcc_config)
             add_deltas = config.pop("deltas", False)
@@ -51,8 +63,13 @@ def generate_multivariate_dataset(
                 Sx = np.concatenate([Sx, delta(Sx, mode="wrap"), delta(Sx, order=2, mode="wrap")], axis=-2)
         elif spectral_representation == "mfcc":
             sr = {} if sampling_rate is None else {"sr": sampling_rate}
-            Sx = np.abs(mfcc(y=x, hop_length=hop, win_length=win_length, n_fft=win_length, window=window,
-                             n_mfcc=N_MFCC, n_mels=N_MELS, **sr))
+            mel = dict(hop_length=hop, win_length=win_length, n_fft=win_length, window=window, n_mels=N_MELS, **sr)
+            if causal:
+                # no floor at 80 dB below the maximum of the whole series (librosa's default), which depends on its future
+                S = power_to_db(melspectrogram(y=frames_input(x), center=False, **mel), top_db=None)
+                Sx = np.abs(mfcc(S=S, n_mfcc=N_MFCC, **sr))
+            else:
+                Sx = np.abs(mfcc(y=x, n_mfcc=N_MFCC, **mel))
         return np.hstack(Sx).T if is_instances_classification else Sx.T
 
     if is_instances_classification:  # classification -> Multiple instances
@@ -61,11 +78,9 @@ def generate_multivariate_dataset(
         # multi-channel (single instance): concatenate per channel
         X = np.asarray(X)
         X_band = np.hstack([compute_instance_spectrogram(X[:, i]) for i in range(X.shape[1])])
-
-        # if dimension doesn't match the original signal, we need to remove 1
-        if X_band.shape[0] == X.shape[0] + 1 :
-            X_band = X_band[:-1, :]
-            print("Dropped the last time frame to match expected shape.")
+        if X_band.shape[0] != X.shape[0]:
+            raise ValueError(f"{X_band.shape[0]} frames for {X.shape[0]} time steps (hop={hop}): one frame per step "
+                             "expected")
 
         print("X_band.shape", X_band.shape)
     return X_band
