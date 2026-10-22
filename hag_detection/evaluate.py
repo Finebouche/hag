@@ -111,7 +111,7 @@ def compare(results, nb_bootstrap=10000, metric="f1"):
     return pd.DataFrame(rows)
 
 
-def main():
+if __name__ == "__main__":
     sizes = [int(s) for s in sys.argv[1].split(",")] if len(sys.argv) > 1 else SIZES
     nb_seeds = int(sys.argv[2]) if len(sys.argv) > 2 else 10
     max_songs = int(sys.argv[3]) if len(sys.argv) > 3 else None
@@ -146,6 +146,3 @@ def main():
         comparisons.to_csv(OUTPUTS / "comparisons.csv", index=False)
         print("Saved to", OUTPUTS / "evaluation.csv", "and", OUTPUTS / "comparisons.csv")
 
-
-if __name__ == "__main__":
-    main()

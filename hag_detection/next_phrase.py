@@ -266,14 +266,13 @@ def save(results):
     print("Saved to", OUTPUTS / f"{NAME}.csv", "and", OUTPUTS / f"{NAME}_comparisons.csv")
 
 
-def main():
+if __name__ == "__main__":
     command = sys.argv[1] if len(sys.argv) > 1 else ""
     if command == "baselines":
         baselines(int(sys.argv[2]) if len(sys.argv) > 2 else None)
-        return
-    if TASK != "next_phrase":
+    elif TASK != "next_phrase":
         raise RuntimeError("HAG_DETECTION_TASK=next_phrase is needed (names of the studies)")
-    if command == "list":
+    elif command == "list":
         for condition, _, _, _, size in all_conditions([int(s) for s in sys.argv[2].split(",")]):
             print(condition, size)
     elif command == "run":
@@ -298,6 +297,3 @@ def main():
         else:
             print(compare(results, metric="accuracy").round(4).to_string(index=False))
 
-
-if __name__ == "__main__":
-    main()

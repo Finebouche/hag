@@ -127,7 +127,7 @@ def plot(bins, size, path):
     plt.close(fig)
 
 
-def main():
+if __name__ == "__main__":
     size = int(sys.argv[1]) if len(sys.argv) > 1 else 1000
     wanted = sys.argv[2].split(",") if len(sys.argv) > 2 else list(COLORS)
     nb_seeds = int(sys.argv[3]) if len(sys.argv) > 3 else 3
@@ -164,6 +164,3 @@ def main():
     print("Saved to", OUTPUTS / f"certainty{suffix}.csv", OUTPUTS / f"certainty{suffix}_phrases.csv",
           OUTPUTS / f"certainty{suffix}.png")
 
-
-if __name__ == "__main__":
-    main()

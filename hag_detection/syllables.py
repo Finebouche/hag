@@ -136,7 +136,7 @@ def save(results):
     print("Saved to", OUTPUTS / f"{NAME}.csv", "and", OUTPUTS / f"{NAME}_comparisons.csv")
 
 
-def main():
+if __name__ == "__main__":
     command = sys.argv[1] if len(sys.argv) > 1 else ""
     if command == "list":
         for condition, _, _, size in all_conditions([int(s) for s in sys.argv[2].split(",")]):
@@ -163,6 +163,3 @@ def main():
         else:
             print(compare(results, metric="frame_accuracy").round(4).to_string(index=False))
 
-
-if __name__ == "__main__":
-    main()

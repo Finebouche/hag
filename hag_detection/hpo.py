@@ -163,7 +163,7 @@ def worker(model, size, n_trials, max_songs, worker_index):
                    callbacks=[MaxTrialsCallback(n_trials, states=(TrialState.COMPLETE,)), stop_after_failures()])
 
 
-def main():
+if __name__ == "__main__":
     model, size = sys.argv[1], int(sys.argv[2])
     n_trials = int(sys.argv[3]) if len(sys.argv) > 3 else N_TRIALS
     max_songs = int(sys.argv[4]) if len(sys.argv) > 4 else None
@@ -194,6 +194,3 @@ def main():
           f"{best.user_attrs['ridge']:.0e}" + (f", threshold {threshold:.2f}" if threshold is not None else "")
           + f", {best.params}")
 
-
-if __name__ == "__main__":
-    main()
