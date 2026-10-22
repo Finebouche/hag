@@ -14,13 +14,13 @@ Studies: "<model>_<size>" (see hag_detection.models), one SQLite database each i
 neurons starts with (enqueued trial) the best parameters of the studies "<hag>_<SIZE/2>" and "<esn>_<SIZE/2>".
 
 With HAG_DETECTION_TASK=syllables, the objective is instead the out-of-fold frame accuracy of the syllable
-classification (hag_detection.syllables.choose_ridge: same folds, ridge coefficient chosen on the out-of-fold frames),
+classification (hag_detection.syllables.classification.choose_ridge: same folds, ridge coefficient chosen on the out-of-fold frames),
 in the studies "syllables_<model>_<size>" ("syllables_gains_<model>_<size>" with HAG_DETECTION_INPUT_GAINS=1: gain of
 each group of input features in the search, hag_detection.models.suggest; "syllables_gains_leak_<model>_<size>" with
 HAG_DETECTION_LEAK=1 too: leak rate of each reservoir in the search, instead of 1).
 
 With HAG_DETECTION_TASK=next_phrase, the objective is the out-of-fold accuracy of the prediction of the next phrase
-(hag_detection.next_phrase.choose_ridge: same folds), in the studies "next_phrase_<model>_<size>" (and the same
+(hag_detection.next_phrase.prediction.choose_ridge: same folds), in the studies "next_phrase_<model>_<size>" (and the same
 "gains_" and "leak_" variants), "next_phrase_calls_*" with HAG_DETECTION_CALLS=1 (the calls are phrases too) and
 "next_phrase_reset_*" with HAG_DETECTION_RESET=1 (the reservoirs hear the current phrase only, from a zero state).
 
@@ -51,7 +51,7 @@ TASK = os.environ.get("HAG_DETECTION_TASK", "boundaries")  # "boundaries", "syll
 # gain of each group of input features (MFCC, deltas, delta-deltas) in the search, studies "<task>_gains_*"
 INPUT_GAINS = TASK != "boundaries" and os.environ.get("HAG_DETECTION_INPUT_GAINS") == "1"
 LEAK = TASK != "boundaries" and os.environ.get("HAG_DETECTION_LEAK") == "1"
-# next-phrase prediction: calls among the phrases, reservoirs reset at each phrase (hag_detection.next_phrase)
+# next-phrase prediction: calls among the phrases, reservoirs reset at each phrase (hag_detection.next_phrase.prediction)
 CALLS = TASK == "next_phrase" and os.environ.get("HAG_DETECTION_CALLS") == "1"
 RESET = TASK == "next_phrase" and os.environ.get("HAG_DETECTION_RESET") == "1"
 # prefix of the studies and of the results of the syllable classification and of the next-phrase prediction
@@ -69,10 +69,10 @@ def load_task_dataset(max_songs=None):
     songs, train_songs, _, frame = load_dataset(max_songs)
     classes = None
     if TASK == "syllables":
-        from hag_detection.syllables import add_frame_labels
+        from hag_detection.syllables.classification import add_frame_labels
         classes = add_frame_labels(songs, frame)
     elif TASK == "next_phrase":
-        from hag_detection.next_phrase import prepare
+        from hag_detection.next_phrase.prediction import prepare
         classes = prepare(songs, train_songs, frame)
     return songs, train_songs, frame, classes
 
@@ -118,12 +118,12 @@ def objective_function(model, size, songs, train_songs, frame, classes=None):
     def objective(trial):
         params = suggest(trial, model, length, input_gains=INPUT_GAINS, leak=LEAK)
         if TASK == "syllables":
-            from hag_detection.syllables import choose_ridge
+            from hag_detection.syllables.classification import choose_ridge
             ridge, accuracy = choose_ridge(model, params, size, songs, train_songs, frame, classes)
             trial.set_user_attr("ridge", ridge)
             return accuracy
         if TASK == "next_phrase":
-            from hag_detection.next_phrase import choose_ridge
+            from hag_detection.next_phrase.prediction import choose_ridge
             ridge, accuracy = choose_ridge(model, params, size, songs, train_songs, frame, classes)
             trial.set_user_attr("ridge", ridge)
             return accuracy

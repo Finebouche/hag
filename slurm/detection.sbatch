@@ -4,12 +4,12 @@
 #     [n_trials], HAG_DETECTION_WORKERS processes sharing the cores; in a job array, "<model> <size>" is the line
 #     SLURM_ARRAY_TASK_ID (from 0) of the file HAG_DETECTION_TASKS;
 #   - HAG_DETECTION_MODE=evaluate: final evaluation python -m hag_detection.evaluate [sizes] [nb_seeds];
-#   - HAG_DETECTION_MODE=syllables: frame-by-frame syllable classification python -m hag_detection.syllables [sizes]
+#   - HAG_DETECTION_MODE=syllables: frame-by-frame syllable classification python -m hag_detection.syllables.classification [sizes]
 #     [nb_seeds] (reservoirs of the detection studies);
-#   - HAG_DETECTION_MODE=next_phrase: prediction of the next phrase python -m hag_detection.next_phrase [sizes]
+#   - HAG_DETECTION_MODE=next_phrase: prediction of the next phrase python -m hag_detection.next_phrase.prediction [sizes]
 #     [nb_seeds] (reservoirs of the next-phrase studies, HAG_DETECTION_TASK=next_phrase);
-#   - HAG_DETECTION_MODE=certainty: certainty along the phrases python -m hag_detection.certainty [size] [conditions]
-#     [nb_seeds].
+#   - HAG_DETECTION_MODE=certainty: certainty along the phrases python -m hag_detection.syllables.certainty [size]
+#     [conditions] [nb_seeds] (hag_detection.next_phrase.certainty with HAG_DETECTION_TASK=next_phrase).
 # The Optuna databases are in /dev/shm during the job (SQLite does not support the network file systems well, and the
 # suroit nodes have no local disk), copied from and back to outputs/detection/studies (every 10 minutes and at the
 # end, without replacing more recent files). Submit everything with slurm/submit_detection.sh.
@@ -57,15 +57,19 @@ echo "[slurm] job ${SLURM_JOB_ID} ${SLURM_ARRAY_TASK_ID:-}: ${HAG_DETECTION_MODE
 if [ "${HAG_DETECTION_MODE:-hpo}" = evaluate ]; then
     python -m hag_detection.evaluate "$@"
 elif [ "${HAG_DETECTION_MODE:-hpo}" = certainty ]; then
-    python -m hag_detection.certainty "$@"
+    if [ "${HAG_DETECTION_TASK:-}" = next_phrase ]; then
+        python -m hag_detection.next_phrase.certainty "$@"
+    else
+        python -m hag_detection.syllables.certainty "$@"
+    fi
 elif [ "${HAG_DETECTION_MODE:-hpo}" = syllables ]; then
     # in a job array: one condition ("<condition> <size>" of HAG_DETECTION_TASKS)
     if [ -n "${HAG_DETECTION_TASKS:-}" ]; then set -- run "$@"; fi
-    python -m hag_detection.syllables "$@"
+    python -m hag_detection.syllables.classification "$@"
 elif [ "${HAG_DETECTION_MODE:-hpo}" = next_phrase ]; then
     # in a job array: one condition ("<condition> <size>" of HAG_DETECTION_TASKS)
     if [ -n "${HAG_DETECTION_TASKS:-}" ]; then set -- run "$@"; fi
-    python -m hag_detection.next_phrase "$@"
+    python -m hag_detection.next_phrase.prediction "$@"
 else
     python -m hag_detection.hpo "$@"
 fi

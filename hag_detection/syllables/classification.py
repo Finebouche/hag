@@ -15,11 +15,11 @@ Results: outputs/detection/syllables.csv and syllables_comparisons.csv; with HAG
 of the syllable studies (hag_detection.hpo optimized on the frame accuracy) and syllables_hpo.csv,
 syllables_hpo_comparisons.csv.
 Usage:
-  python -m hag_detection.syllables [sizes] [nb_seeds] [max_songs]   all the conditions (default 250,500,1000, 10 seeds)
-  python -m hag_detection.syllables run <condition> <size> [nb_seeds]   one condition (one job of slurm/submit_syllables.sh),
+  python -m hag_detection.syllables.classification [sizes] [nb_seeds] [max_songs]   all the conditions (default 250,500,1000, 10 seeds)
+  python -m hag_detection.syllables.classification run <condition> <size> [nb_seeds]   one condition (one job of slurm/submit_syllables.sh),
                                                                         results in outputs/detection/syllables_parts
-  python -m hag_detection.syllables merge                               results of the parts and the comparisons
-  python -m hag_detection.syllables list <sizes>                        "<condition> <size>" of all the conditions
+  python -m hag_detection.syllables.classification merge                               results of the parts and the comparisons
+  python -m hag_detection.syllables.classification list <sizes>                        "<condition> <size>" of all the conditions
 """
 import sys
 

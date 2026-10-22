@@ -15,23 +15,23 @@ last frame whose window and deltas end before t (DELAY earlier). The deltas are 
 of the "wrap" of the cached features, which joins the end of each song to its beginning.
 
 Readout: ridge regression on the one-hot next label at the prediction points, its coefficient chosen by the 3-fold
-cross-validation by song on the train songs (out-of-fold accuracy, as hag_detection.syllables), then trained on all the
+cross-validation by song on the train songs (out-of-fold accuracy, as hag_detection.syllables.classification), then trained on all the
 train songs and scored on the test songs for each seed. Metrics as Maxime's: accuracy and macro F1 of all the points,
 without the last one of each song ("skip_last": its target is END), and of the phrases only ("no_end": points whose
 target is a phrase, argmax over the phrases).
-References: n-grams of the true labels of the previous phrases (hag_detection.next_phrase baselines): fixed order n
+References: n-grams of the true labels of the previous phrases (hag_detection.next_phrase.prediction baselines): fixed order n
 (the n previous labels, START before the first phrase; unseen context: the most frequent next label) and adaptive (the
 longest context seen in the train songs, up to MAX_ORDER).
 
 Results: outputs/detection/<HAG_DETECTION_TASK=next_phrase prefix>hpo.csv (e.g. next_phrase_leak_hpo.csv) and
 <...>_comparisons.csv, references in next_phrase_ngrams.csv (next_phrase_calls_ngrams.csv with the calls).
 Usage (HAG_DETECTION_TASK=next_phrase, with the variables of the studies, e.g. HAG_DETECTION_LEAK=1):
-  python -m hag_detection.next_phrase [sizes] [nb_seeds] [max_songs]   all the conditions (default 500,1000, 10 seeds)
-  python -m hag_detection.next_phrase run <condition> <size> [nb_seeds]   one condition (slurm/submit_next_phrase.sh),
+  python -m hag_detection.next_phrase.prediction [sizes] [nb_seeds] [max_songs]   all the conditions (default 500,1000, 10 seeds)
+  python -m hag_detection.next_phrase.prediction run <condition> <size> [nb_seeds]   one condition (slurm/submit_next_phrase.sh),
                                                                           results in outputs/detection/<name>_parts
-  python -m hag_detection.next_phrase merge                               results of the parts and the comparisons
-  python -m hag_detection.next_phrase list <sizes>                        "<condition> <size>" of all the conditions
-  python -m hag_detection.next_phrase baselines                           the n-grams
+  python -m hag_detection.next_phrase.prediction merge                               results of the parts and the comparisons
+  python -m hag_detection.next_phrase.prediction list <sizes>                        "<condition> <size>" of all the conditions
+  python -m hag_detection.next_phrase.prediction baselines                           the n-grams
 """
 import sys
 from collections import Counter

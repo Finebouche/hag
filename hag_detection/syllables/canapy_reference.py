@@ -5,10 +5,10 @@ group, ridge 1e-8) trained on our train songs, and its frame accuracy (canapy.me
 predictions, all the frames, silence included) on our test songs, for its annotators syn, nsyn and their ensemble.
 
 Two steps, in two environments:
-  python -m hag_detection.canapy_reference split <directory>
+  python -m hag_detection.syllables.canapy_reference split <directory>
       (hag environment) our train and test songs (hag_detection.common.load_songs) as two directories of links to
       their audio and annotation files: <directory>/{train,test}/{audio,annotations}
-  python hag_detection/canapy_reference.py run <directory> [seeds]
+  python hag_detection/syllables/canapy_reference.py run <directory> [seeds]
       (canapy environment, no hag import) training and frame accuracy, results in <directory>/canapy_frame_accuracy.csv
 canapy keeps at least one song of its training corpus for its own internal test (test_ratio = 0: 1 song).
 """
