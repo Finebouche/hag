@@ -3,7 +3,11 @@ Prediction of the next phrase of canary songs from their audio, in the configura
 prediction (ESN reading the phrase labels of the song, with START and END), but with the MFCC of the song as input:
 the reservoir runs over the whole song (no reset between the phrases) and, at the end of each phrase, the readout predicts
 the label of the next one (END after the last phrase); before the first phrase (Maxime's START), it predicts the first
-one. Phrases as in hag_detection.common.load_songs: SIL, TRASH and call ignored, repeated labels merged.
+one. Phrases as in hag_detection.common.load_songs: SIL, TRASH and call ignored, repeated labels merged; with
+HAG_DETECTION_CALLS=1, the calls are phrases too (SIL and TRASH ignored). With HAG_DETECTION_RESET=1, the reservoirs hear
+the current phrase only, from a zero state (as the Canary task of the main branch), instead of the whole song: the
+state of a point is the last one of a run on the frames of the phrase that ends there (the zero state before the first
+phrase); the HAG learning is the same (on phrases).
 
 No input after the prediction point: the MFCC frames are centered (half a window, 11.6 ms, of audio after their time)
 and their deltas use 4 frames on each side, so the state used to predict what follows the time t is the one of the
@@ -20,7 +24,7 @@ References: n-grams of the true labels of the previous phrases (hag_detection.ne
 longest context seen in the train songs, up to MAX_ORDER).
 
 Results: outputs/detection/<HAG_DETECTION_TASK=next_phrase prefix>hpo.csv (e.g. next_phrase_leak_hpo.csv) and
-<...>_comparisons.csv, references in next_phrase_ngrams.csv.
+<...>_comparisons.csv, references in next_phrase_ngrams.csv (next_phrase_calls_ngrams.csv with the calls).
 Usage (HAG_DETECTION_TASK=next_phrase, with the variables of the studies, e.g. HAG_DETECTION_LEAK=1):
   python -m hag_detection.next_phrase [sizes] [nb_seeds] [max_songs]   all the conditions (default 500,1000, 10 seeds)
   python -m hag_detection.next_phrase run <condition> <size> [nb_seeds]   one condition (slurm/submit_next_phrase.sh),
@@ -39,10 +43,11 @@ from sklearn.metrics import f1_score
 from sklearn.model_selection import KFold
 
 from hag.datasets.load_categorical_forecasting import canary_mfcc_config
-from hag_detection.common import OUTPUTS, RIDGES, SAMPLING_RATE, load_dataset, pretrain_phrases
+from hag_detection.common import (OUTPUTS, RIDGES, SAMPLING_RATE, annotations_of_songs, load_dataset, pretrain_phrases,
+                                  song_phrases)
 from hag_detection.evaluate import compare, conditions
-from hag_detection.hpo import CV_SEED, FOLD_SEED, N_FOLDS, STUDY_PREFIX, TASK
-from hag_detection.models import build, ridge_readout, state_chunks
+from hag_detection.hpo import CALLS, CV_SEED, FOLD_SEED, N_FOLDS, RESET, STUDY_PREFIX, TASK
+from hag_detection.models import CHUNK, build, ridge_readout, state_chunks, states
 
 SIZES = [500, 1000]
 START, END = "START", "END"
@@ -55,10 +60,13 @@ DELAY = canary_mfcc_config(SAMPLING_RATE)["win_length"] / 2 / SAMPLING_RATE
 
 def prepare(songs, train_songs, frame):
     """
-    Deltas recomputed without wrapping (scaled on the train songs as the others) and, for each song, the prediction
-    points: songs[w]["points"] (frame of each point, -1 for the initial zero state) and songs[w]["next"] (label of the
-    next phrase, END after the last one). Returns the classes (the phrase labels and END).
+    Deltas recomputed without wrapping (scaled on the train songs as the others) and, for each song, its phrases
+    songs[w]["next_phrases"] (with the calls if CALLS) and the prediction points: songs[w]["points"] (frame of each
+    point, -1 for the initial zero state), songs[w]["starts"] (first frame of the phrase ending at each point, -1 for
+    the point before the first phrase) and songs[w]["next"] (label of the next phrase, END after the last one).
+    Returns the classes (the phrase labels and END).
     """
+    annotations = annotations_of_songs() if CALLS else None
     for song in songs.values():
         static = song["mfcc"][:, :N_STATIC]
         deltas = [delta(static.T, width=DELTA_WIDTH, order=order, mode="nearest").T for order in (1, 2)]
@@ -68,21 +76,48 @@ def prepare(songs, train_songs, frame):
     delay = DELAY + DELTA_WIDTH // 2 * frame
     for song in songs.values():
         song["mfcc"][:, N_STATIC:] = (song["mfcc"][:, N_STATIC:] - low) / np.where(high > low, high - low, 1)
-        labels = [label for _, _, label in song["phrases"]]
-        times = [song["phrases"][0][0]] + [end for _, end, _ in song["phrases"]]  # before the 1st, after each phrase
+    for wave, song in songs.items():
+        phrases = song_phrases(annotations, wave, ("SIL", "TRASH")) if CALLS else [tuple(p) for p in song["phrases"]]
+        song["next_phrases"] = phrases
+        labels = [label for _, _, label in phrases]
+        times = [phrases[0][0]] + [end for _, end, _ in phrases]  # before the 1st, after each phrase
         song["points"] = np.array([min(int(np.floor((t - delay) / frame)), len(song["mfcc"]) - 1) for t in times])
         song["points"] = np.maximum(song["points"], -1)
+        song["starts"] = np.array([-1] + [int(np.floor(start / frame)) for start, _, _ in phrases])
         song["next"] = np.array(labels + [END], dtype=object)
     return np.array(sorted({label for song in songs.values() for label in song["next"]} - {END}) + [END], dtype=object)
 
 
 def point_states(reservoirs, songs, waves):
     """{wave: states of the reservoirs (inputs without reservoir) at the prediction points, (points, units)}."""
+    if RESET:
+        return phrase_point_states(reservoirs, songs, waves)
     result = {}
     for part, part_states in state_chunks(reservoirs, songs, waves):
         for x, w in zip(part_states, part):
             x = np.vstack([np.zeros((1, x.shape[1]), dtype=np.float64), np.asarray(x, dtype=np.float64)])
             result[w] = x[songs[w]["points"] + 1]  # row 0: the initial zero state (point -1)
+    return result
+
+
+def phrase_point_states(reservoirs, songs, waves):
+    """point_states with the reservoirs reset at each phrase (RESET): last state of a run from a zero state on the
+    frames of the phrase ending at the point, the zero state for the point before the first phrase and for a phrase
+    shorter than the delay of the points (no frame before its point)."""
+    result = {}
+    for i in range(0, len(waves), CHUNK):
+        part = waves[i:i + CHUNK]
+        segments, where = [], []
+        for w in part:
+            for j, (start, point) in enumerate(zip(songs[w]["starts"], songs[w]["points"])):
+                if 0 <= start <= point:
+                    segments.append(songs[w]["mfcc"][start:point + 1])
+                    where.append((w, j))
+        runs = states(reservoirs, segments)
+        for w in part:
+            result[w] = np.zeros((len(songs[w]["points"]), runs[0].shape[1]))
+        for (w, j), run in zip(where, runs):
+            result[w][j] = run[-1]
     return result
 
 
@@ -147,7 +182,7 @@ def ngram_scores(songs, train_songs, test_songs, classes, order):
     """Scores (frequencies of the next labels) of the n-gram of the given order (None: adaptive) at the test points,
     and the share of the points whose context was not seen in the train songs (marginal frequencies then)."""
     def contexts(song, n):
-        history = [START] * n + [label for _, _, label in song["phrases"]]
+        history = [START] * n + [label for _, _, label in song["next_phrases"]]
         return [tuple(history[j:j + n]) for j in range(len(song["next"]))]
 
     orders = list(range(MAX_ORDER, -1, -1)) if order is None else sorted({order, 0}, reverse=True)
@@ -183,8 +218,9 @@ def baselines(max_songs=None):
     pd.set_option("display.width", 200)
     print(results.round(4).to_string(index=False))
     if max_songs is None:
-        results.to_csv(OUTPUTS / "next_phrase_ngrams.csv", index=False)
-        print("Saved to", OUTPUTS / "next_phrase_ngrams.csv")
+        file_name = OUTPUTS / f"next_phrase_{'calls_' * CALLS}ngrams.csv"
+        results.to_csv(file_name, index=False)
+        print("Saved to", file_name)
 
 
 # ------------------------------------------------ reservoirs ------------------------------------------------------

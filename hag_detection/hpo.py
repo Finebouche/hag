@@ -21,7 +21,8 @@ HAG_DETECTION_LEAK=1 too: leak rate of each reservoir in the search, instead of 
 
 With HAG_DETECTION_TASK=next_phrase, the objective is the out-of-fold accuracy of the prediction of the next phrase
 (hag_detection.next_phrase.choose_ridge: same folds), in the studies "next_phrase_<model>_<size>" (and the same
-"gains_" and "leak_" variants).
+"gains_" and "leak_" variants), "next_phrase_calls_*" with HAG_DETECTION_CALLS=1 (the calls are phrases too) and
+"next_phrase_reset_*" with HAG_DETECTION_RESET=1 (the reservoirs hear the current phrase only, from a zero state).
 
 Usage: python -m hag_detection.hpo <model> <size> [n_trials] [max_songs]
   workers: HAG_DETECTION_WORKERS processes (default 1) optimizing the same study.
@@ -50,8 +51,12 @@ TASK = os.environ.get("HAG_DETECTION_TASK", "boundaries")  # "boundaries", "syll
 # gain of each group of input features (MFCC, deltas, delta-deltas) in the search, studies "<task>_gains_*"
 INPUT_GAINS = TASK != "boundaries" and os.environ.get("HAG_DETECTION_INPUT_GAINS") == "1"
 LEAK = TASK != "boundaries" and os.environ.get("HAG_DETECTION_LEAK") == "1"
+# next-phrase prediction: calls among the phrases, reservoirs reset at each phrase (hag_detection.next_phrase)
+CALLS = TASK == "next_phrase" and os.environ.get("HAG_DETECTION_CALLS") == "1"
+RESET = TASK == "next_phrase" and os.environ.get("HAG_DETECTION_RESET") == "1"
 # prefix of the studies and of the results of the syllable classification and of the next-phrase prediction
-STUDY_PREFIX = f"{TASK}_" + "gains_" * INPUT_GAINS + "leak_" * LEAK if TASK != "boundaries" else ""
+STUDY_PREFIX = (f"{TASK}_" + "calls_" * CALLS + "reset_" * RESET + "gains_" * INPUT_GAINS + "leak_" * LEAK
+                if TASK != "boundaries" else "")
 
 
 def study_name_of(model, size):

@@ -28,14 +28,32 @@ OUTPUTS = Path(__file__).resolve().parents[1] / "outputs" / "detection"
 FEATURES_CACHE = Path(__file__).resolve().parents[1] / "hag" / "datasets" / "Canary" / f"boundary_features_{SAMPLING_RATE}.pkl"
 
 
+def annotations_of_songs():
+    annotations_dir, _ = download_canary_if_needed()
+    return pd.concat([pd.read_csv(f, index_col=0) for f in sorted(annotations_dir.rglob("*.csv"))])
+
+
+def song_phrases(annotations, wave, ignored_labels=IGNORED_LABELS):
+    """[(start, end, label)] of the phrases of a song: segments of ignored_labels removed, repeated labels merged."""
+    song = annotations[annotations["wave"] == wave].sort_values("start")
+    song = song[~song["syll"].isin(ignored_labels)]
+    phrases = []
+    for start, end, label in song[["start", "end", "syll"]].itertuples(index=False, name=None):
+        if phrases and phrases[-1][2] == label:
+            phrases[-1] = (phrases[-1][0], end, label)
+        else:
+            phrases.append((start, end, label))
+    return phrases
+
+
 def load_songs(max_songs=None):
     """
     Songs of the next-phrase dataset with its train/test split by song (same songs as load_canary_dataset).
     Returns (songs, train_songs, test_songs): songs[wave] = dict(audio, phrases=[(start, end, label)],
     boundaries=[(time, silence)]).
     """
-    annotations_dir, audio_dir = download_canary_if_needed()
-    annotations = pd.concat([pd.read_csv(f, index_col=0) for f in sorted(annotations_dir.rglob("*.csv"))])
+    _, audio_dir = download_canary_if_needed()
+    annotations = annotations_of_songs()
     pairs = build_phrase_sequences(annotations)
     gss = GroupShuffleSplit(n_splits=1, test_size=0.2, random_state=CANARY_SPLIT_SEED)
     train_idx, test_idx = next(gss.split(pairs, groups=pairs["wave"]))
@@ -47,14 +65,7 @@ def load_songs(max_songs=None):
     import librosa
     songs = {}
     for wave in train_songs + test_songs:
-        song = annotations[annotations["wave"] == wave].sort_values("start")
-        song = song[~song["syll"].isin(IGNORED_LABELS)]
-        phrases = []
-        for start, end, label in song[["start", "end", "syll"]].itertuples(index=False, name=None):
-            if phrases and phrases[-1][2] == label:
-                phrases[-1] = (phrases[-1][0], end, label)
-            else:
-                phrases.append((start, end, label))
+        phrases = song_phrases(annotations, wave)
         boundaries = [(prev[1], nxt[0] - prev[1] > SILENCE_GAP) for prev, nxt in zip(phrases[:-1], phrases[1:])]
 
         audio, sampling_rate = sf.read(wav_paths[wave], dtype="float32", always_2d=True)
