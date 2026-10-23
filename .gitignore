@@ -26,3 +26,6 @@ dist/
 /outputs/rl/archives/
 .pytest_cache/
 CLAUDE.md
+# detection: Optuna databases and parts of the jobs (only the result CSVs are tracked)
+/outputs/detection/studies/
+/outputs/detection/*_parts/
