@@ -24,7 +24,7 @@ With HAG_DETECTION_TASK=next_phrase, the objective is the out-of-fold accuracy o
 "gains_" and "leak_" variants), "next_phrase_calls_*" with HAG_DETECTION_CALLS=1 (the calls are phrases too) and
 "next_phrase_reset_*" with HAG_DETECTION_RESET=1 (the reservoirs hear the current phrase only, from a zero state).
 
-Usage: python -m hag_detection.hpo <model> <size> [n_trials] [max_songs]
+Usage: python -m hag_detection.hpo <model> <size>   (N_TRIALS trials)
   workers: HAG_DETECTION_WORKERS processes (default 1) optimizing the same study.
 """
 import os
@@ -63,10 +63,10 @@ def study_name_of(model, size):
     return f"{STUDY_PREFIX}{model}_{size}"
 
 
-def load_task_dataset(max_songs=None):
+def load_task_dataset():
     """(songs, train songs, frame, classes): classes of the syllable classification or of the next-phrase prediction,
     None for the boundaries."""
-    songs, train_songs, _, frame = load_dataset(max_songs)
+    songs, train_songs, _, frame = load_dataset()
     classes = None
     if TASK == "syllables":
         from hag_detection.syllables.classification import add_frame_labels
@@ -155,18 +155,16 @@ def stop_after_failures(max_failures=10):
     return callback
 
 
-def worker(model, size, n_trials, max_songs, worker_index):
-    songs, train_songs, frame, classes = load_task_dataset(max_songs)
+def worker(model, size, worker_index):
+    songs, train_songs, frame, classes = load_task_dataset()
     study_name = study_name_of(model, size)
     study = optuna.load_study(study_name=study_name, storage=storage(study_name), sampler=TPESampler(constant_liar=True, seed=worker_index))
     study.optimize(objective_function(model, size, songs, train_songs, frame, classes), gc_after_trial=True, catch=(Exception,),
-                   callbacks=[MaxTrialsCallback(n_trials, states=(TrialState.COMPLETE,)), stop_after_failures()])
+                   callbacks=[MaxTrialsCallback(N_TRIALS, states=(TrialState.COMPLETE,)), stop_after_failures()])
 
 
 if __name__ == "__main__":
     model, size = sys.argv[1], int(sys.argv[2])
-    n_trials = int(sys.argv[3]) if len(sys.argv) > 3 else N_TRIALS
-    max_songs = int(sys.argv[4]) if len(sys.argv) > 4 else None
     n_workers = int(os.environ.get("HAG_DETECTION_WORKERS", 1))
     for part, _ in parts(model):
         if part not in PURE_MODELS:
@@ -179,13 +177,13 @@ if __name__ == "__main__":
         # the starting trial is run here, alone: several workers would take the enqueued trial at the same time (the
         # second one then fails when it reports it: "Cannot tell a COMPLETE trial")
         study.enqueue_trial(initial_trial(model, size))
-        songs, train_songs, frame, classes = load_task_dataset(max_songs)
+        songs, train_songs, frame, classes = load_task_dataset()
         study.optimize(objective_function(model, size, songs, train_songs, frame, classes), n_trials=1)
         del songs
     done = len([t for t in study.trials if t.state == TrialState.COMPLETE])
-    print(f"{study_name}: {done} / {n_trials} trials done, {n_workers} workers", flush=True)
-    if done < n_trials:
-        Parallel(n_jobs=n_workers)(delayed(worker)(model, size, n_trials, max_songs, i) for i in range(n_workers))
+    print(f"{study_name}: {done} / {N_TRIALS} trials done, {n_workers} workers", flush=True)
+    if done < N_TRIALS:
+        Parallel(n_jobs=n_workers)(delayed(worker)(model, size, i) for i in range(n_workers))
 
     study = optuna.load_study(study_name=study_name, storage=storage(study_name))
     best = study.best_trial
