@@ -16,7 +16,7 @@ neurons starts with (enqueued trial) the best parameters of the studies "<hag>_<
 With HAG_DETECTION_TASK=syllables, the objective is instead the out-of-fold frame accuracy of the syllable
 classification (hag_detection.syllables.classification.choose_ridge: same folds, ridge coefficient chosen on the out-of-fold frames),
 in the studies "syllables_<model>_<size>" ("syllables_gains_<model>_<size>" with HAG_DETECTION_INPUT_GAINS=1: gain of
-each group of input features in the search, hag_detection.models.suggest; "syllables_gains_leak_<model>_<size>" with
+each group of input features in the search, see objective_function; "syllables_gains_leak_<model>_<size>" with
 HAG_DETECTION_LEAK=1 too: leak rate of each reservoir in the search, instead of 1).
 
 With HAG_DETECTION_TASK=next_phrase, the objective is the out-of-fold accuracy of the prediction of the next phrase
@@ -40,7 +40,8 @@ from optuna.trial import TrialState
 from sklearn.model_selection import KFold
 
 from hag_detection.common import OUTPUTS, RIDGES, THRESHOLDS, load_dataset, pretrain_phrases, scores
-from hag_detection.models import PURE_MODELS, build, normal_equations, parts, readout_outputs, ridge_readout, suggest
+from hag_detection.models import (ESN_MODELS, HAG_MODELS, PURE_MODELS, build, normal_equations, parts, readout_outputs,
+                                  ridge_readout)
 
 STUDIES_DIR = Path(os.environ.get("HAG_DETECTION_STUDIES", OUTPUTS / "studies"))
 N_FOLDS = 3
@@ -116,7 +117,39 @@ def objective_function(model, size, songs, train_songs, frame, classes=None):
     length = max(int(end / frame) + 1 - int(start / frame) for w in train_songs for start, end, _ in songs[w]["phrases"])
 
     def objective(trial):
-        params = suggest(trial, model, length, input_gains=INPUT_GAINS, leak=LEAK)
+        # parameters of each part of the model (prefix "<part>:" in a hybrid), same ranges as hag.hpo.hpo_esn. With
+        # INPUT_GAINS, a gain for each group of input features: the MFCC (input_scaling) and, relative to them, their
+        # deltas (delta_gain) and delta-deltas (delta2_gain), as canapy (per-group input scaling of its ESN). With LEAK,
+        # the leak rate of each reservoir (1 otherwise; canapy: 0.1), used by the HAG learning too.
+        params = {}
+        for part, p in parts(model):
+            params[p + "input_scaling"] = trial.suggest_float(p + "input_scaling", 0.01, 0.2, step=0.005)
+            if INPUT_GAINS:
+                params[p + "delta_gain"] = trial.suggest_float(p + "delta_gain", 0.01, 100, log=True)
+                params[p + "delta2_gain"] = trial.suggest_float(p + "delta2_gain", 0.01, 100, log=True)
+            if LEAK:
+                params[p + "leaky_rate"] = trial.suggest_float(p + "leaky_rate", 0.01, 1, log=True)
+            params[p + "bias_scaling"] = trial.suggest_float(p + "bias_scaling", 0, 0.2, step=0.005)
+            if part in HAG_MODELS:
+                params[p + "weight_increment"] = trial.suggest_float(p + "weight_increment", 0.001, 0.1, step=0.001)
+                params[p + "use_full_instance"] = trial.suggest_categorical(p + "use_full_instance", [True, False])
+                params[p + "min_increment"] = trial.suggest_int(p + "min_increment", 3, length)
+                params[p + "max_increment"] = trial.suggest_int(p + "max_increment", params[p + "min_increment"],
+                                                                length * 5)
+                if part == "mean_hag":
+                    params[p + "target_rate"] = trial.suggest_float(p + "target_rate", 0.5, 1, step=0.01)
+                    params[p + "rate_spread"] = trial.suggest_float(p + "rate_spread", 0.01, 0.4, step=0.005)
+                else:
+                    params[p + "variance_target"] = trial.suggest_float(p + "variance_target", 0.001, 0.02, step=0.001)
+                    params[p + "variance_spread"] = trial.suggest_float(p + "variance_spread", 0.001, 0.05, step=0.002)
+                    params[p + "intrinsic_saturation"] = trial.suggest_float(p + "intrinsic_saturation", 0.8, 0.98,
+                                                                             step=0.02)
+                    params[p + "intrinsic_coef"] = trial.suggest_float(p + "intrinsic_coef", 0.8, 0.98, step=0.02)
+            elif part in ESN_MODELS:
+                params[p + "connectivity"] = trial.suggest_float(p + "connectivity", 0, 1)
+                params[p + "spectral_radius"] = trial.suggest_float(p + "spectral_radius", 0.4, 1.6, step=0.01)
+            else:
+                raise ValueError(f"Unknown model {part}")
         if TASK == "syllables":
             from hag_detection.syllables.classification import choose_ridge
             ridge, accuracy = choose_ridge(model, params, size, songs, train_songs, frame, classes)

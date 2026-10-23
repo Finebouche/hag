@@ -34,47 +34,6 @@ def parts(model):
     return [(model, "")]
 
 
-def suggest(trial, model, max_phrase_length, input_gains=False, leak=False):
-    """
-    Parameters of the model (pure or hybrid) suggested by an Optuna trial, same ranges as hag.hpo.hpo_esn. With
-    input_gains, each reservoir also has a gain for each group of features: the MFCC (input_scaling) and, relative to
-    them, their deltas (delta_gain) and delta-deltas (delta2_gain), as canapy (per-group input scaling of its ESN).
-    With leak, each reservoir has its leak rate (1 otherwise; canapy: 0.1), used by the HAG learning too.
-    """
-    params = {}
-    for part, prefix in parts(model):
-        def name(key):
-            return prefix + key
-        params[name("input_scaling")] = trial.suggest_float(name("input_scaling"), 0.01, 0.2, step=0.005)
-        if input_gains:
-            params[name("delta_gain")] = trial.suggest_float(name("delta_gain"), 0.01, 100, log=True)
-            params[name("delta2_gain")] = trial.suggest_float(name("delta2_gain"), 0.01, 100, log=True)
-        if leak:
-            params[name("leaky_rate")] = trial.suggest_float(name("leaky_rate"), 0.01, 1, log=True)
-        params[name("bias_scaling")] = trial.suggest_float(name("bias_scaling"), 0, 0.2, step=0.005)
-        if part in HAG_MODELS:
-            params[name("weight_increment")] = trial.suggest_float(name("weight_increment"), 0.001, 0.1, step=0.001)
-            params[name("use_full_instance")] = trial.suggest_categorical(name("use_full_instance"), [True, False])
-            params[name("min_increment")] = trial.suggest_int(name("min_increment"), 3, max_phrase_length)
-            params[name("max_increment")] = trial.suggest_int(name("max_increment"), params[name("min_increment")],
-                                                               max_phrase_length * 5)
-            if part == "mean_hag":
-                params[name("target_rate")] = trial.suggest_float(name("target_rate"), 0.5, 1, step=0.01)
-                params[name("rate_spread")] = trial.suggest_float(name("rate_spread"), 0.01, 0.4, step=0.005)
-            else:
-                params[name("variance_target")] = trial.suggest_float(name("variance_target"), 0.001, 0.02, step=0.001)
-                params[name("variance_spread")] = trial.suggest_float(name("variance_spread"), 0.001, 0.05, step=0.002)
-                params[name("intrinsic_saturation")] = trial.suggest_float(name("intrinsic_saturation"), 0.8, 0.98,
-                                                                           step=0.02)
-                params[name("intrinsic_coef")] = trial.suggest_float(name("intrinsic_coef"), 0.8, 0.98, step=0.02)
-        elif part in ESN_MODELS:
-            params[name("connectivity")] = trial.suggest_float(name("connectivity"), 0, 1)
-            params[name("spectral_radius")] = trial.suggest_float(name("spectral_radius"), 0.4, 1.6, step=0.01)
-        else:
-            raise ValueError(f"Unknown model {part}")
-    return params
-
-
 class Reservoirs(list):
     """Reservoirs of a model, with the gains of each one on its input features (None: no gain)."""
     input_gains = ()
