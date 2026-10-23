@@ -1,5 +1,5 @@
 """
-Reservoirs of the canary boundary detection, in JAX: HAG learns with the JAX HAGReservoir (hag.models.jax_hag_reservoir,
+Reservoirs of the canary tasks, in JAX: HAG learns with the JAX HAGReservoir (hag.models.jax_hag_reservoir,
 same algorithm as run_algorithm with the most correlated partners, random choices from Jax's generator), and all the
 reservoirs run as reservoirpy.jax nodes (hag.performances.esn_model_evaluation.run_reservoir). The other matrices are
 those of hag.performances.evaluation_esn.build_reservoir_from_study (HAG's evaluation).

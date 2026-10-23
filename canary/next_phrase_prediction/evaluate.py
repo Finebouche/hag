@@ -1,15 +1,15 @@
 """
-Final evaluation of the canary boundary detection on the test songs (used only here), after next_phrase_prediction.hpo.
+Final evaluation of the canary boundary detection on the test songs (used only here), after canary.next_phrase_prediction.hpo.
 
 Conditions, for each SIZE (number of neurons in all):
   - "mfcc" (no reservoir, once);
-  - the pure models (next_phrase_prediction.models.PURE_MODELS) with the best parameters of their study "<model>_<SIZE>";
+  - the pure models (canary.models.PURE_MODELS) with the best parameters of their study "<model>_<SIZE>";
   - "<hag>_proj": the parameters of "<hag>_<SIZE>" without the HAG learning;
   - "<hag>+<esn>": hybrid of the best parts optimized alone with SIZE / 2 neurons, without further optimization;
   - "<hag>+<esn>_joint": the best parameters of the joint optimization "<hag>+<esn>_<SIZE>".
 The ridge coefficient and the peak threshold are those of the best trial of the study, or, for the conditions without a
 study (mfcc, proj, hybrids without joint optimization), chosen with the same cross-validation on the train songs
-(next_phrase_prediction.hpo.cross_validate). Missing studies are skipped.
+(canary.next_phrase_prediction.hpo.cross_validate). Missing studies are skipped.
 
 For each seed (the same seeds for all the conditions, i.e. paired), the reservoirs are drawn with np.random.seed(seed)
 and learn (HAG) on phrases of all the train songs, the readout is trained on all the train songs and the boundaries of
@@ -17,60 +17,25 @@ the test songs are scored. Then paired comparisons by seed: mean difference of F
 interval and the p-value of the Wilcoxon signed-rank test.
 
 Results: outputs/canary/evaluation.csv (one row per condition, size and seed) and comparisons.csv.
-Usage: python -m next_phrase_prediction.evaluate [sizes] [nb_seeds] [max_songs]   (default 250,500,1000 and 10 seeds)
+Usage: python -m canary.next_phrase_prediction.evaluate [sizes] [nb_seeds] [max_songs]   (default 250,500,1000 and 10 seeds)
 """
 import sys
 
 import numpy as np
-import optuna
 import pandas as pd
-from scipy.stats import wilcoxon
 
-from next_phrase_prediction.common import OUTPUTS, load_dataset, pretrain_phrases, scores
-from next_phrase_prediction.hpo import cross_validate, storage, study_exists, study_name_of
-from next_phrase_prediction.models import (ESN_MODELS, HAG_MODELS, PURE_MODELS, build, normal_equations, parts, readout_outputs,
-                                  ridge_readout)
+from canary.common import OUTPUTS, pretrain_phrases
+from canary.evaluate import compare, conditions as task_conditions
+from canary.models import build, normal_equations, readout_outputs, ridge_readout
+from canary.next_phrase_prediction.boundaries import load_dataset, scores
+from canary.next_phrase_prediction.hpo import cross_validate, study_name_of
 
 SIZES = [250, 500, 1000]
-REFERENCE = "random_ee"
-
-
-def best_trial(study_name):
-    if not study_exists(study_name):  # (without creating an empty database)
-        return None
-    try:
-        return optuna.load_study(study_name=study_name, storage=storage(study_name)).best_trial
-    except (KeyError, ValueError):
-        return None
 
 
 def conditions(size):
-    """[(condition, model, params, ridge, threshold)], ridge and threshold None when chosen by cross-validation."""
-    result = []
-
-    def from_study(condition, model, study_name):
-        trial = best_trial(study_name)
-        if trial is None:
-            print(f"  (no study {study_name}: {condition} skipped)")
-        else:
-            result.append((condition, model, trial.params, trial.user_attrs["ridge"], trial.user_attrs.get("threshold")))
-
-    for model in PURE_MODELS:
-        from_study(model, model, study_name_of(model, size))
-    for hag in HAG_MODELS:
-        trial = best_trial(study_name_of(hag, size))
-        if trial is not None:
-            result.append((f"{hag}_proj", f"{hag}_proj", trial.params, None, None))
-    for hag in HAG_MODELS:
-        for esn in ESN_MODELS:
-            hybrid = f"{hag}+{esn}"
-            halves = [best_trial(study_name_of(part, size // 2)) for part, _ in parts(hybrid)]
-            if all(trial is not None for trial in halves):
-                params = {prefix + key: value for (_, prefix), trial in zip(parts(hybrid), halves)
-                          for key, value in trial.params.items()}
-                result.append((hybrid, hybrid, params, None, None))
-            from_study(f"{hybrid}_joint", hybrid, study_name_of(hybrid, size))
-    return result
+    """canary.evaluate.conditions of the studies of the task (canary.next_phrase_prediction.hpo.study_name_of)."""
+    return task_conditions(size, study_name_of)
 
 
 def evaluate(model, params, size, ridge, threshold, songs, train_songs, test_songs, frame, seed):
@@ -80,35 +45,6 @@ def evaluate(model, params, size, ridge, threshold, songs, train_songs, test_son
     test_outputs = readout_outputs(reservoirs, songs, test_songs, [Wout])
     outputs = [test_outputs[w][:, 0] for w in test_songs]
     return scores(outputs, songs, test_songs, threshold, frame)
-
-
-def compare(results, nb_bootstrap=10000, metric="f1"):
-    """Paired comparisons by seed of the metric (condition A - condition B), for each size."""
-    rows = []
-    rng = np.random.default_rng(0)
-    mfcc = results[results.condition == "mfcc"]
-    for size, by_size in results[results.condition != "mfcc"].groupby("network_size"):
-        by_size = pd.concat([by_size, mfcc])
-        f1 = by_size.pivot_table(index="seed", columns="condition", values=metric)
-        pairs = [(c, REFERENCE) for c in f1.columns if c != REFERENCE]
-        pairs += [(hag, f"{hag}_proj") for hag in HAG_MODELS]
-        for hag in HAG_MODELS:
-            for esn in ESN_MODELS:
-                hybrid = f"{hag}+{esn}"
-                pairs += [(hybrid, hag), (hybrid, esn), (f"{hybrid}_joint", hybrid), (f"{hybrid}_joint", hag),
-                          (f"{hybrid}_joint", esn)]
-        for a, b in dict.fromkeys(pairs):
-            if a not in f1.columns or b not in f1.columns:
-                continue
-            diff = (f1[a] - f1[b]).dropna().to_numpy()
-            if len(diff) == 0:
-                continue
-            means = rng.choice(diff, size=(nb_bootstrap, len(diff))).mean(axis=1)
-            p_value = wilcoxon(diff).pvalue if np.any(diff != 0) else 1.0
-            rows.append(dict(network_size=size, a=a, b=b, nb_seeds=len(diff), mean_diff=diff.mean(),
-                             ci_low=np.percentile(means, 2.5), ci_high=np.percentile(means, 97.5),
-                             wilcoxon_p=p_value, a_better=int((diff > 0).sum())))
-    return pd.DataFrame(rows)
 
 
 if __name__ == "__main__":
@@ -137,7 +73,7 @@ if __name__ == "__main__":
               f"{threshold:.2f})", flush=True)
 
     results = pd.DataFrame(rows)
-    comparisons = compare(results)
+    comparisons = compare(results, metric="f1")
     pd.set_option("display.width", 200)
     print(comparisons.round(4).to_string(index=False))
     if max_songs is None:

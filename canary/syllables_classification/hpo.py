@@ -1,26 +1,25 @@
 """
-Hyperparameter optimization of the syllable classification (syllables_classification.classification), on the train
-songs only (the test songs are used once, by syllables_classification.classification).
+Hyperparameter optimization of the syllable classification (canary.syllables_classification.classification), on the train
+songs only (the test songs are used once, by canary.syllables_classification.classification).
 
 Objective: out-of-fold frame accuracy of the syllable classification, in a 3-fold cross-validation by song on the
-train songs (syllables_classification.classification.choose_ridge: in each fold, the reservoirs are built, HAG learning
+train songs (canary.syllables_classification.classification.choose_ridge: in each fold, the reservoirs are built, HAG learning
 on phrases of the fold's training songs, and the ridge readout is trained for every coefficient of RIDGES; the ridge
 coefficient is chosen on the out-of-fold frames, stored in the trial (user attribute "ridge") for the final evaluation).
 The ridge coefficient is thus not a hyperparameter of the search, for all the models.
 
-Studies: "syllables_<model>_<size>" (see syllables_classification.models), "syllables_gains_<model>_<size>" with
+Studies: "syllables_<model>_<size>" (see canary.models), "syllables_gains_<model>_<size>" with
 HAG_CANARY_INPUT_GAINS=1 (gain of each group of input features in the search, see objective_function) and
 "syllables_gains_leak_<model>_<size>" with HAG_CANARY_LEAK=1 too (leak rate of each reservoir in the search, instead of
 1); one SQLite database each in STUDIES_DIR (HAG_CANARY_STUDIES, default outputs/canary/studies). The joint
 optimization of a hybrid "<hag>+<esn>" of SIZE neurons starts with (enqueued trial) the best parameters of the studies
 "<hag>_<SIZE/2>" and "<esn>_<SIZE/2>".
 
-Usage: python -m syllables_classification.hpo <model> <size>   (N_TRIALS trials)
+Usage: python -m canary.syllables_classification.hpo <model> <size>   (N_TRIALS trials)
   workers: HAG_CANARY_WORKERS processes (default 1) optimizing the same study.
 """
 import os
 import sys
-from pathlib import Path
 
 import optuna
 from joblib import Parallel, delayed
@@ -28,14 +27,10 @@ from optuna.samplers import TPESampler
 from optuna.study import MaxTrialsCallback
 from optuna.trial import TrialState
 
-from syllables_classification.common import OUTPUTS, load_dataset
-from syllables_classification.models import ESN_MODELS, HAG_MODELS, PURE_MODELS, parts
+from canary.common import load_dataset
+from canary.hpo import N_TRIALS, stop_after_failures, storage, study_exists
+from canary.models import ESN_MODELS, HAG_MODELS, PURE_MODELS, parts
 
-STUDIES_DIR = Path(os.environ.get("HAG_CANARY_STUDIES", OUTPUTS / "studies"))
-N_FOLDS = 3
-FOLD_SEED = 0
-CV_SEED = 1000  # matrices of fold k drawn with np.random.seed(CV_SEED + k), the same for all the trials
-N_TRIALS = 400
 # gain of each group of input features (MFCC, deltas, delta-deltas) in the search, studies "syllables_gains_*"
 INPUT_GAINS = os.environ.get("HAG_CANARY_INPUT_GAINS") == "1"
 LEAK = os.environ.get("HAG_CANARY_LEAK") == "1"
@@ -49,23 +44,13 @@ def study_name_of(model, size):
 
 def load_task_dataset():
     """(songs, train songs, frame, classes of the syllable classification)."""
-    from syllables_classification.classification import add_frame_labels
+    from canary.syllables_classification.classification import add_frame_labels
     songs, train_songs, _, frame = load_dataset()
     return songs, train_songs, frame, add_frame_labels(songs, frame)
 
 
-def storage(study_name):
-    STUDIES_DIR.mkdir(parents=True, exist_ok=True)
-    return f"sqlite:///{STUDIES_DIR / study_name}.sqlite3"
-
-
-def study_exists(study_name):
-    """Whether the database of the study exists (opening a missing SQLite database creates it, empty)."""
-    return (STUDIES_DIR / f"{study_name}.sqlite3").exists()
-
-
 def objective_function(model, size, songs, train_songs, frame, classes):
-    from syllables_classification.classification import choose_ridge
+    from canary.syllables_classification.classification import choose_ridge
     length = max(int(end / frame) + 1 - int(start / frame) for w in train_songs for start, end, _ in songs[w]["phrases"])
 
     def objective(trial):
@@ -118,15 +103,6 @@ def initial_trial(model, size):
         study = optuna.load_study(study_name=name, storage=storage(name))
         params.update({prefix + key: value for key, value in study.best_trial.params.items()})
     return params
-
-
-def stop_after_failures(max_failures=10):
-    """Callback stopping the optimization after max_failures failed trials in a row (systematic error)."""
-    def callback(study, trial):
-        last = [t.state for t in study.get_trials(deepcopy=False)][-max_failures:]
-        if len(last) == max_failures and all(state == TrialState.FAIL for state in last):
-            study.stop()
-    return callback
 
 
 def worker(model, size, worker_index):

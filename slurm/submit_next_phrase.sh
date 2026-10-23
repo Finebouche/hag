@@ -1,5 +1,5 @@
 #!/bin/bash
-# Prediction of the next phrase of canary songs (next_phrase_prediction.prediction) on PlaFRIM, one job per condition
+# Prediction of the next phrase of canary songs (canary.next_phrase_prediction.prediction) on PlaFRIM, one job per condition
 # (reservoirs of the next-phrase studies, outputs/canary/studies), then the merge of their results and the paired
 # comparisons. Run from the root of a checkout of the detection branch:
 #   HAG_CANARY_TASK=next_phrase [HAG_CANARY_LEAK=1] bash slurm/submit_next_phrase.sh [sizes] [nb_seeds]   (default 500,1000 and 10 seeds)
@@ -19,7 +19,7 @@ micromamba activate hag_env
 set -u
 TASKS=slurm/tasks/next_phrase_$(date +%Y%m%d_%H%M%S).txt
 HAG_CANARY_STUDIES=$PWD/outputs/canary/studies PYTHONPATH=$PWD \
-    python -m next_phrase_prediction.prediction list "$SIZES" 2>/dev/null | grep -E "^[^ ]+ [0-9]+$" > "$TASKS"
+    python -m canary.next_phrase_prediction.prediction list "$SIZES" 2>/dev/null | grep -E "^[^ ]+ [0-9]+$" > "$TASKS"
 n=$(wc -l < "$TASKS")
 
 array=$(sbatch --parsable "${NODES[@]}" --array=0-$((n - 1))%$MAX_RUNNING --time=1-00:00:00 \

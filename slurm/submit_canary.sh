@@ -1,10 +1,10 @@
 #!/bin/bash
-# Full canary boundary detection experiment (next_phrase_prediction), run from the root of a checkout of the detection branch:
-#   1. optimization of the pure models (next_phrase_prediction.models.PURE_MODELS) at each size of SIZES, job array;
+# Full canary boundary detection experiment (canary.next_phrase_prediction), run from the root of a checkout of the detection branch:
+#   1. optimization of the pure models (canary.models.PURE_MODELS) at each size of SIZES, job array;
 #   2. joint optimization of the hybrids <hag>+<esn> at each size of HYBRID_SIZES, starting from the parts optimized
 #      alone at half the size (after 1);
 #   3. final evaluation with NB_SEEDS seeds and the paired comparisons (after 2).
-# next_phrase_prediction.hpo.N_TRIALS trials per study (Optuna, TPE). With HAG_CANARY_TASK=syllables, the studies optimize
+# canary.next_phrase_prediction.hpo.N_TRIALS trials per study (Optuna, TPE). With HAG_CANARY_TASK=syllables, the studies optimize
 # the frame accuracy of the syllable classification ("syllables_<model>_<size>") and the final evaluation is
 # slurm/submit_syllables.sh.
 # With HAG_CANARY_TASK=next_phrase, they optimize the accuracy of the prediction of the next phrase
@@ -32,7 +32,7 @@ export MAMBA_ROOT_PREFIX=$HOME/micromamba
 eval "$(micromamba shell hook -s bash)"
 micromamba activate hag_env
 set -u
-PYTHONPATH=$PWD python -c "from next_phrase_prediction.common import load_dataset; load_dataset()" > /dev/null
+PYTHONPATH=$PWD python -c "from canary.common import load_dataset; load_dataset()" > /dev/null
 
 stamp=$(date +%Y%m%d_%H%M%S)
 PURE_TASKS=slurm/tasks/canary_pure_$stamp.txt

@@ -3,7 +3,7 @@ Prediction of the next phrase of canary songs from their audio, in the configura
 prediction (ESN reading the phrase labels of the song, with START and END), but with the MFCC of the song as input:
 the reservoir runs over the whole song (no reset between the phrases) and, at the end of each phrase, the readout predicts
 the label of the next one (END after the last phrase); before the first phrase (Maxime's START), it predicts the first
-one. Phrases as in next_phrase_prediction.common.load_songs: SIL, TRASH and call ignored, repeated labels merged; with
+one. Phrases as in canary.common.load_songs: SIL, TRASH and call ignored, repeated labels merged; with
 HAG_CANARY_CALLS=1, the calls are phrases too (SIL and TRASH ignored). With HAG_CANARY_RESET=1, the reservoirs hear
 the current phrase only, from a zero state (as the Canary task of the main branch), instead of the whole song: the
 state of a point is the last one of a run on the frames of the phrase that ends there (the zero state before the first
@@ -15,23 +15,23 @@ last frame whose window and deltas end before t (DELAY earlier). The deltas are 
 of the "wrap" of the cached features, which joins the end of each song to its beginning.
 
 Readout: ridge regression on the one-hot next label at the prediction points, its coefficient chosen by the 3-fold
-cross-validation by song on the train songs (out-of-fold accuracy, as syllables_classification.classification), then trained on all the
+cross-validation by song on the train songs (out-of-fold accuracy), then trained on all the
 train songs and scored on the test songs for each seed. Metrics as Maxime's: accuracy and macro F1 of all the points,
 without the last one of each song ("skip_last": its target is END), and of the phrases only ("no_end": points whose
 target is a phrase, argmax over the phrases).
-References: n-grams of the true labels of the previous phrases (next_phrase_prediction.prediction baselines): fixed order n
+References: n-grams of the true labels of the previous phrases (canary.next_phrase_prediction.prediction baselines): fixed order n
 (the n previous labels, START before the first phrase; unseen context: the most frequent next label) and adaptive (the
 longest context seen in the train songs, up to MAX_ORDER).
 
 Results: outputs/canary/<HAG_CANARY_TASK=next_phrase prefix>hpo.csv (e.g. next_phrase_leak_hpo.csv) and
 <...>_comparisons.csv, references in next_phrase_ngrams.csv (next_phrase_calls_ngrams.csv with the calls).
 Usage (HAG_CANARY_TASK=next_phrase, with the variables of the studies, e.g. HAG_CANARY_LEAK=1):
-  python -m next_phrase_prediction.prediction [sizes] [nb_seeds] [max_songs]   all the conditions (default 500,1000, 10 seeds)
-  python -m next_phrase_prediction.prediction run <condition> <size> [nb_seeds]   one condition (slurm/submit_next_phrase.sh),
+  python -m canary.next_phrase_prediction.prediction [sizes] [nb_seeds] [max_songs]   all the conditions (default 500,1000, 10 seeds)
+  python -m canary.next_phrase_prediction.prediction run <condition> <size> [nb_seeds]   one condition (slurm/submit_next_phrase.sh),
                                                                           results in outputs/canary/<name>_parts
-  python -m next_phrase_prediction.prediction merge                               results of the parts and the comparisons
-  python -m next_phrase_prediction.prediction list <sizes>                        "<condition> <size>" of all the conditions
-  python -m next_phrase_prediction.prediction baselines                           the n-grams
+  python -m canary.next_phrase_prediction.prediction merge                               results of the parts and the comparisons
+  python -m canary.next_phrase_prediction.prediction list <sizes>                        "<condition> <size>" of all the conditions
+  python -m canary.next_phrase_prediction.prediction baselines                           the n-grams
 """
 import sys
 from collections import Counter
@@ -42,12 +42,14 @@ from librosa.feature import delta
 from sklearn.metrics import f1_score
 from sklearn.model_selection import KFold
 
+from canary.common import (OUTPUTS, RIDGES, SAMPLING_RATE, annotations_of_songs, load_dataset, pretrain_phrases,
+                           song_phrases)
+from canary.evaluate import compare
+from canary.hpo import CV_SEED, FOLD_SEED, N_FOLDS
+from canary.models import CHUNK, build, ridge_readout, state_chunks, states
+from canary.next_phrase_prediction.evaluate import conditions
+from canary.next_phrase_prediction.hpo import CALLS, RESET, STUDY_PREFIX, TASK
 from hag.datasets.load_categorical_forecasting import canary_mfcc_config
-from next_phrase_prediction.common import (OUTPUTS, RIDGES, SAMPLING_RATE, annotations_of_songs, load_dataset, pretrain_phrases,
-                                  song_phrases)
-from next_phrase_prediction.evaluate import compare, conditions
-from next_phrase_prediction.hpo import CALLS, CV_SEED, FOLD_SEED, N_FOLDS, RESET, STUDY_PREFIX, TASK
-from next_phrase_prediction.models import CHUNK, build, ridge_readout, state_chunks, states
 
 SIZES = [500, 1000]
 START, END = "START", "END"
@@ -122,7 +124,7 @@ def phrase_point_states(reservoirs, songs, waves):
 
 
 def statistics(states, songs, waves, classes):
-    """Centered statistics of the ridge readout (next_phrase_prediction.models.ridge_readout) on the one-hot next labels."""
+    """Centered statistics of the ridge readout (canary.models.ridge_readout) on the one-hot next labels."""
     X = np.vstack([states[w] for w in waves])
     Y = np.vstack([songs[w]["next"][:, None] == classes[None, :] for w in waves]).astype(np.float64)
     x_mean, y_mean = X.mean(axis=0), Y.mean(axis=0)
@@ -136,7 +138,7 @@ def outputs(states, waves, Wout):
 
 def choose_ridge(model, params, size, songs, train_songs, frame, classes):
     """Ridge coefficient of the best out-of-fold accuracy, in a 3-fold cross-validation by song (the folds of
-    next_phrase_prediction.hpo), and this accuracy."""
+    canary.next_phrase_prediction.hpo), and this accuracy."""
     correct = np.zeros(len(RIDGES))
     total = 0
     for k, (fit_index, val_index) in enumerate(KFold(N_FOLDS, shuffle=True, random_state=FOLD_SEED).split(train_songs)):

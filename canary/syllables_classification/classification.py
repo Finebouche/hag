@@ -5,21 +5,21 @@ canapy's frame accuracy: the share of the frames of the recordings (silences inc
 likely class, no post-processing) is the annotated label. A frame k is labeled with the annotated segment that covers
 it, frames from floor(onset / hop) to floor(offset / hop) (canapy's as_frame_comparison), SIL elsewhere.
 
-Same songs, MFCC (44.1 kHz) and reservoirs as the boundary detection (next_phrase_prediction.evaluate.conditions: the best
-parameters of the detection studies, no leak and no spectral radius of canapy's ESN). Only the readout changes: a ridge
-regression on the one-hot labels (centered statistics, next_phrase_prediction.models.normal_equations), its coefficient chosen
-by the same 3-fold cross-validation by song on the train songs (out-of-fold frame accuracy), then trained on all the
-train songs and scored on the test songs for each seed (paired comparisons as next_phrase_prediction.evaluate).
+Songs, MFCC (44.1 kHz) and reservoirs of canary.syllables_classification (common, models): the conditions of
+canary.syllables_classification.evaluate.conditions, with the best parameters of the syllable studies
+(canary.syllables_classification.hpo, optimized on the out-of-fold frame accuracy). The readout is a ridge regression on the
+one-hot labels (centered statistics, canary.models.normal_equations), its coefficient chosen by a
+3-fold cross-validation by song on the train songs (out-of-fold frame accuracy), then trained on all the train songs
+and scored on the test songs for each seed (paired comparisons, canary.evaluate.compare).
 
-Results: outputs/canary/syllables.csv and syllables_comparisons.csv; with HAG_CANARY_TASK=syllables, the reservoirs
-of the syllable studies (next_phrase_prediction.hpo optimized on the frame accuracy) and syllables_hpo.csv,
-syllables_hpo_comparisons.csv.
+Results: outputs/canary/<prefix of the studies>hpo.csv and ..._comparisons.csv (syllables_hpo.csv,
+syllables_gains_hpo.csv with HAG_CANARY_INPUT_GAINS=1, syllables_gains_leak_hpo.csv with HAG_CANARY_LEAK=1 too).
 Usage:
-  python -m syllables_classification.classification [sizes] [nb_seeds] [max_songs]   all the conditions (default 250,500,1000, 10 seeds)
-  python -m syllables_classification.classification run <condition> <size> [nb_seeds]   one condition (one job of slurm/submit_syllables.sh),
+  python -m canary.syllables_classification.classification [sizes] [nb_seeds] [max_songs]   all the conditions (default 250,500,1000, 10 seeds)
+  python -m canary.syllables_classification.classification run <condition> <size> [nb_seeds]   one condition (one job of slurm/submit_syllables.sh),
                                                                         results in outputs/canary/syllables_parts
-  python -m syllables_classification.classification merge                               results of the parts and the comparisons
-  python -m syllables_classification.classification list <sizes>                        "<condition> <size>" of all the conditions
+  python -m canary.syllables_classification.classification merge                               results of the parts and the comparisons
+  python -m canary.syllables_classification.classification list <sizes>                        "<condition> <size>" of all the conditions
 """
 import sys
 
@@ -28,10 +28,12 @@ import pandas as pd
 from sklearn.model_selection import KFold
 
 from hag.datasets.load_categorical_forecasting import download_canary_if_needed
-from next_phrase_prediction.common import OUTPUTS, RIDGES, load_dataset, pretrain_phrases
-from next_phrase_prediction.evaluate import SIZES, compare, conditions
-from next_phrase_prediction.hpo import CV_SEED, FOLD_SEED, N_FOLDS, STUDY_PREFIX, TASK
-from next_phrase_prediction.models import build, normal_equations, ridge_readout, state_chunks
+from canary.common import OUTPUTS, RIDGES, load_dataset, pretrain_phrases
+from canary.evaluate import compare
+from canary.hpo import CV_SEED, FOLD_SEED, N_FOLDS
+from canary.models import build, normal_equations, ridge_readout, state_chunks
+from canary.syllables_classification.evaluate import SIZES, conditions
+from canary.syllables_classification.hpo import STUDY_PREFIX
 
 SILENCE = "SIL"
 
@@ -96,7 +98,7 @@ def evaluate(model, params, size, ridge, songs, train_songs, test_songs, frame, 
 
 
 # reservoirs of the syllable studies (with the input gains, the leak rate) or of the boundary studies
-NAME = f"{STUDY_PREFIX}hpo" if TASK == "syllables" else "syllables"
+NAME = f"{STUDY_PREFIX}hpo"
 PARTS = OUTPUTS / f"{NAME}_parts"
 
 

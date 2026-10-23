@@ -1,29 +1,31 @@
 """
 Does the certainty of the syllable classification rise along a phrase? After training the readout of the syllable
-classification (syllables_classification.classification), on every phrase of the test songs (merged annotated segments
+classification (canary.syllables_classification.classification), on every phrase of the test songs (merged annotated segments
 of one syllable type, SIL, TRASH and calls excluded: songs[w]["phrases"]), frame by frame, the output of the unit of the
-true class, its margin and the correctness (canapy's frame accuracy), along the phrase (next_phrase_prediction.certainty_common).
+true class, its margin and the correctness (canapy's frame accuracy), along the phrase
+(canary.certainty).
 
-Reservoirs: best parameters of the studies of next_phrase_prediction.evaluate.conditions (syllable studies with
-HAG_CANARY_TASK=syllables, boundary studies otherwise), ridge of the best trial of the study (or chosen by the
-cross-validation of syllables_classification.classification). Results: outputs/canary/certainty_<size>.csv (bins),
+Reservoirs: best parameters of the syllable studies (canary.syllables_classification.evaluate.conditions, with the variables
+of the studies, e.g. HAG_CANARY_INPUT_GAINS=1, HAG_CANARY_LEAK=1), ridge of the best trial of the study (or chosen by the
+cross-validation of canary.syllables_classification.classification). Results: outputs/canary/certainty_<size>.csv (bins),
 certainty_<size>_phrases.csv (first / last third per condition and seed) and certainty_<size>.png.
 
-Usage: python -m syllables_classification.certainty [size] [conditions] [nb_seeds] [max_songs]
+Usage: python -m canary.syllables_classification.certainty [size] [conditions] [nb_seeds] [max_songs]
   (default 1000, mean_hag,var_hag,random_ee,random_ee_dense, 3 seeds)
 """
 import sys
 
 import numpy as np
 
-from next_phrase_prediction.certainty_common import MIN_FRAMES, curve, evaluate_conditions, save, summarize
-from next_phrase_prediction.common import load_dataset, pretrain_phrases
-from next_phrase_prediction.models import build, normal_equations, ridge_readout, state_chunks
-from syllables_classification.classification import add_frame_labels, choose_ridge
+from canary.certainty import MIN_FRAMES, curve, evaluate_conditions, save, summarize
+from canary.common import load_dataset, pretrain_phrases
+from canary.models import build, normal_equations, ridge_readout, state_chunks
+from canary.syllables_classification.classification import add_frame_labels, choose_ridge
+from canary.syllables_classification.evaluate import conditions
 
 
 def phrase_curves(output, labels_index, phrases, frame):
-    """Curves (next_phrase_prediction.certainty_common.curve) of the readout output (frames, classes) of a song on its phrases."""
+    """Curves (canary.certainty.curve) of the readout output (frames, classes) of a song on its phrases."""
     curves = []
     for start, end, label in phrases:
         f0, f1 = int(np.floor(start / frame)), min(int(np.floor(end / frame)), len(output))
@@ -53,7 +55,7 @@ if __name__ == "__main__":
 
     songs, train_songs, test_songs, frame = load_dataset(max_songs)
     classes = add_frame_labels(songs, frame)
-    bins, phrases = evaluate_conditions(size, wanted, nb_seeds, songs, train_songs, test_songs, frame, classes,
+    bins, phrases = evaluate_conditions(conditions, size, wanted, nb_seeds, songs, train_songs, test_songs, frame, classes,
                                         choose_ridge, run)
     save(bins, phrases, "certainty", size, max_songs is not None, "Certainty along the phrases",
          ("Output of the true-class unit", "Frame accuracy"))

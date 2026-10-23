@@ -5,10 +5,10 @@ group, ridge 1e-8) trained on our train songs, and its frame accuracy (canapy.me
 predictions, all the frames, silence included) on our test songs, for its annotators syn, nsyn and their ensemble.
 
 Two steps, in two environments:
-  python -m syllables_classification.canapy_reference split <directory>
-      (hag environment) our train and test songs (next_phrase_prediction.common.load_songs) as two directories of links to
+  python -m canary.syllables_classification.canapy_reference split <directory>
+      (hag environment) our train and test songs (canary.common.load_songs) as two directories of links to
       their audio and annotation files: <directory>/{train,test}/{audio,annotations}
-  python syllables_classification/canapy_reference.py run <directory> [seeds]
+  python canary/syllables_classification/canapy_reference.py run <directory> [seeds]
       (canapy environment, no hag import) training and frame accuracy, results in <directory>/canapy_frame_accuracy.csv
 canapy keeps at least one song of its training corpus for its own internal test (test_ratio = 0: 1 song).
 """
@@ -39,7 +39,7 @@ def split(directory):
 
 
 def _split_only():
-    """Train and test songs of next_phrase_prediction.common.load_songs without loading the audio."""
+    """Train and test songs of canary.common.load_songs without loading the audio."""
     import pandas as pd
     from sklearn.model_selection import GroupShuffleSplit
     from hag.datasets.load_categorical_forecasting import (CANARY_SPLIT_SEED, build_phrase_sequences,

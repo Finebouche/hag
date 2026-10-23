@@ -1,7 +1,6 @@
 """
-Shared parts of the syllable classification (syllables_classification): songs and their train/test split, MFCC
-features and HAG pretraining phrases. Same songs, split and MFCC (cached in FEATURES_CACHE, also read by
-next_phrase_prediction) as the next-phrase prediction.
+Songs of the canary tasks (canary.next_phrase_prediction, canary.syllables_classification): train/test split, MFCC
+features (cached in FEATURES_CACHE), phrases and HAG pretraining phrases.
 """
 from pathlib import Path
 
@@ -46,7 +45,7 @@ def load_songs(max_songs=None):
     """
     Songs of the next-phrase dataset with its train/test split by song (same songs as load_canary_dataset).
     Returns (songs, train_songs, test_songs): songs[wave] = dict(audio, phrases=[(start, end, label)],
-    boundaries=[(time, silence)]) (the boundaries: same format of the cache as next_phrase_prediction).
+    boundaries=[(time, silence)]) (boundaries between the phrases, silent or not).
     """
     _, audio_dir = download_canary_if_needed()
     annotations = annotations_of_songs()
@@ -102,8 +101,8 @@ def pretrain_phrases(songs, train_songs, frame):
 
 def load_dataset(max_songs=None):
     """
-    Songs ready for the classification: songs[wave] = dict(mfcc (scaled on the train songs), phrases, boundaries),
-    train and test songs, frame duration. The MFCC of all the songs are cached in FEATURES_CACHE (no audio kept).
+    Songs of the tasks: songs[wave] = dict(mfcc (scaled on the train songs), phrases, boundaries), train and test
+    songs, frame duration. The MFCC of all the songs are cached in FEATURES_CACHE (no audio kept).
     """
     import pickle
     if FEATURES_CACHE.exists():

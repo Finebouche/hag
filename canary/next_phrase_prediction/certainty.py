@@ -1,8 +1,8 @@
 """
-Certainty of the prediction of the next phrase (next_phrase_prediction.prediction) along the current phrase: its
+Certainty of the prediction of the next phrase (canary.next_phrase_prediction.prediction) along the current phrase: its
 readout is trained at the prediction points of the train songs, then applied to every frame of each phrase of the test
 songs up to its prediction point (no frame hearing the next phrase), the true class being the next phrase (END after
-the last one); output of its unit, margin and correctness along the phrase (next_phrase_prediction.certainty_common). With
+the last one); output of its unit, margin and correctness along the phrase (canary.certainty). With
 HAG_CANARY_RESET=1, the frames of a phrase are those of a run of the reservoirs from a zero state on the phrase.
 
 Reservoirs: best parameters of the next-phrase studies (HAG_CANARY_TASK=next_phrase and the variables of the
@@ -10,23 +10,24 @@ studies, e.g. HAG_CANARY_LEAK=1, HAG_CANARY_RESET=1, HAG_CANARY_CALLS=1), ridge 
 Results: outputs/canary/<prefix of the studies>certainty_<size>.csv, ..._phrases.csv and .png (e.g.
 next_phrase_leak_certainty_1000.csv).
 
-Usage: python -m next_phrase_prediction.certainty [size] [conditions] [nb_seeds] [max_songs]
+Usage: python -m canary.next_phrase_prediction.certainty [size] [conditions] [nb_seeds] [max_songs]
   (default 1000, mean_hag,var_hag,random_ee,random_ei, 3 seeds)
 """
 import sys
 
 import numpy as np
 
-from next_phrase_prediction.certainty_common import MIN_FRAMES, curve, evaluate_conditions, save, summarize
-from next_phrase_prediction.common import load_dataset, pretrain_phrases
-from next_phrase_prediction.hpo import RESET, STUDY_PREFIX, TASK
-from next_phrase_prediction.models import CHUNK, build, ridge_readout, state_chunks, states
-from next_phrase_prediction.prediction import choose_ridge, point_states, prepare, statistics
+from canary.certainty import MIN_FRAMES, curve, evaluate_conditions, save, summarize
+from canary.common import load_dataset, pretrain_phrases
+from canary.models import CHUNK, build, ridge_readout, state_chunks, states
+from canary.next_phrase_prediction.evaluate import conditions
+from canary.next_phrase_prediction.hpo import RESET, STUDY_PREFIX, TASK
+from canary.next_phrase_prediction.prediction import choose_ridge, point_states, prepare, statistics
 
 
 def phrase_frames(songs, waves, frame):
     """[(wave, j, first frame, end frame)] of each phrase j of the songs: from its onset to its prediction point
-    (next_phrase_prediction.prediction), the phrases of fewer than MIN_FRAMES frames skipped."""
+    (canary.next_phrase_prediction.prediction), the phrases of fewer than MIN_FRAMES frames skipped."""
     result = []
     for w in waves:
         for j, (start, _, _) in enumerate(songs[w]["next_phrases"]):
@@ -73,7 +74,7 @@ if __name__ == "__main__":
 
     songs, train_songs, test_songs, frame = load_dataset(max_songs)
     classes = prepare(songs, train_songs, frame)
-    bins, phrases = evaluate_conditions(size, wanted, nb_seeds, songs, train_songs, test_songs, frame, classes,
+    bins, phrases = evaluate_conditions(conditions, size, wanted, nb_seeds, songs, train_songs, test_songs, frame, classes,
                                         choose_ridge, run)
     save(bins, phrases, f"{STUDY_PREFIX}certainty", size, max_songs is not None,
          "Certainty of the next phrase along the phrases", ("Output of the next-phrase unit", "Accuracy of the next phrase"))

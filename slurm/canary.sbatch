@@ -1,15 +1,16 @@
 #!/bin/bash
-# Canary boundary detection on PlaFRIM (next_phrase_prediction), from a checkout of the detection branch:
-#   - HAG_CANARY_MODE=hpo (default): hyperparameter optimization python -m next_phrase_prediction.hpo <model> <size>,
-#     HAG_CANARY_WORKERS processes sharing the cores; in a job array, "<model> <size>" is the line
-#     SLURM_ARRAY_TASK_ID (from 0) of the file HAG_CANARY_TASKS;
-#   - HAG_CANARY_MODE=evaluate: final evaluation python -m next_phrase_prediction.evaluate [sizes] [nb_seeds];
-#   - HAG_CANARY_MODE=syllables: frame-by-frame syllable classification python -m syllables_classification.classification [sizes]
-#     [nb_seeds] (reservoirs of the detection studies);
-#   - HAG_CANARY_MODE=next_phrase: prediction of the next phrase python -m next_phrase_prediction.prediction [sizes]
+# Canary songs on PlaFRIM (canary.next_phrase_prediction: boundaries and next phrase; canary.syllables_classification), from a
+# checkout of the detection branch:
+#   - HAG_CANARY_MODE=hpo (default): hyperparameter optimization python -m canary.next_phrase_prediction.hpo <model> <size>
+#     (python -m canary.syllables_classification.hpo with HAG_CANARY_TASK=syllables), HAG_CANARY_WORKERS processes sharing
+#     the cores; in a job array, "<model> <size>" is the line SLURM_ARRAY_TASK_ID (from 0) of the file HAG_CANARY_TASKS;
+#   - HAG_CANARY_MODE=evaluate: final evaluation python -m canary.next_phrase_prediction.evaluate [sizes] [nb_seeds];
+#   - HAG_CANARY_MODE=syllables: frame-by-frame syllable classification python -m
+#     canary.syllables_classification.classification [sizes] [nb_seeds] (reservoirs of the syllable studies);
+#   - HAG_CANARY_MODE=next_phrase: prediction of the next phrase python -m canary.next_phrase_prediction.prediction [sizes]
 #     [nb_seeds] (reservoirs of the next-phrase studies, HAG_CANARY_TASK=next_phrase);
-#   - HAG_CANARY_MODE=certainty: certainty along the phrases python -m syllables_classification.certainty [size]
-#     [conditions] [nb_seeds] (next_phrase_prediction.certainty with HAG_CANARY_TASK=next_phrase).
+#   - HAG_CANARY_MODE=certainty: certainty along the phrases python -m canary.syllables_classification.certainty [size]
+#     [conditions] [nb_seeds] (canary.next_phrase_prediction.certainty with HAG_CANARY_TASK=next_phrase).
 # The Optuna databases are in /dev/shm during the job (SQLite does not support the network file systems well, and the
 # suroit nodes have no local disk), copied from and back to outputs/canary/studies (every 10 minutes and at the
 # end, without replacing more recent files). Submit everything with slurm/submit_canary.sh.
@@ -55,21 +56,23 @@ trap 'exit 143' TERM
 echo "[slurm] job ${SLURM_JOB_ID} ${SLURM_ARRAY_TASK_ID:-}: ${HAG_CANARY_MODE:-hpo} $*, on $(hostname)," \
     "$SLURM_CPUS_PER_TASK cores, $WORKERS workers"
 if [ "${HAG_CANARY_MODE:-hpo}" = evaluate ]; then
-    python -m next_phrase_prediction.evaluate "$@"
+    python -m canary.next_phrase_prediction.evaluate "$@"
 elif [ "${HAG_CANARY_MODE:-hpo}" = certainty ]; then
     if [ "${HAG_CANARY_TASK:-}" = next_phrase ]; then
-        python -m next_phrase_prediction.certainty "$@"
+        python -m canary.next_phrase_prediction.certainty "$@"
     else
-        python -m syllables_classification.certainty "$@"
+        python -m canary.syllables_classification.certainty "$@"
     fi
 elif [ "${HAG_CANARY_MODE:-hpo}" = syllables ]; then
     # in a job array: one condition ("<condition> <size>" of HAG_CANARY_TASKS)
     if [ -n "${HAG_CANARY_TASKS:-}" ]; then set -- run "$@"; fi
-    python -m syllables_classification.classification "$@"
+    python -m canary.syllables_classification.classification "$@"
 elif [ "${HAG_CANARY_MODE:-hpo}" = next_phrase ]; then
     # in a job array: one condition ("<condition> <size>" of HAG_CANARY_TASKS)
     if [ -n "${HAG_CANARY_TASKS:-}" ]; then set -- run "$@"; fi
-    python -m next_phrase_prediction.prediction "$@"
+    python -m canary.next_phrase_prediction.prediction "$@"
+elif [ "${HAG_CANARY_TASK:-}" = syllables ]; then
+    python -m canary.syllables_classification.hpo "$@"
 else
-    python -m next_phrase_prediction.hpo "$@"
+    python -m canary.next_phrase_prediction.hpo "$@"
 fi

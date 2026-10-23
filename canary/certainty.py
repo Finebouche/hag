@@ -1,6 +1,6 @@
 """
-Certainty of a readout along the phrases of the test songs, shared by syllables_classification.certainty (class of the
-syllable) and next_phrase_prediction.certainty (next phrase). On the frames of every phrase:
+Certainty of a readout along the phrases of the test songs, shared by canary.next_phrase_prediction.certainty (next
+phrase) and canary.syllables_classification.certainty (class of the syllable). On the frames of every phrase:
   - true_output: output of the readout unit of the true class;
   - margin: true_output minus the largest output of the other classes (> 0: frame correctly classified);
   - correct: the frame is correctly classified.
@@ -8,8 +8,8 @@ These are averaged per phrase in bins of the relative position in the phrase (0 
 the time since the onset, then over the phrases. For each phrase, the mean true_output of its last third minus that of
 its first third (Wilcoxon signed-rank test over the phrases): > 0 if the unit of the class is more active at the end.
 
-Reservoirs: best parameters of the studies of next_phrase_prediction.evaluate.conditions, ridge of the best trial of the study
-(or chosen by the cross-validation of the task). Results: outputs/canary/<name>_<size>.csv (bins),
+Reservoirs: best parameters of the studies of the conditions of the task (canary.evaluate.conditions), ridge of the
+best trial of the study (or chosen by the cross-validation of the task). Results: outputs/canary/<name>_<size>.csv (bins),
 <name>_<size>_phrases.csv (first / last third per condition and seed) and <name>_<size>.png.
 """
 import sys
@@ -18,8 +18,7 @@ import numpy as np
 import pandas as pd
 from scipy.stats import wilcoxon
 
-from next_phrase_prediction.common import OUTPUTS
-from next_phrase_prediction.evaluate import conditions
+from canary.common import OUTPUTS
 
 RELATIVE_BINS = 10
 ONSET_BIN = 0.05  # s
@@ -64,11 +63,12 @@ def summarize(curves, condition, seed):
     return rows, phrases
 
 
-def evaluate_conditions(size, wanted, nb_seeds, songs, train_songs, test_songs, frame, classes, select_ridge,
+def evaluate_conditions(conditions, size, wanted, nb_seeds, songs, train_songs, test_songs, frame, classes, select_ridge,
                         run_seed):
-    """(bins, phrases) of the conditions wanted of size neurons, for nb_seeds seeds: run_seed(condition, model, params,
-    size, ridge, songs, train_songs, test_songs, frame, classes, seed) -> summarize(...) of the task; the ridge of the
-    conditions without study is chosen by select_ridge(model, params, size, songs, train_songs, frame, classes)."""
+    """(bins, phrases) of the conditions wanted of size neurons (conditions(size) of the task), for nb_seeds seeds:
+    run_seed(condition, model, params, size, ridge, songs, train_songs, test_songs, frame, classes, seed) ->
+    summarize(...) of the task; the ridge of the conditions without study is chosen by select_ridge(model, params, size,
+    songs, train_songs, frame, classes)."""
     available = {c[0]: c for c in conditions(size)}
     bins, phrases = [], []
     for condition in wanted:
