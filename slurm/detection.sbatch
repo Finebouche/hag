@@ -1,7 +1,7 @@
 #!/bin/bash
 # Canary boundary detection on PlaFRIM (hag_detection), from a checkout of the detection branch:
-#   - HAG_DETECTION_MODE=hpo (default): hyperparameter optimization python -m hag_detection.hpo <model> <size>
-#     [n_trials], HAG_DETECTION_WORKERS processes sharing the cores; in a job array, "<model> <size>" is the line
+#   - HAG_DETECTION_MODE=hpo (default): hyperparameter optimization python -m hag_detection.hpo <model> <size>,
+#     HAG_DETECTION_WORKERS processes sharing the cores; in a job array, "<model> <size>" is the line
 #     SLURM_ARRAY_TASK_ID (from 0) of the file HAG_DETECTION_TASKS;
 #   - HAG_DETECTION_MODE=evaluate: final evaluation python -m hag_detection.evaluate [sizes] [nb_seeds];
 #   - HAG_DETECTION_MODE=syllables: frame-by-frame syllable classification python -m hag_detection.syllables.classification [sizes]

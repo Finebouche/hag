@@ -171,8 +171,8 @@ if __name__ == "__main__":
             raise ValueError(f"Unknown model {part}, expected one of {PURE_MODELS} or hybrids <hag>+<esn>")
 
     study_name = study_name_of(model, size)
-    study = optuna.create_study(study_name=study_name, storage=storage(study_name), direction="maximize",
-                                load_if_exists=True)
+    study = optuna.create_study(study_name=study_name, storage=storage(study_name), direction="maximize", load_if_exists=True)
+
     if "+" in model and not study.trials:
         # the starting trial is run here, alone: several workers would take the enqueued trial at the same time (the
         # second one then fails when it reports it: "Cannot tell a COMPLETE trial")
@@ -180,6 +180,7 @@ if __name__ == "__main__":
         songs, train_songs, frame, classes = load_task_dataset()
         study.optimize(objective_function(model, size, songs, train_songs, frame, classes), n_trials=1)
         del songs
+
     done = len([t for t in study.trials if t.state == TrialState.COMPLETE])
     print(f"{study_name}: {done} / {N_TRIALS} trials done, {n_workers} workers", flush=True)
     if done < N_TRIALS:
@@ -191,4 +192,3 @@ if __name__ == "__main__":
     print(f"best trial {best.number}: {dict(syllables='frame accuracy', next_phrase='accuracy').get(TASK, 'F1')} {best.value:.4f}, ridge "
           f"{best.user_attrs['ridge']:.0e}" + (f", threshold {threshold:.2f}" if threshold is not None else "")
           + f", {best.params}")
-

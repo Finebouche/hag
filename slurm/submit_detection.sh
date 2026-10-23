@@ -4,8 +4,9 @@
 #   2. joint optimization of the hybrids <hag>+<esn> at each size of HYBRID_SIZES, starting from the parts optimized
 #      alone at half the size (after 1);
 #   3. final evaluation with NB_SEEDS seeds and the paired comparisons (after 2).
-# N_TRIALS trials per study (Optuna, TPE). With HAG_DETECTION_TASK=syllables, the studies optimize the frame accuracy
-# of the syllable classification ("syllables_<model>_<size>") and the final evaluation is slurm/submit_syllables.sh.
+# hag_detection.hpo.N_TRIALS trials per study (Optuna, TPE). With HAG_DETECTION_TASK=syllables, the studies optimize
+# the frame accuracy of the syllable classification ("syllables_<model>_<size>") and the final evaluation is
+# slurm/submit_syllables.sh.
 # With HAG_DETECTION_TASK=next_phrase, they optimize the accuracy of the prediction of the next phrase
 # ("next_phrase_<model>_<size>") and the final evaluation is slurm/submit_next_phrase.sh.
 # With HAG_DETECTION_INPUT_GAINS=1 (syllables, next_phrase), the gain of each group of input features is searched too,
@@ -13,7 +14,6 @@
 # Usage: [HAG_DETECTION_TASK=syllables|next_phrase] [HAG_DETECTION_INPUT_GAINS=1] [HAG_DETECTION_LEAK=1] [PURE="..."]
 #        [HYBRIDS="..."] [SIZES="..."] [HYBRID_SIZES="..."] bash slurm/submit_detection.sh
 set -euo pipefail
-N_TRIALS=${N_TRIALS:-400}
 NB_SEEDS=${NB_SEEDS:-10}
 MAX_RUNNING=${MAX_RUNNING:-12}
 read -r -a SIZES <<< "${SIZES:-250 500 1000}"
@@ -42,12 +42,12 @@ for size in "${HYBRID_SIZES[@]}"; do for model in "${HYBRIDS[@]}"; do echo "$mod
 
 n=$(wc -l < "$PURE_TASKS")
 pure=$(sbatch --parsable "${NODES[@]}" --array=0-$((n - 1))%$MAX_RUNNING --job-name=detection-pure \
-    --export=ALL,HAG_DETECTION_TASKS="$PURE_TASKS" slurm/detection.sbatch "$N_TRIALS")
+    --export=ALL,HAG_DETECTION_TASKS="$PURE_TASKS" slurm/detection.sbatch)
 echo "pure models: job array $pure ($n studies, $PURE_TASKS)"
 
 n=$(wc -l < "$HYBRID_TASKS")
 hybrid=$(sbatch --parsable "${NODES[@]}" --array=0-$((n - 1))%$MAX_RUNNING --job-name=detection-hybrid \
-    --dependency=afterok:$pure --export=ALL,HAG_DETECTION_TASKS="$HYBRID_TASKS" slurm/detection.sbatch "$N_TRIALS")
+    --dependency=afterok:$pure --export=ALL,HAG_DETECTION_TASKS="$HYBRID_TASKS" slurm/detection.sbatch)
 echo "joint hybrids: job array $hybrid ($n studies, $HYBRID_TASKS), after $pure"
 
 if [ "${HAG_DETECTION_TASK:-boundaries}" = syllables ]; then
