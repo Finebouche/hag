@@ -1,5 +1,5 @@
 """
-Shared parts of the canary phrase boundary detection (hag_detection): songs and their train/test split, MFCC features,
+Shared parts of the canary phrase boundary detection (next_phrase_prediction): songs and their train/test split, MFCC features,
 boundary targets, HAG pretraining phrases, ridge readout, peak picking and scores.
 """
 from pathlib import Path
@@ -24,7 +24,7 @@ MIN_PEAK_DISTANCE = 0.1  # s
 RIDGES = 10.0 ** np.arange(-14, 3)
 THRESHOLDS = np.linspace(0.05, 0.95, 19)
 NB_PRETRAIN_PHRASES = 500
-OUTPUTS = Path(__file__).resolve().parents[1] / "outputs" / "detection"
+OUTPUTS = Path(__file__).resolve().parents[1] / "outputs" / "canary"
 FEATURES_CACHE = Path(__file__).resolve().parents[1] / "hag" / "datasets" / "Canary" / f"boundary_features_{SAMPLING_RATE}.pkl"
 
 

@@ -5,21 +5,21 @@ canapy's frame accuracy: the share of the frames of the recordings (silences inc
 likely class, no post-processing) is the annotated label. A frame k is labeled with the annotated segment that covers
 it, frames from floor(onset / hop) to floor(offset / hop) (canapy's as_frame_comparison), SIL elsewhere.
 
-Same songs, MFCC (44.1 kHz) and reservoirs as the boundary detection (hag_detection.evaluate.conditions: the best
+Same songs, MFCC (44.1 kHz) and reservoirs as the boundary detection (next_phrase_prediction.evaluate.conditions: the best
 parameters of the detection studies, no leak and no spectral radius of canapy's ESN). Only the readout changes: a ridge
-regression on the one-hot labels (centered statistics, hag_detection.models.normal_equations), its coefficient chosen
+regression on the one-hot labels (centered statistics, next_phrase_prediction.models.normal_equations), its coefficient chosen
 by the same 3-fold cross-validation by song on the train songs (out-of-fold frame accuracy), then trained on all the
-train songs and scored on the test songs for each seed (paired comparisons as hag_detection.evaluate).
+train songs and scored on the test songs for each seed (paired comparisons as next_phrase_prediction.evaluate).
 
-Results: outputs/detection/syllables.csv and syllables_comparisons.csv; with HAG_DETECTION_TASK=syllables, the reservoirs
-of the syllable studies (hag_detection.hpo optimized on the frame accuracy) and syllables_hpo.csv,
+Results: outputs/canary/syllables.csv and syllables_comparisons.csv; with HAG_CANARY_TASK=syllables, the reservoirs
+of the syllable studies (next_phrase_prediction.hpo optimized on the frame accuracy) and syllables_hpo.csv,
 syllables_hpo_comparisons.csv.
 Usage:
-  python -m hag_detection.syllables.classification [sizes] [nb_seeds] [max_songs]   all the conditions (default 250,500,1000, 10 seeds)
-  python -m hag_detection.syllables.classification run <condition> <size> [nb_seeds]   one condition (one job of slurm/submit_syllables.sh),
-                                                                        results in outputs/detection/syllables_parts
-  python -m hag_detection.syllables.classification merge                               results of the parts and the comparisons
-  python -m hag_detection.syllables.classification list <sizes>                        "<condition> <size>" of all the conditions
+  python -m syllables_classification.classification [sizes] [nb_seeds] [max_songs]   all the conditions (default 250,500,1000, 10 seeds)
+  python -m syllables_classification.classification run <condition> <size> [nb_seeds]   one condition (one job of slurm/submit_syllables.sh),
+                                                                        results in outputs/canary/syllables_parts
+  python -m syllables_classification.classification merge                               results of the parts and the comparisons
+  python -m syllables_classification.classification list <sizes>                        "<condition> <size>" of all the conditions
 """
 import sys
 
@@ -28,10 +28,10 @@ import pandas as pd
 from sklearn.model_selection import KFold
 
 from hag.datasets.load_categorical_forecasting import download_canary_if_needed
-from hag_detection.common import OUTPUTS, RIDGES, load_dataset, pretrain_phrases
-from hag_detection.evaluate import SIZES, compare, conditions
-from hag_detection.hpo import CV_SEED, FOLD_SEED, N_FOLDS, STUDY_PREFIX, TASK
-from hag_detection.models import build, normal_equations, ridge_readout, state_chunks
+from next_phrase_prediction.common import OUTPUTS, RIDGES, load_dataset, pretrain_phrases
+from next_phrase_prediction.evaluate import SIZES, compare, conditions
+from next_phrase_prediction.hpo import CV_SEED, FOLD_SEED, N_FOLDS, STUDY_PREFIX, TASK
+from next_phrase_prediction.models import build, normal_equations, ridge_readout, state_chunks
 
 SILENCE = "SIL"
 

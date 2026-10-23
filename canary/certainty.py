@@ -1,6 +1,6 @@
 """
-Certainty of a readout along the phrases of the test songs, shared by hag_detection.syllables.certainty (class of the
-syllable) and hag_detection.next_phrase.certainty (next phrase). On the frames of every phrase:
+Certainty of a readout along the phrases of the test songs, shared by syllables_classification.certainty (class of the
+syllable) and next_phrase_prediction.certainty (next phrase). On the frames of every phrase:
   - true_output: output of the readout unit of the true class;
   - margin: true_output minus the largest output of the other classes (> 0: frame correctly classified);
   - correct: the frame is correctly classified.
@@ -8,8 +8,8 @@ These are averaged per phrase in bins of the relative position in the phrase (0 
 the time since the onset, then over the phrases. For each phrase, the mean true_output of its last third minus that of
 its first third (Wilcoxon signed-rank test over the phrases): > 0 if the unit of the class is more active at the end.
 
-Reservoirs: best parameters of the studies of hag_detection.evaluate.conditions, ridge of the best trial of the study
-(or chosen by the cross-validation of the task). Results: outputs/detection/<name>_<size>.csv (bins),
+Reservoirs: best parameters of the studies of next_phrase_prediction.evaluate.conditions, ridge of the best trial of the study
+(or chosen by the cross-validation of the task). Results: outputs/canary/<name>_<size>.csv (bins),
 <name>_<size>_phrases.csv (first / last third per condition and seed) and <name>_<size>.png.
 """
 import sys
@@ -18,8 +18,8 @@ import numpy as np
 import pandas as pd
 from scipy.stats import wilcoxon
 
-from hag_detection.common import OUTPUTS
-from hag_detection.evaluate import conditions
+from next_phrase_prediction.common import OUTPUTS
+from next_phrase_prediction.evaluate import conditions
 
 RELATIVE_BINS = 10
 ONSET_BIN = 0.05  # s
@@ -127,7 +127,7 @@ def plot(bins, size, path, title, labels):
 
 
 def save(bins, phrases, name, size, check, title, labels):
-    """outputs/detection/<name>_<size>[_check].csv, ..._phrases.csv and .png (nothing if no condition was evaluated)."""
+    """outputs/canary/<name>_<size>[_check].csv, ..._phrases.csv and .png (nothing if no condition was evaluated)."""
     if not phrases:
         sys.exit("No condition evaluated: nothing saved")
     bins, phrases = pd.DataFrame(bins), pd.DataFrame(phrases)

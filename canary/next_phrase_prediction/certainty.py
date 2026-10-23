@@ -1,32 +1,32 @@
 """
-Certainty of the prediction of the next phrase (hag_detection.next_phrase.prediction) along the current phrase: its
+Certainty of the prediction of the next phrase (next_phrase_prediction.prediction) along the current phrase: its
 readout is trained at the prediction points of the train songs, then applied to every frame of each phrase of the test
 songs up to its prediction point (no frame hearing the next phrase), the true class being the next phrase (END after
-the last one); output of its unit, margin and correctness along the phrase (hag_detection.certainty). With
-HAG_DETECTION_RESET=1, the frames of a phrase are those of a run of the reservoirs from a zero state on the phrase.
+the last one); output of its unit, margin and correctness along the phrase (next_phrase_prediction.certainty_common). With
+HAG_CANARY_RESET=1, the frames of a phrase are those of a run of the reservoirs from a zero state on the phrase.
 
-Reservoirs: best parameters of the next-phrase studies (HAG_DETECTION_TASK=next_phrase and the variables of the
-studies, e.g. HAG_DETECTION_LEAK=1, HAG_DETECTION_RESET=1, HAG_DETECTION_CALLS=1), ridge of the best trial of the study.
-Results: outputs/detection/<prefix of the studies>certainty_<size>.csv, ..._phrases.csv and .png (e.g.
+Reservoirs: best parameters of the next-phrase studies (HAG_CANARY_TASK=next_phrase and the variables of the
+studies, e.g. HAG_CANARY_LEAK=1, HAG_CANARY_RESET=1, HAG_CANARY_CALLS=1), ridge of the best trial of the study.
+Results: outputs/canary/<prefix of the studies>certainty_<size>.csv, ..._phrases.csv and .png (e.g.
 next_phrase_leak_certainty_1000.csv).
 
-Usage: python -m hag_detection.next_phrase.certainty [size] [conditions] [nb_seeds] [max_songs]
+Usage: python -m next_phrase_prediction.certainty [size] [conditions] [nb_seeds] [max_songs]
   (default 1000, mean_hag,var_hag,random_ee,random_ei, 3 seeds)
 """
 import sys
 
 import numpy as np
 
-from hag_detection.certainty import MIN_FRAMES, curve, evaluate_conditions, save, summarize
-from hag_detection.common import load_dataset, pretrain_phrases
-from hag_detection.hpo import RESET, STUDY_PREFIX, TASK
-from hag_detection.models import CHUNK, build, ridge_readout, state_chunks, states
-from hag_detection.next_phrase.prediction import choose_ridge, point_states, prepare, statistics
+from next_phrase_prediction.certainty_common import MIN_FRAMES, curve, evaluate_conditions, save, summarize
+from next_phrase_prediction.common import load_dataset, pretrain_phrases
+from next_phrase_prediction.hpo import RESET, STUDY_PREFIX, TASK
+from next_phrase_prediction.models import CHUNK, build, ridge_readout, state_chunks, states
+from next_phrase_prediction.prediction import choose_ridge, point_states, prepare, statistics
 
 
 def phrase_frames(songs, waves, frame):
     """[(wave, j, first frame, end frame)] of each phrase j of the songs: from its onset to its prediction point
-    (hag_detection.next_phrase.prediction), the phrases of fewer than MIN_FRAMES frames skipped."""
+    (next_phrase_prediction.prediction), the phrases of fewer than MIN_FRAMES frames skipped."""
     result = []
     for w in waves:
         for j, (start, _, _) in enumerate(songs[w]["next_phrases"]):
@@ -65,7 +65,7 @@ def run(condition, model, params, size, ridge, songs, train_songs, test_songs, f
 
 if __name__ == "__main__":
     if TASK != "next_phrase":
-        raise RuntimeError("HAG_DETECTION_TASK=next_phrase is needed (names of the studies)")
+        raise RuntimeError("HAG_CANARY_TASK=next_phrase is needed (names of the studies)")
     size = int(sys.argv[1]) if len(sys.argv) > 1 else 1000
     wanted = sys.argv[2].split(",") if len(sys.argv) > 2 else ["mean_hag", "var_hag", "random_ee", "random_ei"]
     nb_seeds = int(sys.argv[3]) if len(sys.argv) > 3 else 3

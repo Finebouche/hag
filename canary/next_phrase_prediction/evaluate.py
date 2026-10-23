@@ -1,23 +1,23 @@
 """
-Final evaluation of the canary boundary detection on the test songs (used only here), after hag_detection.hpo.
+Final evaluation of the canary boundary detection on the test songs (used only here), after next_phrase_prediction.hpo.
 
 Conditions, for each SIZE (number of neurons in all):
   - "mfcc" (no reservoir, once);
-  - the pure models (hag_detection.models.PURE_MODELS) with the best parameters of their study "<model>_<SIZE>";
+  - the pure models (next_phrase_prediction.models.PURE_MODELS) with the best parameters of their study "<model>_<SIZE>";
   - "<hag>_proj": the parameters of "<hag>_<SIZE>" without the HAG learning;
   - "<hag>+<esn>": hybrid of the best parts optimized alone with SIZE / 2 neurons, without further optimization;
   - "<hag>+<esn>_joint": the best parameters of the joint optimization "<hag>+<esn>_<SIZE>".
 The ridge coefficient and the peak threshold are those of the best trial of the study, or, for the conditions without a
 study (mfcc, proj, hybrids without joint optimization), chosen with the same cross-validation on the train songs
-(hag_detection.hpo.cross_validate). Missing studies are skipped.
+(next_phrase_prediction.hpo.cross_validate). Missing studies are skipped.
 
 For each seed (the same seeds for all the conditions, i.e. paired), the reservoirs are drawn with np.random.seed(seed)
 and learn (HAG) on phrases of all the train songs, the readout is trained on all the train songs and the boundaries of
 the test songs are scored. Then paired comparisons by seed: mean difference of F1, its bootstrap 95 % confidence
 interval and the p-value of the Wilcoxon signed-rank test.
 
-Results: outputs/detection/evaluation.csv (one row per condition, size and seed) and comparisons.csv.
-Usage: python -m hag_detection.evaluate [sizes] [nb_seeds] [max_songs]   (default 250,500,1000 and 10 seeds)
+Results: outputs/canary/evaluation.csv (one row per condition, size and seed) and comparisons.csv.
+Usage: python -m next_phrase_prediction.evaluate [sizes] [nb_seeds] [max_songs]   (default 250,500,1000 and 10 seeds)
 """
 import sys
 
@@ -26,9 +26,9 @@ import optuna
 import pandas as pd
 from scipy.stats import wilcoxon
 
-from hag_detection.common import OUTPUTS, load_dataset, pretrain_phrases, scores
-from hag_detection.hpo import cross_validate, storage, study_exists, study_name_of
-from hag_detection.models import (ESN_MODELS, HAG_MODELS, PURE_MODELS, build, normal_equations, parts, readout_outputs,
+from next_phrase_prediction.common import OUTPUTS, load_dataset, pretrain_phrases, scores
+from next_phrase_prediction.hpo import cross_validate, storage, study_exists, study_name_of
+from next_phrase_prediction.models import (ESN_MODELS, HAG_MODELS, PURE_MODELS, build, normal_equations, parts, readout_outputs,
                                   ridge_readout)
 
 SIZES = [250, 500, 1000]

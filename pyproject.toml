@@ -53,8 +53,10 @@ where = ["."]
 include = [
   "hag",
   "hag.*",
-  "hag_detection",
-  "hag_detection.*",
+  "next_phrase_prediction",
+  "next_phrase_prediction.*",
+  "syllables_classification",
+  "syllables_classification.*",
 ]
 exclude = [
   "outputs",
