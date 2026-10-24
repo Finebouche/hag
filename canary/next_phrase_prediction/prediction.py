@@ -7,7 +7,8 @@ one. Phrases as in canary.common.load_songs: SIL, TRASH and call ignored, repeat
 HAG_CANARY_CALLS=1, the calls are phrases too (SIL and TRASH ignored). With HAG_CANARY_RESET=1, the reservoirs hear
 the current phrase only, from a zero state (as the Canary task of the main branch), instead of the whole song: the
 state of a point is the last one of a run on the frames of the phrase that ends there (the zero state before the first
-phrase); the HAG learning is the same (on phrases).
+phrase); the HAG learning is the same (on phrases). With HAG_CANARY_DELTAS=0, the input is the 13 MFCC only, without
+their deltas and delta-deltas (same prediction points).
 
 No input after the prediction point: the MFCC frames are centered (half a window, 11.6 ms, of audio after their time)
 and their deltas use 4 frames on each side, so the state used to predict what follows the time t is the one of the
@@ -48,7 +49,7 @@ from canary.evaluate import compare
 from canary.hpo import CV_SEED, FOLD_SEED, N_FOLDS
 from canary.models import CHUNK, build, ridge_readout, state_chunks, states
 from canary.next_phrase_prediction.evaluate import conditions
-from canary.next_phrase_prediction.hpo import CALLS, RESET, STUDY_PREFIX, TASK
+from canary.next_phrase_prediction.hpo import CALLS, NO_DELTAS, RESET, STUDY_PREFIX, TASK
 from hag.datasets.load_categorical_forecasting import canary_mfcc_config
 
 SIZES = [500, 1000]
@@ -62,7 +63,8 @@ DELAY = canary_mfcc_config(SAMPLING_RATE)["win_length"] / 2 / SAMPLING_RATE
 
 def prepare(songs, train_songs, frame):
     """
-    Deltas recomputed without wrapping (scaled on the train songs as the others) and, for each song, its phrases
+    Deltas recomputed without wrapping (scaled on the train songs as the others; removed with NO_DELTAS, the
+    prediction points staying the same) and, for each song, its phrases
     songs[w]["next_phrases"] (with the calls if CALLS) and the prediction points: songs[w]["points"] (frame of each
     point, -1 for the initial zero state), songs[w]["starts"] (first frame of the phrase ending at each point, -1 for
     the point before the first phrase) and songs[w]["next"] (label of the next phrase, END after the last one).
@@ -78,6 +80,8 @@ def prepare(songs, train_songs, frame):
     delay = DELAY + DELTA_WIDTH // 2 * frame
     for song in songs.values():
         song["mfcc"][:, N_STATIC:] = (song["mfcc"][:, N_STATIC:] - low) / np.where(high > low, high - low, 1)
+        if NO_DELTAS:
+            song["mfcc"] = np.ascontiguousarray(song["mfcc"][:, :N_STATIC])
     for wave, song in songs.items():
         phrases = song_phrases(annotations, wave, ("SIL", "TRASH")) if CALLS else [tuple(p) for p in song["phrases"]]
         song["next_phrases"] = phrases
@@ -91,22 +95,19 @@ def prepare(songs, train_songs, frame):
 
 
 def point_states(reservoirs, songs, waves):
-    """{wave: states of the reservoirs (inputs without reservoir) at the prediction points, (points, units)}."""
-    if RESET:
-        return phrase_point_states(reservoirs, songs, waves)
+    """
+    {wave: states of the reservoirs (inputs without reservoir) at the prediction points, (points, units)}. With the
+    reservoirs reset at each phrase (RESET): last state of a run from a zero state on the frames of the phrase ending
+    at the point, the zero state for the point before the first phrase and for a phrase shorter than the delay of the
+    points (no frame before its point).
+    """
     result = {}
-    for part, part_states in state_chunks(reservoirs, songs, waves):
-        for x, w in zip(part_states, part):
-            x = np.vstack([np.zeros((1, x.shape[1]), dtype=np.float64), np.asarray(x, dtype=np.float64)])
-            result[w] = x[songs[w]["points"] + 1]  # row 0: the initial zero state (point -1)
-    return result
-
-
-def phrase_point_states(reservoirs, songs, waves):
-    """point_states with the reservoirs reset at each phrase (RESET): last state of a run from a zero state on the
-    frames of the phrase ending at the point, the zero state for the point before the first phrase and for a phrase
-    shorter than the delay of the points (no frame before its point)."""
-    result = {}
+    if not RESET:
+        for part, part_states in state_chunks(reservoirs, songs, waves):
+            for x, w in zip(part_states, part):
+                x = np.vstack([np.zeros((1, x.shape[1]), dtype=np.float64), np.asarray(x, dtype=np.float64)])
+                result[w] = x[songs[w]["points"] + 1]  # row 0: the initial zero state (point -1)
+        return result
     for i in range(0, len(waves), CHUNK):
         part = waves[i:i + CHUNK]
         segments, where = [], []
@@ -180,42 +181,39 @@ def evaluate(model, params, size, ridge, songs, train_songs, test_songs, frame, 
 
 
 # ------------------------------------------------- n-grams --------------------------------------------------------
-def ngram_scores(songs, train_songs, test_songs, classes, order):
-    """Scores (frequencies of the next labels) of the n-gram of the given order (None: adaptive) at the test points,
-    and the share of the points whose context was not seen in the train songs (marginal frequencies then)."""
+def baselines():
+    """For each order (None: adaptive), metrics of the scores (frequencies of the next labels) of the n-gram at the
+    test points, and the share of the points whose context was not seen in the train songs (marginal frequencies
+    then)."""
+    songs, train_songs, test_songs, frame = load_dataset()
+    classes = prepare(songs, train_songs, frame)
+    true = np.concatenate([songs[w]["next"] for w in test_songs])
+    index = {label: i for i, label in enumerate(classes)}
+
     def contexts(song, n):
         history = [START] * n + [label for _, _, label in song["next_phrases"]]
         return [tuple(history[j:j + n]) for j in range(len(song["next"]))]
 
-    orders = list(range(MAX_ORDER, -1, -1)) if order is None else sorted({order, 0}, reverse=True)
-    counts = {n: {} for n in orders}
-    for w in train_songs:
-        for n in orders:
-            for context, label in zip(contexts(songs[w], n), songs[w]["next"]):
-                counts[n].setdefault(context, Counter())[label] += 1
-    index = {label: i for i, label in enumerate(classes)}
-    rows, unseen = [], 0
-    for w in test_songs:
-        by_order = {n: contexts(songs[w], n) for n in orders}
-        for j in range(len(songs[w]["next"])):
-            n = next(n for n in orders if by_order[n][j] in counts[n])
-            unseen += n == 0 and (order is None or order > 0)
-            row = np.zeros(len(classes))
-            for label, count in counts[n][by_order[n][j]].items():
-                row[index[label]] = count
-            rows.append(row / row.sum())
-    return np.array(rows), unseen / len(rows)
-
-
-def baselines():
-    songs, train_songs, test_songs, frame = load_dataset()
-    classes = prepare(songs, train_songs, frame)
-    true = np.concatenate([songs[w]["next"] for w in test_songs])
     rows = []
     for order in [*range(0, MAX_ORDER + 1), None]:
-        scores, unseen = ngram_scores(songs, train_songs, test_songs, classes, order)
+        orders = list(range(MAX_ORDER, -1, -1)) if order is None else sorted({order, 0}, reverse=True)
+        counts = {n: {} for n in orders}
+        for w in train_songs:
+            for n in orders:
+                for context, label in zip(contexts(songs[w], n), songs[w]["next"]):
+                    counts[n].setdefault(context, Counter())[label] += 1
+        scores, unseen = [], 0
+        for w in test_songs:
+            by_order = {n: contexts(songs[w], n) for n in orders}
+            for j in range(len(songs[w]["next"])):
+                n = next(n for n in orders if by_order[n][j] in counts[n])
+                unseen += n == 0 and (order is None or order > 0)
+                row = np.zeros(len(classes))
+                for label, count in counts[n][by_order[n][j]].items():
+                    row[index[label]] = count
+                scores.append(row / row.sum())
         rows.append(dict(condition="ngram_adaptive" if order is None else f"ngram_{order}", order=order,
-                         unseen_context=unseen, **metrics(scores, true, classes)))
+                         unseen_context=unseen / len(scores), **metrics(np.array(scores), true, classes)))
     results = pd.DataFrame(rows)
     pd.set_option("display.width", 200)
     print(results.round(4).to_string(index=False))

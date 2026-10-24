@@ -24,16 +24,6 @@ from canary.syllables_classification.classification import add_frame_labels, cho
 from canary.syllables_classification.evaluate import conditions
 
 
-def phrase_curves(output, labels_index, phrases, frame):
-    """Curves (canary.certainty.curve) of the readout output (frames, classes) of a song on its phrases."""
-    curves = []
-    for start, end, label in phrases:
-        f0, f1 = int(np.floor(start / frame)), min(int(np.floor(end / frame)), len(output))
-        if f1 - f0 >= MIN_FRAMES and label in labels_index:
-            curves.append(curve(output[f0:f1], labels_index[label], label, frame))
-    return curves
-
-
 def run(condition, model, params, size, ridge, songs, train_songs, test_songs, frame, classes, seed):
     np.random.seed(seed)
     reservoirs = build(model, params, size, pretrain_phrases(songs, train_songs, frame))
@@ -43,7 +33,10 @@ def run(condition, model, params, size, ridge, songs, train_songs, test_songs, f
     for part, part_states in state_chunks(reservoirs, songs, test_songs):
         for x, w in zip(part_states, part):
             output = x.astype(np.float64) @ Wout[:-1] + Wout[-1]
-            curves += phrase_curves(output, labels_index, songs[w]["phrases"], frame)
+            for start, end, label in songs[w]["phrases"]:
+                f0, f1 = int(np.floor(start / frame)), min(int(np.floor(end / frame)), len(output))
+                if f1 - f0 >= MIN_FRAMES and label in labels_index:
+                    curves.append(curve(output[f0:f1], labels_index[label], label, frame))
     return summarize(curves, condition, seed)
 
 

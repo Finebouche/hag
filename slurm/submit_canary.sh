@@ -10,8 +10,9 @@
 # With HAG_CANARY_TASK=next_phrase, they optimize the accuracy of the prediction of the next phrase
 # ("next_phrase_<model>_<size>") and the final evaluation is slurm/submit_next_phrase.sh.
 # With HAG_CANARY_INPUT_GAINS=1 (syllables, next_phrase), the gain of each group of input features is searched too,
-# and with HAG_CANARY_LEAK=1 (syllables, next_phrase), the leak rate of each reservoir.
-# Usage: [HAG_CANARY_TASK=syllables|next_phrase] [HAG_CANARY_INPUT_GAINS=1] [HAG_CANARY_LEAK=1] [PURE="..."]
+# and with HAG_CANARY_LEAK=1 (syllables, next_phrase), the leak rate of each reservoir. With HAG_CANARY_DELTAS=0
+# (next_phrase), the input is the MFCC without their deltas.
+# Usage: [HAG_CANARY_TASK=syllables|next_phrase] [HAG_CANARY_INPUT_GAINS=1] [HAG_CANARY_LEAK=1] [HAG_CANARY_DELTAS=0] [PURE="..."]
 #        [HYBRIDS="..."] [SIZES="..."] [HYBRID_SIZES="..."] bash slurm/submit_canary.sh
 set -euo pipefail
 NB_SEEDS=${NB_SEEDS:-10}

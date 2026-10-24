@@ -25,25 +25,20 @@ from canary.next_phrase_prediction.hpo import RESET, STUDY_PREFIX, TASK
 from canary.next_phrase_prediction.prediction import choose_ridge, point_states, prepare, statistics
 
 
-def phrase_frames(songs, waves, frame):
-    """[(wave, j, first frame, end frame)] of each phrase j of the songs: from its onset to its prediction point
-    (canary.next_phrase_prediction.prediction), the phrases of fewer than MIN_FRAMES frames skipped."""
-    result = []
-    for w in waves:
-        for j, (start, _, _) in enumerate(songs[w]["next_phrases"]):
-            f0, f1 = int(np.floor(start / frame)), songs[w]["points"][j + 1] + 1
-            if f1 - f0 >= MIN_FRAMES:
-                result.append((w, j, f0, f1))
-    return result
-
-
-def next_phrase_curves(reservoirs, Wout, songs, test_songs, frame, classes):
-    """Curves of the readout of the next phrase on the frames of the phrases of the test songs (phrase_frames)."""
+def run(condition, model, params, size, ridge, songs, train_songs, test_songs, frame, classes, seed):
+    """Curves of the readout of the next phrase on the frames of each phrase of the test songs, from its onset to its
+    prediction point (canary.next_phrase_prediction.prediction), the phrases of fewer than MIN_FRAMES frames
+    skipped."""
+    np.random.seed(seed)
+    reservoirs = build(model, params, size, pretrain_phrases(songs, train_songs, frame))
+    Wout = ridge_readout(statistics(point_states(reservoirs, songs, train_songs), songs, train_songs, classes), ridge)
     index = {label: k for k, label in enumerate(classes)}
     curves = []
     for i in range(0, len(test_songs), CHUNK):
         part = test_songs[i:i + CHUNK]
-        phrases = phrase_frames(songs, part, frame)
+        phrases = [(w, j, int(np.floor(start / frame)), songs[w]["points"][j + 1] + 1)
+                   for w in part for j, (start, _, _) in enumerate(songs[w]["next_phrases"])]
+        phrases = [(w, j, f0, f1) for w, j, f0, f1 in phrases if f1 - f0 >= MIN_FRAMES]
         if RESET:  # runs of the reservoirs on each phrase, from a zero state
             runs = states(reservoirs, [songs[w]["mfcc"][f0:f1] for w, _, f0, f1 in phrases])
             outputs = [run.astype(np.float64) @ Wout[:-1] + Wout[-1] for run in runs]
@@ -54,14 +49,7 @@ def next_phrase_curves(reservoirs, Wout, songs, test_songs, frame, classes):
         for (w, j, _, _), out in zip(phrases, outputs):
             label = songs[w]["next"][j + 1]
             curves.append(curve(out, index[label], label, frame))
-    return curves
-
-
-def run(condition, model, params, size, ridge, songs, train_songs, test_songs, frame, classes, seed):
-    np.random.seed(seed)
-    reservoirs = build(model, params, size, pretrain_phrases(songs, train_songs, frame))
-    Wout = ridge_readout(statistics(point_states(reservoirs, songs, train_songs), songs, train_songs, classes), ridge)
-    return summarize(next_phrase_curves(reservoirs, Wout, songs, test_songs, frame, classes), condition, seed)
+    return summarize(curves, condition, seed)
 
 
 if __name__ == "__main__":

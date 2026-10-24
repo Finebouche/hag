@@ -93,18 +93,6 @@ def objective_function(model, size, songs, train_songs, frame, classes):
     return objective
 
 
-def initial_trial(model, size):
-    """Best parameters of the parts of a hybrid, each optimized alone with SIZE / 2 neurons (prefixed)."""
-    params = {}
-    for part, prefix in parts(model):
-        name = study_name_of(part, size // 2)
-        if not study_exists(name):
-            raise FileNotFoundError(f"No study {name}: the parts of the hybrid {model} are optimized first")
-        study = optuna.load_study(study_name=name, storage=storage(name))
-        params.update({prefix + key: value for key, value in study.best_trial.params.items()})
-    return params
-
-
 def worker(model, size, worker_index):
     songs, train_songs, frame, classes = load_task_dataset()
     study_name = study_name_of(model, size)
@@ -125,8 +113,16 @@ if __name__ == "__main__":
 
     if "+" in model and not study.trials:
         # the starting trial is run here, alone: several workers would take the enqueued trial at the same time (the
-        # second one then fails when it reports it: "Cannot tell a COMPLETE trial")
-        study.enqueue_trial(initial_trial(model, size))
+        # second one then fails when it reports it: "Cannot tell a COMPLETE trial"). Its parameters: the best ones of
+        # the parts of the hybrid, each optimized alone with SIZE / 2 neurons (prefixed)
+        params = {}
+        for part, prefix in parts(model):
+            name = study_name_of(part, size // 2)
+            if not study_exists(name):
+                raise FileNotFoundError(f"No study {name}: the parts of the hybrid {model} are optimized first")
+            params.update({prefix + key: value for key, value in
+                           optuna.load_study(study_name=name, storage=storage(name)).best_trial.params.items()})
+        study.enqueue_trial(params)
         songs, train_songs, frame, classes = load_task_dataset()
         study.optimize(objective_function(model, size, songs, train_songs, frame, classes), n_trials=1)
         del songs

@@ -17,11 +17,14 @@ from pathlib import Path
 
 
 def split(directory):
-    from hag.datasets.load_categorical_forecasting import download_canary_if_needed
+    from hag.datasets.load_categorical_forecasting import (build_phrase_sequences, download_canary_if_needed,
+                                                           split_canary_songs)
     import pandas as pd
 
     annotations_dir, audio_dir = download_canary_if_needed()
-    _, train_songs, test_songs = _split_only()
+    # train and test songs of canary.common.load_songs, without loading the audio
+    train_songs, test_songs = split_canary_songs(build_phrase_sequences(
+        pd.concat([pd.read_csv(f, index_col=0) for f in sorted(annotations_dir.rglob("*.csv"))]))["wave"])
     wavs = {p.name: p for p in audio_dir.rglob("*.wav")}
     csvs = {}
     for f in annotations_dir.rglob("*.csv"):
@@ -36,16 +39,6 @@ def split(directory):
                 if not link.exists():
                     link.symlink_to(source.resolve())
         print(f"{name}: {len(waves)} songs in {directory / name}")
-
-
-def _split_only():
-    """Train and test songs of canary.common.load_songs without loading the audio."""
-    import pandas as pd
-    from hag.datasets.load_categorical_forecasting import (build_phrase_sequences, download_canary_if_needed,
-                                                           split_canary_songs)
-    annotations_dir, _ = download_canary_if_needed()
-    annotations = pd.concat([pd.read_csv(f, index_col=0) for f in sorted(annotations_dir.rglob("*.csv"))])
-    return None, *split_canary_songs(build_phrase_sequences(annotations)["wave"])
 
 
 def run(directory, seeds):

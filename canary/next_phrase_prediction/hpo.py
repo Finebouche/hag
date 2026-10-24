@@ -18,7 +18,8 @@ With HAG_CANARY_TASK=next_phrase, the objective is the out-of-fold accuracy of t
 studies "next_phrase_<model>_<size>": "next_phrase_gains_*" with HAG_CANARY_INPUT_GAINS=1 (gain of each group of input
 features in the search, see objective_function), "next_phrase_leak_*" with HAG_CANARY_LEAK=1 (leak rate of each
 reservoir in the search, instead of 1), "next_phrase_calls_*" with HAG_CANARY_CALLS=1 (the calls are phrases too) and
-"next_phrase_reset_*" with HAG_CANARY_RESET=1 (the reservoirs hear the current phrase only, from a zero state).
+"next_phrase_reset_*" with HAG_CANARY_RESET=1 (the reservoirs hear the current phrase only, from a zero state) and
+"next_phrase_nodeltas_*" with HAG_CANARY_DELTAS=0 (the 13 MFCC only, without their deltas and delta-deltas).
 (The syllable classification has its own package, canary.syllables_classification.)
 
 Usage: python -m canary.next_phrase_prediction.hpo <model> <size>   (N_TRIALS trials)
@@ -47,23 +48,17 @@ LEAK = TASK != "boundaries" and os.environ.get("HAG_CANARY_LEAK") == "1"
 # next-phrase prediction: calls among the phrases, reservoirs reset at each phrase (canary.next_phrase_prediction.prediction)
 CALLS = TASK == "next_phrase" and os.environ.get("HAG_CANARY_CALLS") == "1"
 RESET = TASK == "next_phrase" and os.environ.get("HAG_CANARY_RESET") == "1"
+# next-phrase prediction without the deltas and delta-deltas of the MFCC in the input features
+NO_DELTAS = TASK == "next_phrase" and os.environ.get("HAG_CANARY_DELTAS") == "0"
+if NO_DELTAS and INPUT_GAINS:
+    raise ValueError("HAG_CANARY_DELTAS=0: no deltas to weight (HAG_CANARY_INPUT_GAINS=1)")
 # prefix of the studies and of the results of the next-phrase prediction
-STUDY_PREFIX = (f"{TASK}_" + "calls_" * CALLS + "reset_" * RESET + "gains_" * INPUT_GAINS + "leak_" * LEAK
-                if TASK != "boundaries" else "")
+STUDY_PREFIX = (f"{TASK}_" + "calls_" * CALLS + "reset_" * RESET + "nodeltas_" * NO_DELTAS + "gains_" * INPUT_GAINS
+                + "leak_" * LEAK if TASK != "boundaries" else "")
 
 
 def study_name_of(model, size):
     return f"{STUDY_PREFIX}{model}_{size}"
-
-
-def load_task_dataset():
-    """(songs, train songs, frame, classes): classes of the next-phrase prediction, None for the boundaries."""
-    songs, train_songs, _, frame = load_dataset()
-    classes = None
-    if TASK == "next_phrase":
-        from canary.next_phrase_prediction.prediction import prepare
-        classes = prepare(songs, train_songs, frame)
-    return songs, train_songs, frame, classes
 
 
 def cross_validate(model, params, size, songs, train_songs, frame):
@@ -140,16 +135,14 @@ def objective_function(model, size, songs, train_songs, frame, classes=None):
     return objective
 
 
-def initial_trial(model, size):
-    """Best parameters of the parts of a hybrid, each optimized alone with SIZE / 2 neurons (prefixed)."""
-    params = {}
-    for part, prefix in parts(model):
-        name = study_name_of(part, size // 2)
-        if not study_exists(name):
-            raise FileNotFoundError(f"No study {name}: the parts of the hybrid {model} are optimized first")
-        study = optuna.load_study(study_name=name, storage=storage(name))
-        params.update({prefix + key: value for key, value in study.best_trial.params.items()})
-    return params
+def load_task_dataset():
+    """(songs, train songs, frame, classes of the next phrase (None for the boundaries))."""
+    songs, train_songs, _, frame = load_dataset()
+    classes = None
+    if TASK == "next_phrase":
+        from canary.next_phrase_prediction.prediction import prepare
+        classes = prepare(songs, train_songs, frame)
+    return songs, train_songs, frame, classes
 
 
 def worker(model, size, worker_index):
@@ -172,8 +165,16 @@ if __name__ == "__main__":
 
     if "+" in model and not study.trials:
         # the starting trial is run here, alone: several workers would take the enqueued trial at the same time (the
-        # second one then fails when it reports it: "Cannot tell a COMPLETE trial")
-        study.enqueue_trial(initial_trial(model, size))
+        # second one then fails when it reports it: "Cannot tell a COMPLETE trial"). Its parameters: the best ones of
+        # the parts of the hybrid, each optimized alone with SIZE / 2 neurons (prefixed)
+        params = {}
+        for part, prefix in parts(model):
+            name = study_name_of(part, size // 2)
+            if not study_exists(name):
+                raise FileNotFoundError(f"No study {name}: the parts of the hybrid {model} are optimized first")
+            params.update({prefix + key: value for key, value in
+                           optuna.load_study(study_name=name, storage=storage(name)).best_trial.params.items()})
+        study.enqueue_trial(params)
         songs, train_songs, frame, classes = load_task_dataset()
         study.optimize(objective_function(model, size, songs, train_songs, frame, classes), n_trials=1)
         del songs

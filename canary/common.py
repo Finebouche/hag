@@ -67,26 +67,6 @@ def load_songs():
     return songs, train_songs, test_songs
 
 
-def compute_features(songs):
-    """MFCC (+ deltas) of each song: songs[wave]["mfcc"], frame duration."""
-    config = canary_mfcc_config(SAMPLING_RATE)
-    waves = list(songs)
-    mfccs = generate_multivariate_dataset([songs[w]["audio"].reshape(-1, 1) for w in waves], True, "mfcc",
-                                          mfcc_config=config, sampling_rate=SAMPLING_RATE, verbosity=0)
-    for wave, features in zip(waves, mfccs):
-        songs[wave]["mfcc"] = features
-    return config["hop_length"] / SAMPLING_RATE
-
-
-def scale(songs, train_songs):
-    """MinMax scaling (0, 1) of the MFCC, fitted on the train songs (hag.datasets.preprocessing.scale_data)."""
-    other_songs = [w for w in songs if w not in set(train_songs)]
-    train, _, other = scale_data([songs[w]["mfcc"] for w in train_songs], None,
-                                 [songs[w]["mfcc"] for w in other_songs], MinMaxScaler(feature_range=(0, 1)), True)
-    for wave, mfcc in zip(train_songs + other_songs, train + other):
-        songs[wave]["mfcc"] = mfcc
-
-
 def pretrain_phrases(songs, train_songs, frame):
     """MFCC of NB_PRETRAIN_PHRASES phrases of the train songs (HAG's pretraining instances), drawn with numpy's RNG."""
     phrases = [songs[w]["mfcc"][int(start / frame):int(end / frame) + 1]
@@ -98,8 +78,9 @@ def pretrain_phrases(songs, train_songs, frame):
 
 def load_dataset():
     """
-    Songs of the tasks: songs[wave] = dict(mfcc (scaled on the train songs), phrases, boundaries), train and test
-    songs, frame duration. The MFCC of all the songs are cached in FEATURES_CACHE (no audio kept).
+    Songs of the tasks: songs[wave] = dict(mfcc (MFCC + deltas, MinMax-scaled (0, 1) on the train songs), phrases,
+    boundaries), train and test songs, frame duration. The MFCC of all the songs are cached in FEATURES_CACHE (no
+    audio kept).
     """
     import pickle
     if FEATURES_CACHE.exists():
@@ -107,10 +88,18 @@ def load_dataset():
             songs, train_songs, test_songs, frame = pickle.load(f)
     else:
         songs, train_songs, test_songs = load_songs()
-        frame = compute_features(songs)
-        for song in songs.values():
+        config = canary_mfcc_config(SAMPLING_RATE)
+        mfccs = generate_multivariate_dataset([song["audio"].reshape(-1, 1) for song in songs.values()], True, "mfcc",
+                                              mfcc_config=config, sampling_rate=SAMPLING_RATE, verbosity=0)
+        for song, features in zip(songs.values(), mfccs):
+            song["mfcc"] = features
             del song["audio"]
+        frame = config["hop_length"] / SAMPLING_RATE
         with open(FEATURES_CACHE, "wb") as f:
             pickle.dump((songs, train_songs, test_songs, frame), f)
-    scale(songs, train_songs)
+    other_songs = [w for w in songs if w not in set(train_songs)]
+    train, _, other = scale_data([songs[w]["mfcc"] for w in train_songs], None,
+                                 [songs[w]["mfcc"] for w in other_songs], MinMaxScaler(feature_range=(0, 1)), True)
+    for wave, mfcc in zip(train_songs + other_songs, train + other):
+        songs[wave]["mfcc"] = mfcc
     return songs, train_songs, test_songs, frame

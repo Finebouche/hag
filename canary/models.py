@@ -39,16 +39,6 @@ class Reservoirs(list):
     input_gains = ()
 
 
-def feature_gains(hyperparams, n_features):
-    """Gain of each feature: 1 for the MFCC, delta_gain and delta2_gain for their deltas (the three groups of equal
-    size of the MFCC + delta + delta-delta features), None without these parameters."""
-    if "delta_gain" not in hyperparams:
-        return None
-    group = n_features // 3
-    return np.concatenate([np.ones(group), np.full(group, hyperparams["delta_gain"]),
-                           np.full(n_features - 2 * group, hyperparams["delta2_gain"])])
-
-
 def build(model, params, size, pretrain):
     """Reservoirs of the model with SIZE neurons in all (None for "mfcc"), matrices drawn with numpy's global RNG."""
     if model == "mfcc":
@@ -61,7 +51,14 @@ def build(model, params, size, pretrain):
     for part, prefix in model_parts:
         hyperparams = {key[len(prefix):]: value for key, value in params.items() if key.startswith(prefix)
                        and ":" not in key[len(prefix):]}
-        gains = feature_gains(hyperparams, original_pretrain[0].shape[1])
+        # gain of each feature: 1 for the MFCC, delta_gain and delta2_gain for their deltas (the three groups of equal
+        # size of the MFCC + delta + delta-delta features), None without these parameters
+        gains = None
+        if "delta_gain" in hyperparams:
+            n_features = original_pretrain[0].shape[1]
+            group = n_features // 3
+            gains = np.concatenate([np.ones(group), np.full(group, hyperparams["delta_gain"]),
+                                    np.full(n_features - 2 * group, hyperparams["delta2_gain"])])
         gains_of_reservoirs.append(gains)
         pretrain = original_pretrain if gains is None else np.array([p * gains for p in original_pretrain], dtype=object)
         hyperparams.setdefault("leaky_rate", 1)

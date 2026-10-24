@@ -91,12 +91,19 @@ def evaluate_conditions(conditions, size, wanted, nb_seeds, songs, train_songs, 
     return bins, phrases
 
 
-def plot(bins, size, path, title, labels):
-    """Mean true output (labels[0]) and accuracy (labels[1]) along the phrases (relative position), per condition."""
+def save(bins, phrases, name, size, title, labels):
+    """outputs/canary/<name>_<size>.csv, ..._phrases.csv and .png (nothing if no condition was evaluated)."""
+    if not phrases:
+        sys.exit("No condition evaluated: nothing saved")
+    bins, phrases = pd.DataFrame(bins), pd.DataFrame(phrases)
+    stem = f"{name}_{size}"
+    OUTPUTS.mkdir(parents=True, exist_ok=True)
+    bins.to_csv(OUTPUTS / f"{stem}.csv", index=False)
+    phrases.to_csv(OUTPUTS / f"{stem}_phrases.csv", index=False)
+    # mean true output (labels[0]) and accuracy (labels[1]) along the phrases (relative position), per condition
     import matplotlib
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
-
     data = bins[bins.axis == "relative"].groupby(["condition", "position"])[["true_output", "accuracy"]].mean()
     fig, axes = plt.subplots(1, 2, figsize=(10, 3.8), facecolor="#fcfcfb")
     for ax, column, title_ax in ((axes[0], "true_output", labels[0]), (axes[1], "accuracy", labels[1])):
@@ -122,18 +129,6 @@ def plot(bins, size, path, title, labels):
     fig.suptitle(f"{title}, test songs ({size} neurons, mean over seeds)", fontsize=11,
                  color="#0b0b0b", x=0.01, ha="left")
     fig.tight_layout()
-    fig.savefig(path, dpi=150)
+    fig.savefig(OUTPUTS / f"{stem}.png", dpi=150)
     plt.close(fig)
-
-
-def save(bins, phrases, name, size, title, labels):
-    """outputs/canary/<name>_<size>.csv, ..._phrases.csv and .png (nothing if no condition was evaluated)."""
-    if not phrases:
-        sys.exit("No condition evaluated: nothing saved")
-    bins, phrases = pd.DataFrame(bins), pd.DataFrame(phrases)
-    stem = f"{name}_{size}"
-    OUTPUTS.mkdir(parents=True, exist_ok=True)
-    bins.to_csv(OUTPUTS / f"{stem}.csv", index=False)
-    phrases.to_csv(OUTPUTS / f"{stem}_phrases.csv", index=False)
-    plot(bins, size, OUTPUTS / f"{stem}.png", title, labels)
     print("Saved to", OUTPUTS / f"{stem}.csv", OUTPUTS / f"{stem}_phrases.csv", OUTPUTS / f"{stem}.png")
