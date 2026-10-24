@@ -55,10 +55,15 @@ def generate_multivariate_dataset(
         elif spectral_representation == "mfcc" and mfcc_config is not None:
             config = dict(mfcc_config)
             add_deltas = config.pop("deltas", False)
+            # floor of the dB at top_db below the maximum of the whole instance (librosa's default, 80), None: no floor
+            # (the maximum depends on the whole instance, its future included)
+            top_db = config.pop("top_db", 80.0)
+            mfcc_args = {key: config.pop(key) for key in ("sr", "n_mfcc", "dct_type", "norm", "lifter") if key in config}
             with warnings.catch_warnings():
                 # instances shorter than n_fft are zero-padded by librosa, which is fine: don't warn for each of them
                 warnings.filterwarnings("ignore", message="n_fft=.* is too large for input signal")
-                Sx = mfcc(y=x, **config)
+                S = power_to_db(melspectrogram(y=x, sr=mfcc_args.get("sr", 22050), **config), top_db=top_db)
+            Sx = mfcc(S=S, **mfcc_args)
             if add_deltas:
                 Sx = np.concatenate([Sx, delta(Sx, mode="wrap"), delta(Sx, order=2, mode="wrap")], axis=-2)
         elif spectral_representation == "mfcc":

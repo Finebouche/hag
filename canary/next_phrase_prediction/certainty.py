@@ -59,7 +59,7 @@ if __name__ == "__main__":
     wanted = sys.argv[2].split(",") if len(sys.argv) > 2 else ["mean_hag", "var_hag", "random_ee", "random_ei"]
     nb_seeds = int(sys.argv[3]) if len(sys.argv) > 3 else 3
 
-    songs, train_songs, test_songs, frame = load_dataset()
+    songs, train_songs, test_songs, frame = load_dataset(top_db=None)
     classes = prepare(songs, train_songs, frame)
     bins, phrases = evaluate_conditions(conditions, size, wanted, nb_seeds, songs, train_songs, test_songs, frame, classes,
                                         choose_ridge, run)

@@ -10,7 +10,9 @@ state of a point is the last one of a run on the frames of the phrase that ends 
 phrase); the HAG learning is the same (on phrases). With HAG_CANARY_DELTAS=0, the input is the 13 MFCC only, without
 their deltas and delta-deltas (same prediction points).
 
-No input after the prediction point: the MFCC frames are centered (half a window, 11.6 ms, of audio after their time)
+No input after the prediction point: the MFCC are computed without the floor of the dB at 80 dB below the maximum of
+the whole song (librosa's default, which depends on the future of each frame: canary.common.load_dataset(top_db=None)),
+the MFCC frames are centered (half a window, 11.6 ms, of audio after their time)
 and their deltas use 4 frames on each side, so the state used to predict what follows the time t is the one of the
 last frame whose window and deltas end before t (DELAY earlier). The deltas are recomputed with mode="nearest" instead
 of the "wrap" of the cached features, which joins the end of each song to its beginning.
@@ -185,7 +187,7 @@ def baselines():
     """For each order (None: adaptive), metrics of the scores (frequencies of the next labels) of the n-gram at the
     test points, and the share of the points whose context was not seen in the train songs (marginal frequencies
     then)."""
-    songs, train_songs, test_songs, frame = load_dataset()
+    songs, train_songs, test_songs, frame = load_dataset(top_db=None)
     classes = prepare(songs, train_songs, frame)
     true = np.concatenate([songs[w]["next"] for w in test_songs])
     index = {label: i for i, label in enumerate(classes)}
@@ -236,7 +238,7 @@ def all_conditions(sizes):
 
 
 def run(todo, nb_seeds):
-    songs, train_songs, test_songs, frame = load_dataset()
+    songs, train_songs, test_songs, frame = load_dataset(top_db=None)
     classes = prepare(songs, train_songs, frame)
     print(f"{len(train_songs)} train / {len(test_songs)} test songs, {len(classes)} classes, "
           f"{sum(len(songs[w]['next']) for w in test_songs)} test points", flush=True)

@@ -22,6 +22,8 @@ RIDGES = 10.0 ** np.arange(-14, 3)
 NB_PRETRAIN_PHRASES = 500
 OUTPUTS = Path(__file__).resolve().parents[1] / "outputs" / "canary"
 FEATURES_CACHE = Path(__file__).resolve().parents[1] / "hag" / "datasets" / "Canary" / f"boundary_features_{SAMPLING_RATE}.pkl"
+# MFCC without the floor at 80 dB below the maximum of the whole song (load_dataset(top_db=None))
+NO_FLOOR_FEATURES_CACHE = FEATURES_CACHE.with_name(f"boundary_features_{SAMPLING_RATE}_no_floor.pkl")
 
 
 def annotations_of_songs():
@@ -76,26 +78,31 @@ def pretrain_phrases(songs, train_songs, frame):
     return np.array(phrases, dtype=object)[indices]
 
 
-def load_dataset():
+def load_dataset(top_db=80.0):
     """
     Songs of the tasks: songs[wave] = dict(mfcc (MFCC + deltas, MinMax-scaled (0, 1) on the train songs), phrases,
     boundaries), train and test songs, frame duration. The MFCC of all the songs are cached in FEATURES_CACHE (no
-    audio kept).
+    audio kept). top_db: floor of the dB of the mel spectrogram below the maximum of the whole song (librosa's
+    default, 80); None: no floor (cached in NO_FLOOR_FEATURES_CACHE), for the next-phrase prediction, since this
+    maximum depends on the future of each frame.
     """
     import pickle
-    if FEATURES_CACHE.exists():
-        with open(FEATURES_CACHE, "rb") as f:
+    if top_db not in (80.0, None):
+        raise ValueError(f"top_db={top_db}: only 80 (FEATURES_CACHE) and None (NO_FLOOR_FEATURES_CACHE) are cached")
+    cache = FEATURES_CACHE if top_db is not None else NO_FLOOR_FEATURES_CACHE
+    if cache.exists():
+        with open(cache, "rb") as f:
             songs, train_songs, test_songs, frame = pickle.load(f)
     else:
         songs, train_songs, test_songs = load_songs()
-        config = canary_mfcc_config(SAMPLING_RATE)
+        config = dict(canary_mfcc_config(SAMPLING_RATE), top_db=top_db)
         mfccs = generate_multivariate_dataset([song["audio"].reshape(-1, 1) for song in songs.values()], True, "mfcc",
                                               mfcc_config=config, sampling_rate=SAMPLING_RATE, verbosity=0)
         for song, features in zip(songs.values(), mfccs):
             song["mfcc"] = features
             del song["audio"]
         frame = config["hop_length"] / SAMPLING_RATE
-        with open(FEATURES_CACHE, "wb") as f:
+        with open(cache, "wb") as f:
             pickle.dump((songs, train_songs, test_songs, frame), f)
     other_songs = [w for w in songs if w not in set(train_songs)]
     train, _, other = scale_data([songs[w]["mfcc"] for w in train_songs], None,

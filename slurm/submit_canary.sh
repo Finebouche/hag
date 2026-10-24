@@ -26,14 +26,15 @@ NODES=(--constraint="zen4|zen3|zonda" --exclude="sirocco[21-25],enbata[01-02]")
 cd "$(dirname "$0")/.."
 mkdir -p slurm/logs slurm/tasks outputs/canary/studies
 
-# the MFCC cache, once, before the jobs (hag/datasets/Canary/boundary_features.pkl)
+# the MFCC caches, once, before the jobs (hag/datasets/Canary/boundary_features_44100.pkl, and ..._no_floor.pkl of the
+# next-phrase prediction)
 set +u
 module load micromamba
 export MAMBA_ROOT_PREFIX=$HOME/micromamba
 eval "$(micromamba shell hook -s bash)"
 micromamba activate hag_env
 set -u
-PYTHONPATH=$PWD python -c "from canary.common import load_dataset; load_dataset()" > /dev/null
+PYTHONPATH=$PWD python -c "from canary.common import load_dataset; load_dataset(); load_dataset(top_db=None)" > /dev/null
 
 stamp=$(date +%Y%m%d_%H%M%S)
 PURE_TASKS=slurm/tasks/canary_pure_$stamp.txt

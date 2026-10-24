@@ -136,12 +136,15 @@ def objective_function(model, size, songs, train_songs, frame, classes=None):
 
 
 def load_task_dataset():
-    """(songs, train songs, frame, classes of the next phrase (None for the boundaries))."""
-    songs, train_songs, _, frame = load_dataset()
-    classes = None
-    if TASK == "next_phrase":
-        from canary.next_phrase_prediction.prediction import prepare
-        classes = prepare(songs, train_songs, frame)
+    """(songs, train songs, frame, classes of the next phrase (None for the boundaries)). The next-phrase prediction
+    uses the MFCC without the floor of the dB relative to the maximum of the whole song (it depends on the future)."""
+    if TASK != "next_phrase":
+        songs, train_songs, _, frame = load_dataset()
+        return songs, train_songs, frame, None
+    from canary.common import load_dataset as load_songs_dataset
+    from canary.next_phrase_prediction.prediction import prepare
+    songs, train_songs, _, frame = load_songs_dataset(top_db=None)
+    classes = prepare(songs, train_songs, frame)
     return songs, train_songs, frame, classes
 
 
