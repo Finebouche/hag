@@ -15,7 +15,7 @@ and scored on the test songs for each seed (paired comparisons, canary.evaluate.
 Results: outputs/canary/<prefix of the studies>hpo.csv and ..._comparisons.csv (syllables_hpo.csv,
 syllables_gains_hpo.csv with HAG_CANARY_INPUT_GAINS=1, syllables_gains_leak_hpo.csv with HAG_CANARY_LEAK=1 too).
 Usage:
-  python -m canary.syllables_classification.classification [sizes] [nb_seeds] [max_songs]   all the conditions (default 250,500,1000, 10 seeds)
+  python -m canary.syllables_classification.classification [sizes] [nb_seeds]   all the conditions (default 250,500,1000, 10 seeds)
   python -m canary.syllables_classification.classification run <condition> <size> [nb_seeds]   one condition (one job of slurm/submit_syllables.sh),
                                                                         results in outputs/canary/syllables_parts
   python -m canary.syllables_classification.classification merge                               results of the parts and the comparisons
@@ -110,8 +110,8 @@ def all_conditions(sizes):
     return todo
 
 
-def run(todo, nb_seeds, max_songs=None):
-    songs, train_songs, test_songs, frame = load_dataset(max_songs)
+def run(todo, nb_seeds):
+    songs, train_songs, test_songs, frame = load_dataset()
     classes = add_frame_labels(songs, frame)
     print(f"{len(train_songs)} train / {len(test_songs)} test songs, {len(classes)} classes, "
           f"{sum(len(songs[w]['labels']) for w in test_songs)} test frames", flush=True)
@@ -158,10 +158,5 @@ if __name__ == "__main__":
     else:
         sizes = [int(s) for s in sys.argv[1].split(",")] if len(sys.argv) > 1 else SIZES
         nb_seeds = int(sys.argv[2]) if len(sys.argv) > 2 else 10
-        max_songs = int(sys.argv[3]) if len(sys.argv) > 3 else None
-        results = run(all_conditions(sizes), nb_seeds, max_songs)
-        if max_songs is None:
-            save(results)
-        else:
-            print(compare(results, metric="frame_accuracy").round(4).to_string(index=False))
+        save(run(all_conditions(sizes), nb_seeds))
 

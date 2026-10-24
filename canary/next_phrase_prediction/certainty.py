@@ -10,7 +10,7 @@ studies, e.g. HAG_CANARY_LEAK=1, HAG_CANARY_RESET=1, HAG_CANARY_CALLS=1), ridge 
 Results: outputs/canary/<prefix of the studies>certainty_<size>.csv, ..._phrases.csv and .png (e.g.
 next_phrase_leak_certainty_1000.csv).
 
-Usage: python -m canary.next_phrase_prediction.certainty [size] [conditions] [nb_seeds] [max_songs]
+Usage: python -m canary.next_phrase_prediction.certainty [size] [conditions] [nb_seeds]
   (default 1000, mean_hag,var_hag,random_ee,random_ei, 3 seeds)
 """
 import sys
@@ -70,11 +70,10 @@ if __name__ == "__main__":
     size = int(sys.argv[1]) if len(sys.argv) > 1 else 1000
     wanted = sys.argv[2].split(",") if len(sys.argv) > 2 else ["mean_hag", "var_hag", "random_ee", "random_ei"]
     nb_seeds = int(sys.argv[3]) if len(sys.argv) > 3 else 3
-    max_songs = int(sys.argv[4]) if len(sys.argv) > 4 else None
 
-    songs, train_songs, test_songs, frame = load_dataset(max_songs)
+    songs, train_songs, test_songs, frame = load_dataset()
     classes = prepare(songs, train_songs, frame)
     bins, phrases = evaluate_conditions(conditions, size, wanted, nb_seeds, songs, train_songs, test_songs, frame, classes,
                                         choose_ridge, run)
-    save(bins, phrases, f"{STUDY_PREFIX}certainty", size, max_songs is not None,
-         "Certainty of the next phrase along the phrases", ("Output of the next-phrase unit", "Accuracy of the next phrase"))
+    save(bins, phrases, f"{STUDY_PREFIX}certainty", size, "Certainty of the next phrase along the phrases",
+         ("Output of the next-phrase unit", "Accuracy of the next phrase"))

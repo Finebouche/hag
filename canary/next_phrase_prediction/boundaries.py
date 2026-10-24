@@ -73,9 +73,9 @@ def scores(outputs, songs, waves, threshold, frame):
                 recall_no_silence=matched[~silence].mean() if (~silence).any() else np.nan)
 
 
-def load_dataset(max_songs=None):
+def load_dataset():
     """canary.common.load_dataset, and the boundary target of each song: songs[wave]["target"]."""
-    songs, train_songs, test_songs, frame = load_songs_dataset(max_songs)
+    songs, train_songs, test_songs, frame = load_songs_dataset()
     for song in songs.values():
         song["target"] = boundary_target(song, frame)
     return songs, train_songs, test_songs, frame

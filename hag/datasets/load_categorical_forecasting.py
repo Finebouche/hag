@@ -97,6 +97,17 @@ def build_phrase_sequences(annotations, ignored_labels=("SIL", "TRASH"), merge_r
     return pd.DataFrame(pairs, columns=["wave", "start", "end", "current", "next"])
 
 
+def split_canary_songs(waves, test_split=0.2, seed=CANARY_SPLIT_SEED):
+    """
+    Train/test split of the canary songs (GroupShuffleSplit by song: test_split of the songs in the test set).
+    waves: song of each instance (or the song names). Returns the sorted train and test songs.
+    """
+    waves = np.asarray(waves)
+    gss = GroupShuffleSplit(n_splits=1, test_size=test_split, random_state=seed)
+    train_idx, test_idx = next(gss.split(waves, groups=waves))
+    return sorted(set(waves[train_idx])), sorted(set(waves[test_idx]))
+
+
 def load_canary_dataset(test_split=0.2, seed=CANARY_SPLIT_SEED, target_sampling_rate=16000, ignored_labels=("SIL", "TRASH"),
                         merge_repeats=False, end_label=None):
     """
@@ -137,8 +148,8 @@ def load_canary_dataset(test_split=0.2, seed=CANARY_SPLIT_SEED, target_sampling_
     ohe = OneHotEncoder(sparse_output=False)
     Y_one_hot = ohe.fit_transform(Y_encoded.reshape(-1, 1))
 
-    gss = GroupShuffleSplit(n_splits=1, test_size=test_split, random_state=seed)
-    train_idx, test_idx = next(gss.split(X, Y_one_hot, groups))
+    train_songs, test_songs = split_canary_songs(groups, test_split, seed)
+    train_idx, test_idx = np.flatnonzero(np.isin(groups, train_songs)), np.flatnonzero(np.isin(groups, test_songs))
 
     print("Number of songs =", len(np.unique(groups)))
     print("Number of instances (train / test) =", len(train_idx), "/", len(test_idx))

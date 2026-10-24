@@ -41,15 +41,11 @@ def split(directory):
 def _split_only():
     """Train and test songs of canary.common.load_songs without loading the audio."""
     import pandas as pd
-    from sklearn.model_selection import GroupShuffleSplit
-    from hag.datasets.load_categorical_forecasting import (CANARY_SPLIT_SEED, build_phrase_sequences,
-                                                           download_canary_if_needed)
+    from hag.datasets.load_categorical_forecasting import (build_phrase_sequences, download_canary_if_needed,
+                                                           split_canary_songs)
     annotations_dir, _ = download_canary_if_needed()
     annotations = pd.concat([pd.read_csv(f, index_col=0) for f in sorted(annotations_dir.rglob("*.csv"))])
-    pairs = build_phrase_sequences(annotations)
-    train_idx, test_idx = next(GroupShuffleSplit(n_splits=1, test_size=0.2, random_state=CANARY_SPLIT_SEED)
-                               .split(pairs, groups=pairs["wave"]))
-    return None, sorted(set(pairs["wave"].iloc[train_idx])), sorted(set(pairs["wave"].iloc[test_idx]))
+    return None, *split_canary_songs(build_phrase_sequences(annotations)["wave"])
 
 
 def run(directory, seeds):

@@ -7,10 +7,11 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 import soundfile as sf
-from sklearn.model_selection import GroupShuffleSplit
+from sklearn.preprocessing import MinMaxScaler
 
-from hag.datasets.load_categorical_forecasting import (CANARY_SPLIT_SEED, build_phrase_sequences, canary_mfcc_config,
-                                                       download_canary_if_needed)
+from hag.datasets.load_categorical_forecasting import (build_phrase_sequences, canary_mfcc_config,
+                                                       download_canary_if_needed, split_canary_songs)
+from hag.datasets.preprocessing import scale_data
 from hag.datasets.spectral_decomposition import generate_multivariate_dataset
 
 # native sampling rate of the recordings, as Trouvain & Hinaut (ICANN 2021): MFCC up to 8 kHz without resampling
@@ -41,7 +42,7 @@ def song_phrases(annotations, wave, ignored_labels=IGNORED_LABELS):
     return phrases
 
 
-def load_songs(max_songs=None):
+def load_songs():
     """
     Songs of the next-phrase dataset with its train/test split by song (same songs as load_canary_dataset).
     Returns (songs, train_songs, test_songs): songs[wave] = dict(audio, phrases=[(start, end, label)],
@@ -49,12 +50,7 @@ def load_songs(max_songs=None):
     """
     _, audio_dir = download_canary_if_needed()
     annotations = annotations_of_songs()
-    pairs = build_phrase_sequences(annotations)
-    gss = GroupShuffleSplit(n_splits=1, test_size=0.2, random_state=CANARY_SPLIT_SEED)
-    train_idx, test_idx = next(gss.split(pairs, groups=pairs["wave"]))
-    train_songs, test_songs = sorted(set(pairs["wave"].iloc[train_idx])), sorted(set(pairs["wave"].iloc[test_idx]))
-    if max_songs is not None:
-        train_songs, test_songs = train_songs[:max_songs], test_songs[:max(1, max_songs // 4)]
+    train_songs, test_songs = split_canary_songs(build_phrase_sequences(annotations)["wave"])
 
     wav_paths = {path.name: path for path in audio_dir.rglob("*.wav")}
     import librosa
@@ -83,11 +79,12 @@ def compute_features(songs):
 
 
 def scale(songs, train_songs):
-    """MinMax scaling (0, 1) of the MFCC, fitted on the train songs."""
-    train = np.concatenate([songs[w]["mfcc"] for w in train_songs])
-    low, high = train.min(axis=0), train.max(axis=0)
-    for song in songs.values():
-        song["mfcc"] = (song["mfcc"] - low) / np.where(high > low, high - low, 1)
+    """MinMax scaling (0, 1) of the MFCC, fitted on the train songs (hag.datasets.preprocessing.scale_data)."""
+    other_songs = [w for w in songs if w not in set(train_songs)]
+    train, _, other = scale_data([songs[w]["mfcc"] for w in train_songs], None,
+                                 [songs[w]["mfcc"] for w in other_songs], MinMaxScaler(feature_range=(0, 1)), True)
+    for wave, mfcc in zip(train_songs + other_songs, train + other):
+        songs[wave]["mfcc"] = mfcc
 
 
 def pretrain_phrases(songs, train_songs, frame):
@@ -99,7 +96,7 @@ def pretrain_phrases(songs, train_songs, frame):
     return np.array(phrases, dtype=object)[indices]
 
 
-def load_dataset(max_songs=None):
+def load_dataset():
     """
     Songs of the tasks: songs[wave] = dict(mfcc (scaled on the train songs), phrases, boundaries), train and test
     songs, frame duration. The MFCC of all the songs are cached in FEATURES_CACHE (no audio kept).
@@ -115,8 +112,5 @@ def load_dataset(max_songs=None):
             del song["audio"]
         with open(FEATURES_CACHE, "wb") as f:
             pickle.dump((songs, train_songs, test_songs, frame), f)
-    if max_songs is not None:
-        train_songs, test_songs = train_songs[:max_songs], test_songs[:max(1, max_songs // 4)]
-        songs = {w: songs[w] for w in train_songs + test_songs}
     scale(songs, train_songs)
     return songs, train_songs, test_songs, frame

@@ -10,7 +10,7 @@ of the studies, e.g. HAG_CANARY_INPUT_GAINS=1, HAG_CANARY_LEAK=1), ridge of the 
 cross-validation of canary.syllables_classification.classification). Results: outputs/canary/certainty_<size>.csv (bins),
 certainty_<size>_phrases.csv (first / last third per condition and seed) and certainty_<size>.png.
 
-Usage: python -m canary.syllables_classification.certainty [size] [conditions] [nb_seeds] [max_songs]
+Usage: python -m canary.syllables_classification.certainty [size] [conditions] [nb_seeds]
   (default 1000, mean_hag,var_hag,random_ee,random_ee_dense, 3 seeds)
 """
 import sys
@@ -51,11 +51,10 @@ if __name__ == "__main__":
     size = int(sys.argv[1]) if len(sys.argv) > 1 else 1000
     wanted = sys.argv[2].split(",") if len(sys.argv) > 2 else ["mean_hag", "var_hag", "random_ee", "random_ee_dense"]
     nb_seeds = int(sys.argv[3]) if len(sys.argv) > 3 else 3
-    max_songs = int(sys.argv[4]) if len(sys.argv) > 4 else None
 
-    songs, train_songs, test_songs, frame = load_dataset(max_songs)
+    songs, train_songs, test_songs, frame = load_dataset()
     classes = add_frame_labels(songs, frame)
     bins, phrases = evaluate_conditions(conditions, size, wanted, nb_seeds, songs, train_songs, test_songs, frame, classes,
                                         choose_ridge, run)
-    save(bins, phrases, "certainty", size, max_songs is not None, "Certainty along the phrases",
+    save(bins, phrases, "certainty", size, "Certainty along the phrases",
          ("Output of the true-class unit", "Frame accuracy"))

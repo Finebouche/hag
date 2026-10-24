@@ -126,12 +126,12 @@ def plot(bins, size, path, title, labels):
     plt.close(fig)
 
 
-def save(bins, phrases, name, size, check, title, labels):
-    """outputs/canary/<name>_<size>[_check].csv, ..._phrases.csv and .png (nothing if no condition was evaluated)."""
+def save(bins, phrases, name, size, title, labels):
+    """outputs/canary/<name>_<size>.csv, ..._phrases.csv and .png (nothing if no condition was evaluated)."""
     if not phrases:
         sys.exit("No condition evaluated: nothing saved")
     bins, phrases = pd.DataFrame(bins), pd.DataFrame(phrases)
-    stem = f"{name}_{size}" + "_check" * check
+    stem = f"{name}_{size}"
     OUTPUTS.mkdir(parents=True, exist_ok=True)
     bins.to_csv(OUTPUTS / f"{stem}.csv", index=False)
     phrases.to_csv(OUTPUTS / f"{stem}_phrases.csv", index=False)

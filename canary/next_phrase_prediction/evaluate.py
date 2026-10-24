@@ -17,7 +17,7 @@ the test songs are scored. Then paired comparisons by seed: mean difference of F
 interval and the p-value of the Wilcoxon signed-rank test.
 
 Results: outputs/canary/evaluation.csv (one row per condition, size and seed) and comparisons.csv.
-Usage: python -m canary.next_phrase_prediction.evaluate [sizes] [nb_seeds] [max_songs]   (default 250,500,1000 and 10 seeds)
+Usage: python -m canary.next_phrase_prediction.evaluate [sizes] [nb_seeds]   (default 250,500,1000 and 10 seeds)
 """
 import sys
 
@@ -50,9 +50,8 @@ def evaluate(model, params, size, ridge, threshold, songs, train_songs, test_son
 if __name__ == "__main__":
     sizes = [int(s) for s in sys.argv[1].split(",")] if len(sys.argv) > 1 else SIZES
     nb_seeds = int(sys.argv[2]) if len(sys.argv) > 2 else 10
-    max_songs = int(sys.argv[3]) if len(sys.argv) > 3 else None
 
-    songs, train_songs, test_songs, frame = load_dataset(max_songs)
+    songs, train_songs, test_songs, frame = load_dataset()
     print(f"{len(train_songs)} train / {len(test_songs)} test songs, "
           f"{sum(len(songs[w]['boundaries']) for w in test_songs)} test boundaries", flush=True)
 
@@ -76,9 +75,8 @@ if __name__ == "__main__":
     comparisons = compare(results, metric="f1")
     pd.set_option("display.width", 200)
     print(comparisons.round(4).to_string(index=False))
-    if max_songs is None:
-        OUTPUTS.mkdir(parents=True, exist_ok=True)
-        results.to_csv(OUTPUTS / "evaluation.csv", index=False)
-        comparisons.to_csv(OUTPUTS / "comparisons.csv", index=False)
-        print("Saved to", OUTPUTS / "evaluation.csv", "and", OUTPUTS / "comparisons.csv")
+    OUTPUTS.mkdir(parents=True, exist_ok=True)
+    results.to_csv(OUTPUTS / "evaluation.csv", index=False)
+    comparisons.to_csv(OUTPUTS / "comparisons.csv", index=False)
+    print("Saved to", OUTPUTS / "evaluation.csv", "and", OUTPUTS / "comparisons.csv")
 

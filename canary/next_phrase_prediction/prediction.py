@@ -26,7 +26,7 @@ longest context seen in the train songs, up to MAX_ORDER).
 Results: outputs/canary/<HAG_CANARY_TASK=next_phrase prefix>hpo.csv (e.g. next_phrase_leak_hpo.csv) and
 <...>_comparisons.csv, references in next_phrase_ngrams.csv (next_phrase_calls_ngrams.csv with the calls).
 Usage (HAG_CANARY_TASK=next_phrase, with the variables of the studies, e.g. HAG_CANARY_LEAK=1):
-  python -m canary.next_phrase_prediction.prediction [sizes] [nb_seeds] [max_songs]   all the conditions (default 500,1000, 10 seeds)
+  python -m canary.next_phrase_prediction.prediction [sizes] [nb_seeds]   all the conditions (default 500,1000, 10 seeds)
   python -m canary.next_phrase_prediction.prediction run <condition> <size> [nb_seeds]   one condition (slurm/submit_next_phrase.sh),
                                                                           results in outputs/canary/<name>_parts
   python -m canary.next_phrase_prediction.prediction merge                               results of the parts and the comparisons
@@ -207,8 +207,8 @@ def ngram_scores(songs, train_songs, test_songs, classes, order):
     return np.array(rows), unseen / len(rows)
 
 
-def baselines(max_songs=None):
-    songs, train_songs, test_songs, frame = load_dataset(max_songs)
+def baselines():
+    songs, train_songs, test_songs, frame = load_dataset()
     classes = prepare(songs, train_songs, frame)
     true = np.concatenate([songs[w]["next"] for w in test_songs])
     rows = []
@@ -219,10 +219,9 @@ def baselines(max_songs=None):
     results = pd.DataFrame(rows)
     pd.set_option("display.width", 200)
     print(results.round(4).to_string(index=False))
-    if max_songs is None:
-        file_name = OUTPUTS / f"next_phrase_{'calls_' * CALLS}ngrams.csv"
-        results.to_csv(file_name, index=False)
-        print("Saved to", file_name)
+    file_name = OUTPUTS / f"next_phrase_{'calls_' * CALLS}ngrams.csv"
+    results.to_csv(file_name, index=False)
+    print("Saved to", file_name)
 
 
 # ------------------------------------------------ reservoirs ------------------------------------------------------
@@ -238,8 +237,8 @@ def all_conditions(sizes):
     return todo
 
 
-def run(todo, nb_seeds, max_songs=None):
-    songs, train_songs, test_songs, frame = load_dataset(max_songs)
+def run(todo, nb_seeds):
+    songs, train_songs, test_songs, frame = load_dataset()
     classes = prepare(songs, train_songs, frame)
     print(f"{len(train_songs)} train / {len(test_songs)} test songs, {len(classes)} classes, "
           f"{sum(len(songs[w]['next']) for w in test_songs)} test points", flush=True)
@@ -271,7 +270,7 @@ def save(results):
 if __name__ == "__main__":
     command = sys.argv[1] if len(sys.argv) > 1 else ""
     if command == "baselines":
-        baselines(int(sys.argv[2]) if len(sys.argv) > 2 else None)
+        baselines()
     elif TASK != "next_phrase":
         raise RuntimeError("HAG_CANARY_TASK=next_phrase is needed (names of the studies)")
     elif command == "list":
@@ -292,10 +291,5 @@ if __name__ == "__main__":
     else:
         sizes = [int(s) for s in sys.argv[1].split(",")] if len(sys.argv) > 1 else SIZES
         nb_seeds = int(sys.argv[2]) if len(sys.argv) > 2 else 10
-        max_songs = int(sys.argv[3]) if len(sys.argv) > 3 else None
-        results = run(all_conditions(sizes), nb_seeds, max_songs)
-        if max_songs is None:
-            save(results)
-        else:
-            print(compare(results, metric="accuracy").round(4).to_string(index=False))
+        save(run(all_conditions(sizes), nb_seeds))
 
