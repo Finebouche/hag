@@ -24,6 +24,12 @@ ANNOTATIONS_ZIP = "M1-2016-spring_csv_annotations.zip"
 AUDIO_ZIP = "M1-2016-sping_audio.zip"  # sic, typo in the Zenodo record
 # Fixed so that the HPO (train split) and the final evaluation (test split) always see the same songs
 CANARY_SPLIT_SEED = 0
+# labels removed from the phrases of the songs by default (song_phrases): silences, noises, calls
+IGNORED_LABELS = ("SIL", "TRASH", "call")
+SILENCE_GAP = 0.005  # s, phrases further apart than this are separated by a silence (load_songs)
+# sampling rate of the whole songs of load_songs: the native one of all the recordings (not resampled), as Trouvain &
+# Hinaut (ICANN 2021), MFCC up to 8 kHz
+SONGS_SAMPLING_RATE = 44100
 
 
 def canary_mfcc_config(sampling_rate):
@@ -97,6 +103,36 @@ def build_phrase_sequences(annotations, ignored_labels=("SIL", "TRASH"), merge_r
     return pd.DataFrame(pairs, columns=["wave", "start", "end", "current", "next"])
 
 
+def annotations_of_songs():
+    """Annotations of all the songs: one row per annotated segment, columns "wave", "start", "end", "syll"."""
+    annotations_dir, _ = download_canary_if_needed()
+    return pd.concat([pd.read_csv(f, index_col=0) for f in sorted(annotations_dir.rglob("*.csv"))])
+
+
+def song_phrases(annotations, wave, ignored_labels=IGNORED_LABELS):
+    """[(start, end, label)] of the phrases of a song: segments of ignored_labels removed, repeated labels merged."""
+    song = annotations[annotations["wave"] == wave].sort_values("start")
+    song = song[~song["syll"].isin(ignored_labels)]
+    phrases = []
+    for start, end, label in song[["start", "end", "syll"]].itertuples(index=False, name=None):
+        if phrases and phrases[-1][2] == label:
+            phrases[-1] = (phrases[-1][0], end, label)
+        else:
+            phrases.append((start, end, label))
+    return phrases
+
+
+def split_canary_songs(waves, test_split=0.2, seed=CANARY_SPLIT_SEED):
+    """
+    Train/test split of the canary songs (GroupShuffleSplit by song: test_split of the songs in the test set).
+    waves: song of each instance (or the song names). Returns the sorted train and test songs.
+    """
+    waves = np.asarray(waves)
+    gss = GroupShuffleSplit(n_splits=1, test_size=test_split, random_state=seed)
+    train_idx, test_idx = next(gss.split(waves, groups=waves))
+    return sorted(set(waves[train_idx])), sorted(set(waves[test_idx]))
+
+
 def load_canary_dataset(test_split=0.2, seed=CANARY_SPLIT_SEED, target_sampling_rate=16000, ignored_labels=("SIL", "TRASH"),
                         merge_repeats=False, end_label=None):
     """
@@ -111,9 +147,9 @@ def load_canary_dataset(test_split=0.2, seed=CANARY_SPLIT_SEED, target_sampling_
     - groups: song id of each training instance (for StratifiedGroupKFold).
     - classes: label names, in the order of the one-hot columns.
     """
-    annotations_dir, audio_dir = download_canary_if_needed()
+    _, audio_dir = download_canary_if_needed()
 
-    annotations = pd.concat([pd.read_csv(f, index_col=0) for f in sorted(annotations_dir.rglob("*.csv"))])
+    annotations = annotations_of_songs()
     pairs = build_phrase_sequences(annotations, ignored_labels, merge_repeats, end_label)
     wav_paths = {path.name: path for path in audio_dir.rglob("*.wav")}
 
@@ -137,8 +173,8 @@ def load_canary_dataset(test_split=0.2, seed=CANARY_SPLIT_SEED, target_sampling_
     ohe = OneHotEncoder(sparse_output=False)
     Y_one_hot = ohe.fit_transform(Y_encoded.reshape(-1, 1))
 
-    gss = GroupShuffleSplit(n_splits=1, test_size=test_split, random_state=seed)
-    train_idx, test_idx = next(gss.split(X, Y_one_hot, groups))
+    train_songs, test_songs = split_canary_songs(groups, test_split, seed)
+    train_idx, test_idx = np.flatnonzero(np.isin(groups, train_songs)), np.flatnonzero(np.isin(groups, test_songs))
 
     print("Number of songs =", len(np.unique(groups)))
     print("Number of instances (train / test) =", len(train_idx), "/", len(test_idx))
@@ -146,6 +182,31 @@ def load_canary_dataset(test_split=0.2, seed=CANARY_SPLIT_SEED, target_sampling_
 
     return (sampling_rate, list(X[train_idx]), list(X[test_idx]), Y_one_hot[train_idx], Y_one_hot[test_idx],
             groups[train_idx], le.classes_)
+
+
+def load_songs():
+    """
+    Whole songs with their train/test split by song (split_canary_songs, the same songs as load_canary_dataset), mono
+    audio at SONGS_SAMPLING_RATE. Returns (songs, train_songs, test_songs): songs[wave] = dict(audio,
+    phrases=[(start, end, label)] (song_phrases), boundaries=[(time, silence)]) (boundaries between the phrases, silent
+    or not).
+    """
+    _, audio_dir = download_canary_if_needed()
+    annotations = annotations_of_songs()
+    train_songs, test_songs = split_canary_songs(build_phrase_sequences(annotations)["wave"])
+
+    wav_paths = {path.name: path for path in audio_dir.rglob("*.wav")}
+    songs = {}
+    for wave in train_songs + test_songs:
+        phrases = song_phrases(annotations, wave)
+        boundaries = [(prev[1], nxt[0] - prev[1] > SILENCE_GAP) for prev, nxt in zip(phrases[:-1], phrases[1:])]
+
+        audio, native_rate = sf.read(wav_paths[wave], dtype="float32", always_2d=True)
+        audio = audio.mean(axis=1)
+        if native_rate != SONGS_SAMPLING_RATE:
+            raise ValueError(f"{wave}: recorded at {native_rate} Hz, the songs are at {SONGS_SAMPLING_RATE} Hz")
+        songs[wave] = dict(audio=audio, phrases=phrases, boundaries=boundaries)
+    return songs, train_songs, test_songs
 
 
 def load_dataset_categorical_forecasting(name, visualize=True, seed=CANARY_SPLIT_SEED):
