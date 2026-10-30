@@ -1,6 +1,6 @@
 #!/bin/bash
 # Reinforcement learning experiments of hag (hag/rl) on PlaFRIM, for one benchmark (environment variable HAG_RL_ENV,
-# see hag.rl.envs.BENCHMARKS) and one method (environment variable HAG_RL_METHOD: "ppo", default, "lspi", "fqi",
+# see hag.rl.envs.BENCHMARKS) and one method (environment variable HAG_RL_METHOD: "ppo", default, "sac", "lspi", "fqi",
 # "openai_es", "nac" or "bc", the latter without hyperparameter optimization), on one node: hyperparameter
 # optimization (hag.rl.<method>.hpo, all the studies or the ones given as arguments) then final training
 # (hag.rl.<method>.train, skipped with HAG_RL_TRAIN=0); or, with HAG_RL_METHOD=sweep, the sweep of the readout and of

@@ -1,11 +1,13 @@
 """
 Sweep of the readout and of the reservoir size on the benchmark of hag.rl.experiment (HAG_RL_ENV): are the reservoirs
-(and HAG) limited by the linear readout of PPO, by the 100 units, or by PPO itself (vs LSPI, fitted Q-iteration, an
-evolution strategy, a natural actor-critic, and behavioral cloning, which needs no RL)?
+(and HAG) limited by the linear readout of PPO, by the 100 units, or by PPO itself (vs SAC, LSPI, fitted Q-iteration,
+an evolution strategy, a natural actor-critic, and behavioral cloning, which needs no RL)?
 Grid (one run per cell and seed of SEEDS):
   - PPO (hag.rl.ppo.train): networks of the policy and of the value function PPO_ARCHS (linear readouts as in
     hag.rl.ppo.train, or MLPs), learning rates LEARNING_RATES (the one of the hyperparameter optimization was searched
     for linear readouts only: the best learning rate of each cell is selected afterwards, see summary),
+  - SAC (hag.rl.sac.train: stable-baselines3's for continuous actions, discrete SAC otherwise): actor and critics
+    SAC_ARCHS (linear readouts or MLPs), learning rates SAC_LEARNING_RATES (best one per cell selected afterwards),
   - LSPI (hag.rl.lspi.train, benchmarks with discrete actions): linear readout, "ridge" and "gamma" of its
     hyperparameter optimization,
   - FQI (hag.rl.fqi.train, benchmarks with discrete actions): fitted Q-iteration with extra-trees (nonlinear Q, column
@@ -53,8 +55,8 @@ from hag.rl.pretrain import HYBRIDS
 from hag.rl.utils import N_WORKERS, RL_RESULTS, RL_RESULTS_ROOT
 
 # =============================== PARAMETERS ===============================
-METHODS = ("ppo", "lspi", "fqi", "bc", "openai_es", "nac")
-CONTINUOUS_METHODS = ("ppo", "openai_es")  # methods of the benchmarks with continuous actions
+METHODS = ("ppo", "sac", "lspi", "fqi", "bc", "openai_es", "nac")
+CONTINUOUS_METHODS = ("ppo", "sac", "openai_es")  # methods of the benchmarks with continuous actions
 # benchmarks with discrete actions (all the methods), where the conditions differ or memory matters
 # (without PositionOnlyCartPole and RepeatPrevious, saturated: every model reaches the maximum)
 SWEEP_BENCHMARKS = ("LunarLander-v3", "RepeatPreviousMedium", "RepeatPreviousHard", "CountRecall", "CountRecallMedium",
@@ -65,10 +67,12 @@ HYBRID_CONDITIONS = tuple(f"filterbank+{hybrid}" for hybrid in HYBRIDS + ("esn_p
 NET_ARCHS = {"linear": [], "64": [64], "trees": []}         # hidden layers of the networks ("trees": FQI)
 PPO_ARCHS = ("linear", "64")                               # networks of the policy and of the value function of PPO
 LEARNING_RATES = (3e-4, 1e-3, 3e-3, 1e-2)                  # 3e-4: stable-baselines3's default (for its 64x64 MLP)
+SAC_ARCHS = ("linear", "64")                               # networks of the actor and of the critics of SAC
+SAC_LEARNING_RATES = (3e-4, 1e-3, 3e-3)                    # 3e-4: stable-baselines3's default
 OPENAI_ES_LEARNING_RATES = (0.003, 0.01, 0.03)
 NAC_STEP_SIZES = (0.03, 0.1, 0.3)
 # parameter of each method stored in the column "learning_rate" (its swept step size)
-STEP_PARAMS = {"ppo": "learning_rate", "openai_es": "learning_rate", "nac": "step_size"}
+STEP_PARAMS = {"ppo": "learning_rate", "sac": "learning_rate", "openai_es": "learning_rate", "nac": "step_size"}
 LSPI_MAX_SIZE = 10_000
 PARAMS_FROM = {}  # benchmarks taking the hyperparameter optimizations of another one (none: each has its own)
 PARAMS_ROOT = RL_RESULTS_ROOT                            # results of the benchmarks, <benchmark>/<database>.sqlite3
@@ -91,8 +95,9 @@ def method_params(method: str) -> dict:
     from hag.rl.nac import hpo as nac_hpo
     from hag.rl.openai_es import hpo as openai_es_hpo
     from hag.rl.ppo import hpo as ppo_hpo
+    from hag.rl.sac import hpo as sac_hpo
 
-    own = {"lspi": lspi_hpo, "fqi": fqi_hpo, "openai_es": openai_es_hpo, "nac": nac_hpo}
+    own = {"sac": sac_hpo, "lspi": lspi_hpo, "fqi": fqi_hpo, "openai_es": openai_es_hpo, "nac": nac_hpo}
     searches = [own[method], ppo_hpo] if method in own else [ppo_hpo]
     source = PARAMS_FROM.get(ENV_ID, ENV_ID)
     params = {}
@@ -111,8 +116,11 @@ def method_params(method: str) -> dict:
                 raise FileNotFoundError(f"No hyperparameter optimization of {method} or PPO for {kind} in "
                                         f"{PARAMS_ROOT / source}")
             # (features of PPO for LSPI: hag.rl.lspi.train.run uses its default ridge and gamma)
+            # (features, and the parameters of the method other than its step size, e.g. the target entropy of SAC;
+            # those of PPO are removed for the other methods)
             params[kind] = {key: value for key, value in best.items()
-                            if key not in ("learning_rate", STEP_PARAMS.get(method))}
+                            if key not in ("learning_rate", STEP_PARAMS.get(method))
+                            and (hpo is own.get(method) or key != "target_entropy_ratio")}
     return params
 
 
@@ -124,6 +132,7 @@ def grid(methods) -> list:
             reservoir = condition_kind(condition) in ("esn", "hag") + HYBRIDS
             for units in (UNITS_GRID if reservoir else (0,)):  # 0: no reservoir
                 cells = {"ppo": [(arch, lr) for arch in PPO_ARCHS for lr in LEARNING_RATES],
+                         "sac": [(arch, lr) for arch in SAC_ARCHS for lr in SAC_LEARNING_RATES],
                          "fqi": [("trees", np.nan)],
                          "openai_es": [("linear", lr) for lr in OPENAI_ES_LEARNING_RATES],
                          "nac": [("linear", step_size) for step_size in NAC_STEP_SIZES]}.get(
@@ -150,6 +159,10 @@ def run(spec: dict, episodes: list, params: dict, expert_info: dict = None) -> d
     if spec["method"] == "ppo":
         row = ppo_train.run(condition, seed, episodes, params=dict(params, learning_rate=spec["learning_rate"]),
                             save_curves=False, units=units, net_arch=dict(pi=list(arch), vf=list(arch)))
+    elif spec["method"] == "sac":
+        from hag.rl.sac import train as sac_train
+        row = sac_train.run(condition, seed, episodes, params=dict(params, learning_rate=spec["learning_rate"]),
+                            save_curves=False, units=units, net_arch=list(arch))
     elif spec["method"] == "fqi":
         row = fqi_train.run(condition, seed, episodes, params=params, save_curves=False, units=units)
     elif spec["method"] == "bc":
